@@ -47,10 +47,6 @@ button:hover {
     text-align: center;
     margin-bottom: 30px;
 }
-.header-logo {
-    width: 70px;
-    margin-bottom: 10px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -112,12 +108,12 @@ def verify_student(username, password, df_students):
     return True, student.iloc[0]
 
 # التحقق من المذكرة
-def verify_memo(note_number, memo_password, df_memos):
+def verify_memo(note_number, df_memos):
     memo = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]
     if memo.empty:
         return False, None, "رقم المذكرة غير موجود."
-    if memo.iloc[0]["كلمة سر التسجيل"].strip() != memo_password.strip():
-        return False, None, "كلمة سر المذكرة غير صحيحة."
+    if memo.iloc[0]["تم التسجيل"].strip() == "نعم":
+        return False, None, "⚠️ هذه المذكرة تم تسجيلها مسبقًا."
     return True, memo.iloc[0], None
 
 # تحديث حالة التسجيل
@@ -159,13 +155,19 @@ df_memos = load_memos()
 
 # صندوق التسجيل
 st.markdown('<div class="block-container">', unsafe_allow_html=True)
+
+# عنوان الجامعة والكلية
+st.markdown("<h4 style='text-align:center;color:white;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align:center;color:white;'>كلية الحقوق والعلوم السياسية</h4>", unsafe_allow_html=True)
+
+# عنوان المنصة
 st.markdown("<h2 style='text-align:center;color:white;'>🎓 منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
 
 # اختيار نوع المذكرة
 memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
 
 # حقول الطلاب
-username1 = st.text_input(" اسم المستخدم للطالب 1 (استعمل معلومات موودل)")
+username1 = st.text_input("اسم المستخدم للطالب 1 (استعمل معلومات موودل)")
 password1 = st.text_input("كلمة السر للطالب 1 (استعمل معلومات موودل)", type="password")
 
 if memo_type == "ثنائية":
@@ -173,10 +175,12 @@ if memo_type == "ثنائية":
     password2 = st.text_input("كلمة السر للطالب 2 (استعمل معلومات موودل)", type="password")
 
 if st.button("تسجيل الدخول"):
+    # التحقق من الطالب 1
     valid1, student1 = verify_student(username1, password1, df_students)
     if not valid1:
         st.error(f"الطالب 1: {student1}")
     else:
+        # التحقق من الطالب 2 إذا ثنائية
         if memo_type == "ثنائية":
             valid2, student2 = verify_student(username2, password2, df_students)
             if not valid2:
@@ -188,10 +192,9 @@ if st.button("تسجيل الدخول"):
 
         # إدخال بيانات المذكرة
         note_number = st.text_input("رقم المذكرة")
-        memo_password = st.text_input("كلمة سر المذكرة", type="password")
 
         if st.button("موافق على التسجيل"):
-            valid_memo, memo_info, error_msg = verify_memo(note_number, memo_password, df_memos)
+            valid_memo, memo_info, error_msg = verify_memo(note_number, df_memos)
             if not valid_memo:
                 st.error(error_msg)
             else:
