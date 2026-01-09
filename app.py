@@ -28,7 +28,7 @@ def load_students():
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=STUDENTS_SPREADSHEET_ID,
-            range="Sheet1!A1:Z1000"
+            range="'Feuille 1'!A1:Z1000"
         ).execute()
         values = result.get('values', [])
         if not values:
@@ -46,7 +46,7 @@ def load_memos():
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMO_SPREADSHEET_ID,
-            range="Feuille 1!A1:Z1000"
+            range="'Feuille 1'!A1:Z1000"
         ).execute()
         values = result.get('values', [])
         if not values:
@@ -92,7 +92,7 @@ def update_submission_status(memo_number):
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMO_SPREADSHEET_ID,
-            range="Feuille 1!A1:Z1000"
+            range="'Feuille 1'!A1:Z1000"
         ).execute()
         values = result.get('values', [])
         df = pd.DataFrame(values[1:], columns=values[0])
@@ -110,8 +110,8 @@ def update_submission_status(memo_number):
         updates = {
             "valueInputOption": "USER_ENTERED",
             "data": [
-                {"range": f"Feuille 1!{chr(64+deposit_col)}{idx}", "values": [["نعم"]]},
-                {"range": f"Feuille 1!{chr(64+date_col)}{idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},
+                {"range": f"'Feuille 1'!{chr(64+deposit_col)}{idx}", "values": [["نعم"]]},
+                {"range": f"'Feuille 1'!{chr(64+date_col)}{idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},
             ]
         }
         sheets_service.spreadsheets().values().batchUpdate(
