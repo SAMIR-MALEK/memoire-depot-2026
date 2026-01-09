@@ -5,7 +5,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 # إعداد الصفحة
-st.set_page_config(page_title="تسجيل الطلاب", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="تسجيل مذكرة الماستر", page_icon="🎓", layout="centered")
 
 # CSS للواجهة الزرقاء الليلية
 st.markdown("""
@@ -165,12 +165,12 @@ st.markdown("<h2 style='text-align:center;color:white;'>🎓 تسجيل الطل
 memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
 
 # حقول الطلاب
-username1 = st.text_input("اسم المستخدم للطالب 1")
-password1 = st.text_input("كلمة السر للطالب 1", type="password")
+username1 = st.text_input(" اسم المستخدم للطالب 1 (استعمل معلومات موودل)")
+password1 = st.text_input("كلمة السر للطالب 1 (استعمل معلومات موودل)", type="password")
 
 if memo_type == "ثنائية":
-    username2 = st.text_input("اسم المستخدم للطالب 2")
-    password2 = st.text_input("كلمة السر للطالب 2", type="password")
+    username2 = st.text_input("اسم المستخدم للطالب 2 (استعمل معلومات موودل)")
+    password2 = st.text_input("كلمة السر للطالب 2 (استعمل معلومات موودل)", type="password")
 
 if st.button("تسجيل الدخول"):
     valid1, student1 = verify_student(username1, password1, df_students)
