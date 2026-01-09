@@ -7,6 +7,53 @@ from googleapiclient.discovery import build
 # إعداد الصفحة
 st.set_page_config(page_title="تسجيل الطلاب", page_icon="🎓", layout="centered")
 
+# CSS للواجهة الزرقاء الليلية
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+html, body, [class*="css"]  {
+    font-family: 'Cairo', sans-serif !important;
+}
+.main {
+    background-color: #0A1B2C;
+    color: #ffffff;
+}
+.block-container {
+    padding: 2rem;
+    background-color: #1A2A3D;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    max-width: 700px;
+    margin: auto;
+}
+label, h1, h2, h3, h4, h5, h6, p, span, .stTextInput label {
+    color: #ffffff !important;
+}
+input, button, select {
+    font-size: 16px !important;
+}
+button {
+    background-color: #256D85 !important;
+    color: white !important;
+    border: none !important;
+    padding: 10px 20px !important;
+    border-radius: 6px !important;
+    transition: background-color 0.3s ease;
+}
+button:hover {
+    background-color: #2C89A0 !important;
+}
+.header-container {
+    text-align: center;
+    margin-bottom: 30px;
+}
+.header-logo {
+    width: 70px;
+    margin-bottom: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # إعداد الاتصال بـ Google Sheets
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 info = st.secrets["service_account"]
@@ -76,25 +123,20 @@ def verify_memo(note_number, memo_password, df_memos):
 # تحديث حالة التسجيل
 def update_memo_registration(note_number):
     try:
-        # أولاً نقرأ الشيت
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMOS_SHEET_ID,
             range=MEMOS_RANGE
         ).execute()
         values = result.get('values', [])
         df = pd.DataFrame(values[1:], columns=values[0])
-
-        # إيجاد الصف المناسب
         row_idx = df[df["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].index
         if row_idx.empty:
             st.error("❌ رقم المذكرة غير موجود أثناء التحديث.")
             return False
-        idx = row_idx[0] + 2  # +2 لأن الصفوف في Sheets تبدأ من 1 ولأننا استبعدنا الهيدر
-
+        idx = row_idx[0] + 2
         col_names = df.columns.tolist()
         registration_col = col_names.index("تم التسجيل") + 1
         date_col = col_names.index("تاريخ التسجيل") + 1
-
         updates = {
             "valueInputOption": "USER_ENTERED",
             "data": [
@@ -115,7 +157,9 @@ def update_memo_registration(note_number):
 df_students = load_students()
 df_memos = load_memos()
 
-st.title("🎓 تسجيل الطلاب")
+# صندوق التسجيل
+st.markdown('<div class="block-container">', unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;color:white;'>🎓 تسجيل الطلاب</h2>", unsafe_allow_html=True)
 
 # اختيار نوع المذكرة
 memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
@@ -130,7 +174,6 @@ if st.button("تسجيل الدخول"):
         st.error(student_or_msg)
     else:
         st.success(f"✅ تم تسجيل الدخول. مرحبًا {student_or_msg['الإسم']}")
-
         # إدخال معلومات المذكرة
         note_number = st.text_input("رقم المذكرة")
         memo_password = st.text_input("كلمة سر المذكرة", type="password")
@@ -140,11 +183,10 @@ if st.button("تسجيل الدخول"):
             if not valid_memo:
                 st.error(error_msg)
             else:
-                # عرض معلومات المذكرة
                 st.info(f"📄 عنوان المذكرة: {memo_info['عنوان المذكرة']}")
                 st.info(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}")
-
                 # تحديث الشيت
                 updated = update_memo_registration(note_number)
                 if updated:
                     st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث الشيت.")
+st.markdown('</div>', unsafe_allow_html=True)
