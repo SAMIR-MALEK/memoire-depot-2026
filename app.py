@@ -170,7 +170,7 @@ st.markdown("---")
 st.markdown("""
 <div style="text-align: center; font-weight: bold; font-size: 20px; font-weight: bold; color: white;">
     أدخل المعلومات<br>
-    كلية الحقوق والعلوم السياسية
+    الخاصة بالطالب
 </div>
 """, unsafe_allow_html=True)
 
