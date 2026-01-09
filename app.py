@@ -59,11 +59,22 @@ def verify_student(username, password, df_students):
 def check_student_already_registered(student):
     return str(student['رقم المذكرة']).strip() != ""
 
+# --- التحقق من المذكرة مع منع إعادة التسجيل ---
 def verify_memo(note_number, memo_password, df_memos):
     memo = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]
-    if memo.empty: return False, None, "رقم المذكرة غير موجود."
-    if memo.iloc[0]["كلمة سر التسجيل"].strip() != memo_password.strip(): return False, None, "كلمة سر المذكرة غير صحيحة."
-    return True, memo.iloc[0], None
+    if memo.empty:
+        return False, None, "رقم المذكرة غير موجود."
+    memo_row = memo.iloc[0]
+
+    # التحقق من كلمة السر
+    if memo_row["كلمة سر التسجيل"].strip() != memo_password.strip():
+        return False, None, "كلمة سر المذكرة غير صحيحة."
+    
+    # التحقق من حالة التسجيل
+    if str(memo_row.get("تم التسجيل", "")).strip() == "نعم":
+        return False, None, "❌ هذه المذكرة مسجلة بالفعل ولا يمكن تسجيلها مرة ثانية!"
+    
+    return True, memo_row, None
 
 # --- تحديث التسجيل ---
 def update_memo_registration(note_number, student1, student2=None):
@@ -83,7 +94,7 @@ def update_memo_registration(note_number, student1, student2=None):
 
     data = [
         {"range": f"Feuille 1!{chr(64+student1_col)}{idx}", "values": [[student1['اللقب'] + ' ' + student1['الإسم']]]},
-        {"range": f"Feuille 1!{chr(64+registered_col)}{idx}", "values": [["نعم"]]},
+        {"range": f"Feuille 1!{chr(64+registered_col)}{idx}", "values": [["نعم"]] },
         {"range": f"Feuille 1!{chr(64+date_col)}{idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]}
     ]
     if student2 is not None:
