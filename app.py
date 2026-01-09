@@ -162,11 +162,11 @@ if not st.session_state.logged_in:
     st.markdown("<h2 style='text-align:center;color:white; margin-top:10px;'>🎓 تسجيل المذكرات </h2>", unsafe_allow_html=True)
 
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
-    username1 = st.text_input("اسم المستخدم الطالب 1")
-    password1 = st.text_input("كلمة السر الطالب 1", type="password")
+    username1 = st.text_input("اسم المستخدم الطالب الأول (استخدم معلومات موودل)")
+    password1 = st.text_input("كلمة السر الطالب الأول (استخدم معلومات موودل)", type="password")
     if st.session_state.memo_type == "ثنائية":
-        username2 = st.text_input("اسم المستخدم الطالب 2")
-        password2 = st.text_input("كلمة السر الطالب 2", type="password")
+        username2 = st.text_input("اسم المستخدم الطالب الثاني  (استعمل معلومات موودل)")
+        password2 = st.text_input("كلمة السر الطالب الثاني  (استعمل معلومات موودل)", type="password")
 
     if st.button("تسجيل الدخول"):
         valid1, student1 = verify_student(username1, password1, df_students)
