@@ -152,7 +152,7 @@ if not st.session_state.logged_in:
     # اللوجو المصغر في منتصف الصفحة
     cols = st.columns([1, 2, 1])
     with cols[1]:
-        st.markdown('<div style="text-align:center;"><img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/logo2.png" width="60"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="text-align:center;"><img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/blob/main/LOGO2.png" width="60"></div>', unsafe_allow_html=True)
 
 
     st.markdown("<hr style='border:2px solid #00CED1; margin:10px 0;'>", unsafe_allow_html=True)
