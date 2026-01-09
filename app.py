@@ -188,6 +188,9 @@ else:
     if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
         st.markdown(f"<h3 style='color:#FFD700;'>👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}</h3>", unsafe_allow_html=True)
 
+    # رسالة الاتصال بالأستاذ المشرف
+    st.markdown("<p style='text-align:center; color:#FF6347; font-size:18px; font-weight:bold;'>⚠️ يجب الاتصال بالأستاذ المشرف للحصول على كلمة السر</p>", unsafe_allow_html=True)
+
     # إدخال رقم المذكرة وكلمة السر
     note_number = st.text_input("رقم المذكرة")
     memo_password = st.text_input("كلمة سر المذكرة", type="password")
