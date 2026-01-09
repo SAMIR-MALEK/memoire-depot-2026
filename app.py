@@ -146,7 +146,14 @@ if 'logged_in' not in st.session_state:
 # --- واجهة تسجيل الدخول ---
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align:center;color:white;'>🎓 تسجيل الدخول</h2>", unsafe_allow_html=True)
+
+    # عنوان الجامعة والكلية الرسمي فوق تسجيل الدخول
+    st.markdown("<h2 style='text-align:center; color:#00CED1; font-weight:bold; margin-bottom:0;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h2>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center; color:#00CED1; font-weight:bold; margin-top:0;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
+    st.markdown("<hr style='border:2px solid #00CED1; margin:10px 0;'>", unsafe_allow_html=True)
+
+    # عنوان تسجيل الدخول
+    st.markdown("<h2 style='text-align:center;color:white; margin-top:10px;'>🎓 تسجيل الدخول</h2>", unsafe_allow_html=True)
 
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
     username1 = st.text_input("اسم المستخدم الطالب 1")
@@ -160,7 +167,7 @@ if not st.session_state.logged_in:
         if not valid1:
             st.error(student1)
         elif check_student_already_registered(student1):
-            st.error("❌ الطالب 1 سجل مذكرة من قبل!")
+            st.error("❌ الطالب الأول سجل مذكرة من قبل!")
         else:
             student2 = None
             if st.session_state.memo_type == "ثنائية":
@@ -168,7 +175,7 @@ if not st.session_state.logged_in:
                 if not valid2:
                     st.error(student2)
                 elif check_student_already_registered(student2):
-                    st.error("❌ الطالب 2 سجل مذكرة من قبل!")
+                    st.error("❌ الطالب الثاني سجل مذكرة من قبل!")
                 else:
                     st.success(f"✅ تم تسجيل الدخول للطالبين: {student1['الإسم']} و {student2['الإسم']}")
             else:
@@ -206,6 +213,3 @@ else:
             if updated:
                 st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث الشيت.")
     st.markdown('</div>', unsafe_allow_html=True)
-
-
-
