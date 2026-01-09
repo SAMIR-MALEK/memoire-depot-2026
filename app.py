@@ -164,17 +164,29 @@ st.markdown("<h2 style='text-align:center;color:white;'>🎓 تسجيل الطل
 # اختيار نوع المذكرة
 memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
 
-# نموذج تسجيل الدخول
-username = st.text_input("اسم المستخدم")
-password = st.text_input("كلمة السر", type="password")
+# حقول الطلاب
+username1 = st.text_input("اسم المستخدم للطالب 1")
+password1 = st.text_input("كلمة السر للطالب 1", type="password")
+
+if memo_type == "ثنائية":
+    username2 = st.text_input("اسم المستخدم للطالب 2")
+    password2 = st.text_input("كلمة السر للطالب 2", type="password")
 
 if st.button("تسجيل الدخول"):
-    valid, student_or_msg = verify_student(username, password, df_students)
-    if not valid:
-        st.error(student_or_msg)
+    valid1, student1 = verify_student(username1, password1, df_students)
+    if not valid1:
+        st.error(f"الطالب 1: {student1}")
     else:
-        st.success(f"✅ تم تسجيل الدخول. مرحبًا {student_or_msg['الإسم']}")
-        # إدخال معلومات المذكرة
+        if memo_type == "ثنائية":
+            valid2, student2 = verify_student(username2, password2, df_students)
+            if not valid2:
+                st.error(f"الطالب 2: {student2}")
+            else:
+                st.success(f"✅ تم تسجيل الدخول للطالبين: {student1['الإسم']} و {student2['الإسم']}")
+        else:
+            st.success(f"✅ تم تسجيل الدخول للطالب: {student1['الإسم']}")
+
+        # إدخال بيانات المذكرة
         note_number = st.text_input("رقم المذكرة")
         memo_password = st.text_input("كلمة سر المذكرة", type="password")
 
@@ -185,8 +197,8 @@ if st.button("تسجيل الدخول"):
             else:
                 st.info(f"📄 عنوان المذكرة: {memo_info['عنوان المذكرة']}")
                 st.info(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}")
-                # تحديث الشيت
                 updated = update_memo_registration(note_number)
                 if updated:
                     st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث الشيت.")
+
 st.markdown('</div>', unsafe_allow_html=True)
