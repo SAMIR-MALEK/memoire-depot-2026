@@ -52,39 +52,7 @@ button:hover {
     margin-bottom: 10px;
 }
 </style>
-
-
-.header-logo {
-    width: 70px;
-    margin-bottom: 10px;
-}
-</style>
 """, unsafe_allow_html=True)
-
-logo = Image.open("logo.png")
-st.image(logo, width=70)
-
-st.markdown("<div style='text-align:center;'></div>", unsafe_allow_html=True)
-st.markdown("<h1 style='text-align: center;'>📥 منصة إيداع مذكرات التخرج</h1>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</div>", unsafe_allow_html=True)
-st.markdown("<div style='text-align: center;'>كلية الحقوق والعلوم السياسية</div>", unsafe_allow_html=True)
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; font-size: 20px; font-weight: bold; color: white;">
-    جامعة محمد البشير الإبراهيمي - برج بوعريريج<br>
-    كلية الحقوق والعلوم السياسية
-</div>
-
-
-
-""", unsafe_allow_html=True)
-
-
-
-
-
-
-
 
 # إعداد الاتصال بـ Google Sheets
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
