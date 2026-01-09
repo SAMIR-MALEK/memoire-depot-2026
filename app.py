@@ -167,7 +167,7 @@ st.markdown("<div style='text-align: center;color: white; font-weight: bold ; fo
 st.markdown("<div style='text-align: center;color: white;'>كلية الحقوق والعلوم السياسية</div>", unsafe_allow_html=True)
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; font-size: 20px; font-weight: bold; color: white;">
+<div style="text-align: center; font-weight: bold; font-size: 20px; font-weight: bold; color: white;">
     جامعة محمد البشير الإبراهيمي - برج بوعريريج<br>
     كلية الحقوق والعلوم السياسية
 </div>
