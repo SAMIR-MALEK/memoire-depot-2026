@@ -134,6 +134,59 @@ def upload_to_drive(filepath, memo_number):
         st.error(f"❌ خطأ في رفع الملف إلى Google Drive: {e}")
         return None
 
+# ------------------- تصميم الخلفية الزرقاء الليلية -------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+
+html, body, [class*="css"]  {
+    font-family: 'Cairo', sans-serif !important;
+    background: linear-gradient(to bottom, #0D1B2A, #1B263B, #415A77) !important; /* تدرج أزرق ليلي */
+    color: #ffffff;
+}
+
+.block-container {
+    padding: 2rem;
+    background-color: rgba(36, 52, 71, 0.85); /* صندوق نصف شفاف */
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    max-width: 700px;
+    margin: auto;
+}
+
+label, h1, h2, h3, h4, h5, h6, p, span, .stTextInput label {
+    color: #ffffff !important;
+}
+
+input, button {
+    font-size: 16px !important;
+}
+
+button {
+    background-color: #256D85 !important;
+    color: white !important;
+    border: none !important;
+    padding: 10px 20px !important;
+    border-radius: 6px !important;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #2C89A0 !important;
+}
+
+.header-container {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.header-logo {
+    width: 70px;
+    margin-bottom: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ------------------- واجهة المستخدم -------------------
 st.title("📥 منصة تسجيل وإيداع مذكرات التخرج")
 
