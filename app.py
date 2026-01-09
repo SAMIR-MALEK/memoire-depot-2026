@@ -47,10 +47,6 @@ button:hover {
     text-align: center;
     margin-bottom: 30px;
 }
-.header-logo {
-    width: 70px;
-    margin-bottom: 10px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -63,8 +59,8 @@ sheets_service = build('sheets', 'v4', credentials=credentials)
 # Google Sheets IDs
 STUDENTS_SHEET_ID = "1gvNkOVVKo6AO07dRKMnSQw6vZ3KdUnW7I4HBk61Sqns"  # شيت الطلاب
 MEMOS_SHEET_ID = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"   # شيت المذكرات الجديد
-MEMOS_RANGE = "Feuille 1!A1:Z1000"
-STUDENTS_RANGE = "Feuille 1!A1:Z1000"
+MEMOS_RANGE = "Feuille 1!A1:N1000"  # 14 عمود
+STUDENTS_RANGE = "Feuille 1!A1:K1000"
 
 # تحميل بيانات الطلاب
 @st.cache_data(ttl=300)
@@ -84,7 +80,7 @@ def load_students():
         st.error(f"❌ خطأ في تحميل بيانات الطلاب: {e}")
         st.stop()
 
-# تحميل بيانات المذكرات مع التعامل مع كل الأعمدة
+# تحميل بيانات المذكرات
 @st.cache_data(ttl=300)
 def load_memos():
     try:
@@ -96,25 +92,7 @@ def load_memos():
         if not values:
             st.error("❌ لا توجد بيانات في شيت المذكرات.")
             st.stop()
-
-        expected_cols = [
-            "الطالب الأول","الطالب الثاني","رقم المذكرة","عنوان المذكرة","التخصص",
-            "الأستاذ","كلمة سر التسجيل","كلمة سر الإيداع","تم التسجيل","تاريخ التسجيل",
-            "تم الإيداع","تاريخ الإيداع","رئيسا","مناقشا"
-        ]
-
-        header = values[0]
-        for col in expected_cols:
-            if col not in header:
-                header.append(col)
-
-        data = []
-        for row in values[1:]:
-            while len(row) < len(header):
-                row.append("")
-            data.append(row)
-
-        df = pd.DataFrame(data, columns=header)
+        df = pd.DataFrame(values[1:], columns=values[0])
         return df
     except Exception as e:
         st.error(f"❌ خطأ في تحميل بيانات المذكرات: {e}")
@@ -137,10 +115,10 @@ def verify_memo(note_number, memo_password, df_memos):
     if memo.iloc[0]["كلمة سر التسجيل"].strip() != memo_password.strip():
         return False, None, "كلمة سر المذكرة غير صحيحة."
     if memo.iloc[0]["تم التسجيل"].strip() == "نعم":
-        return False, None, "⚠️ المذكرة مسجلة سابقًا."
+        return False, None, "المذكرة مسجلة مسبقًا."
     return True, memo.iloc[0], None
 
-# تحديث حالة التسجيل في شيت المذكرات
+# تحديث حالة التسجيل
 def update_memo_registration(note_number, student1, student2=None):
     try:
         result = sheets_service.spreadsheets().values().get(
@@ -153,79 +131,53 @@ def update_memo_registration(note_number, student1, student2=None):
         if row_idx.empty:
             st.error("❌ رقم المذكرة غير موجود أثناء التحديث.")
             return False
-        idx = row_idx[0] + 2  # لأن Google Sheets يبدأ من 1 + صف الرؤوس
-
+        idx = row_idx[0] + 2
         col_names = df.columns.tolist()
-        updates = {"valueInputOption": "USER_ENTERED", "data": []}
-
-        # الطالب الأول والثاني
         student1_col = col_names.index("الطالب الأول") + 1
-        updates["data"].append(
+        updates = [
             {"range": f"Feuille 1!{chr(64+student1_col)}{idx}", "values": [[student1['اللقب'] + ' ' + student1['الإسم']]]]}
-        )
-        if student2 is not None:
+        ]
+        if student2:
             student2_col = col_names.index("الطالب الثاني") + 1
-            updates["data"].append(
-                {"range": f"Feuille 1!{chr(64+student2_col)}{idx}", "values": [[student2['اللقب'] + ' ' + student2['الإسم']]]]}
+            updates.append(
+                {"range": f"Feuille 1!{chr(64+student2_col)}{idx}", "values": [[student2['اللقب'] + ' ' + student2['الإسم']]]}
             )
-
-        # تم التسجيل وتاريخ التسجيل
-        reg_col = col_names.index("تم التسجيل") + 1
+        registration_col = col_names.index("تم التسجيل") + 1
         date_col = col_names.index("تاريخ التسجيل") + 1
-        updates["data"].append({"range": f"Feuille 1!{chr(64+reg_col)}{idx}", "values": [["نعم"]]})
-        updates["data"].append({"range": f"Feuille 1!{chr(64+date_col)}{idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]})
-
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body=updates).execute()
+        updates.extend([
+            {"range": f"Feuille 1!{chr(64+registration_col)}{idx}", "values": [["نعم"]]},
+            {"range": f"Feuille 1!{chr(64+date_col)}{idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},
+        ])
+        sheets_service.spreadsheets().values().batchUpdate(
+            spreadsheetId=MEMOS_SHEET_ID,
+            body={"valueInputOption": "USER_ENTERED", "data": updates}
+        ).execute()
         return True
     except Exception as e:
         st.error(f"❌ فشل تحديث حالة التسجيل: {e}")
-        return False
-
-# تحديث شيت الطلاب برقم المذكرة
-def update_student_memo_number(student, note_number):
-    try:
-        result = sheets_service.spreadsheets().values().get(
-            spreadsheetId=STUDENTS_SHEET_ID,
-            range=STUDENTS_RANGE
-        ).execute()
-        values = result.get('values', [])
-        df = pd.DataFrame(values[1:], columns=values[0])
-        row_idx = df[df["اسم المستخدم"].astype(str).str.strip() == student["اسم المستخدم"].strip()].index
-        if row_idx.empty:
-            st.warning("⚠️ الطالب غير موجود في شيت الطلاب.")
-            return False
-        idx = row_idx[0] + 2
-        col_idx = df.columns.get_loc("رقم المذكرة") + 1
-        sheets_service.spreadsheets().values().update(
-            spreadsheetId=STUDENTS_SHEET_ID,
-            range=f"Feuille 1!{chr(64+col_idx)}{idx}",
-            valueInputOption="USER_ENTERED",
-            body={"values": [[note_number]]}
-        ).execute()
-        return True
-    except Exception as e:
-        st.error(f"❌ فشل تحديث شيت الطالب: {e}")
         return False
 
 # تحميل البيانات
 df_students = load_students()
 df_memos = load_memos()
 
-# واجهة التسجيل
+# صندوق التسجيل
 st.markdown('<div class="block-container">', unsafe_allow_html=True)
-st.markdown("<div style='text-align:center;font-weight:bold;font-size:18px;color:white;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج<br>كلية الحقوق والعلوم السياسية</div>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;color:white;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;color:white;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align:center;color:white;'>🎓 منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
 
 # اختيار نوع المذكرة
 memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
 
 # حقول الطلاب
-username1 = st.text_input("اسم المستخدم للطالب 1")
-password1 = st.text_input("كلمة السر للطالب 1", type="password")
+username1 = st.text_input("اسم المستخدم للطالب 1 (استعمل معلومات موودل)")
+password1 = st.text_input("كلمة السر للطالب 1 (استعمل معلومات موودل)", type="password")
 
+username2 = password2 = None
 if memo_type == "ثنائية":
-    username2 = st.text_input("اسم المستخدم للطالب 2")
-    password2 = st.text_input("كلمة السر للطالب 2", type="password")
+    username2 = st.text_input("اسم المستخدم للطالب 2 (استعمل معلومات موودل)")
+    password2 = st.text_input("كلمة السر للطالب 2 (استعمل معلومات موودل)", type="password")
 
 if st.button("تسجيل الدخول"):
     valid1, student1 = verify_student(username1, password1, df_students)
@@ -239,10 +191,10 @@ if st.button("تسجيل الدخول"):
             else:
                 st.success(f"✅ تم تسجيل الدخول للطالبين: {student1['الإسم']} و {student2['الإسم']}")
         else:
+            student2 = None
             st.success(f"✅ تم تسجيل الدخول للطالب: {student1['الإسم']}")
 
-        # صفحة تسجيل المذكرة
-        st.markdown("---")
+        # إدخال بيانات المذكرة
         note_number = st.text_input("رقم المذكرة")
         memo_password = st.text_input("كلمة سر المذكرة", type="password")
 
@@ -253,10 +205,7 @@ if st.button("تسجيل الدخول"):
             else:
                 st.info(f"📄 عنوان المذكرة: {memo_info['عنوان المذكرة']}")
                 st.info(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}")
-                updated = update_memo_registration(note_number, student1, student2 if memo_type=="ثنائية" else None)
+                updated = update_memo_registration(note_number, student1, student2)
                 if updated:
-                    update_student_memo_number(student1, note_number)
-                    if memo_type=="ثنائية":
-                        update_student_memo_number(student2, note_number)
                     st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث الشيت.")
 st.markdown('</div>', unsafe_allow_html=True)
