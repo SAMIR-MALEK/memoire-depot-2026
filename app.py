@@ -159,7 +159,7 @@ if not st.session_state.logged_in:
     st.markdown("<hr style='border:2px solid #00CED1; margin:10px 0;'>", unsafe_allow_html=True)
 
     # عنوان تسجيل الدخول
-    st.markdown("<h2 style='text-align:center;color:white; margin-top:10px;'>🎓 منصة تسجيل مذكرات الماستر</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;color:white; margin-top:10px;'>🎓 تسجيل المذكرات </h2>", unsafe_allow_html=True)
 
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
     username1 = st.text_input("اسم المستخدم الطالب 1")
