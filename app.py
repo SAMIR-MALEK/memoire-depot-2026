@@ -8,7 +8,7 @@ from googleapiclient.http import MediaFileUpload
 from PIL import Image
 
 # ------------------- إعداد الصفحة -------------------
-st.set_page_config(page_title="منصة إيداع المذكرات", page_icon="📚", layout="centered")
+st.set_page_config(page_title="منصة تسجيل وإيداع مذكرات التخرج", page_icon="📚", layout="centered")
 
 # ------------------- الاتصال بـ Google Sheets و Drive -------------------
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
@@ -17,9 +17,9 @@ credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=credentials)
 sheets_service = build('sheets', 'v4', credentials=credentials)
 
-# ID للشيتات
-STUDENTS_SPREADSHEET_ID = "هنا ضع ID شيت الطلاب"
-MEMO_SPREADSHEET_ID = "هنا ضع ID شيت المذكرات"
+# ------------------- ID للشيتات -------------------
+STUDENTS_SPREADSHEET_ID = "1gvNkOVVKo6AO07dRKMnSQw6vZ3KdUnW7I4HBk61Sqns"  # شيت الطلاب
+MEMO_SPREADSHEET_ID = "1Ycx-bUscF7rEpse4B5lC4xCszYLZ8uJyPJLp6bFK8zo"   # شيت المذكرات
 DRIVE_FOLDER_ID = "1TfhvUA9oqvSlj9TuLjkyHi5xsC5svY1D"
 
 # ------------------- تحميل بيانات الطلاب -------------------
@@ -65,17 +65,15 @@ def verify_students_login(df_students, usernames, passwords):
     passwords: قائمة كلمات السر
     """
     if len(usernames) != len(passwords):
-        return False, None  # عدد غير متطابق
+        return False, None
     memo_number = None
     for user, pwd in zip(usernames, passwords):
         match = df_students[(df_students["اسم المستخدم"] == user) & (df_students["كلمة السر"] == pwd)]
         if match.empty:
             return False, None
-        # حفظ رقم المذكرة
         if memo_number is None:
             memo_number = match.iloc[0]["رقم المذكرة"]
         elif memo_number != match.iloc[0]["رقم المذكرة"]:
-            # في حالة المذكرة الثنائية تأكد من نفس الرقم
             return False, None
     return True, memo_number
 
@@ -129,15 +127,8 @@ def upload_to_drive(filepath, memo_number):
     try:
         new_name = f"memoire_{memo_number}.pdf"
         media = MediaFileUpload(filepath, mimetype='application/pdf', resumable=True)
-        file_metadata = {
-            'name': new_name,
-            'parents': [DRIVE_FOLDER_ID]
-        }
-        uploaded = drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id'
-        ).execute()
+        file_metadata = {'name': new_name, 'parents': [DRIVE_FOLDER_ID]}
+        uploaded = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
         return uploaded.get('id')
     except Exception as e:
         st.error(f"❌ خطأ في رفع الملف إلى Google Drive: {e}")
