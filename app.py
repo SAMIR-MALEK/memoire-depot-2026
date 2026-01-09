@@ -4,10 +4,10 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-# إعداد الصفحة
+# --- إعداد الصفحة ---
 st.set_page_config(page_title="تسجيل مذكرة الماستر", page_icon="🎓", layout="centered")
 
-# CSS للواجهة
+# --- CSS للواجهة ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
@@ -66,11 +66,9 @@ def verify_memo(note_number, memo_password, df_memos):
         return False, None, "رقم المذكرة غير موجود."
     memo_row = memo.iloc[0]
 
-    # التحقق من كلمة السر
     if memo_row["كلمة سر التسجيل"].strip() != memo_password.strip():
         return False, None, "كلمة سر المذكرة غير صحيحة."
     
-    # التحقق من حالة التسجيل
     if str(memo_row.get("تم التسجيل", "")).strip() == "نعم":
         return False, None, "❌ هذه المذكرة مسجلة بالفعل ولا يمكن تسجيلها مرة ثانية!"
     
@@ -78,7 +76,6 @@ def verify_memo(note_number, memo_password, df_memos):
 
 # --- تحديث التسجيل ---
 def update_memo_registration(note_number, student1, student2=None):
-    # تحديث شيت المذكرات
     result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range=MEMOS_RANGE).execute()
     values = result.get('values', [])
     df_memos = pd.DataFrame(values[1:], columns=values[0])
@@ -105,13 +102,12 @@ def update_memo_registration(note_number, student1, student2=None):
         body={"valueInputOption": "USER_ENTERED", "data": data}
     ).execute()
 
-    # تحديث شيت الطلاب برقم المذكرة
+    # تحديث شيت الطلاب
     result_students = sheets_service.spreadsheets().values().get(spreadsheetId=STUDENTS_SHEET_ID, range=STUDENTS_RANGE).execute()
     values_students = result_students.get('values', [])
     df_students = pd.DataFrame(values_students[1:], columns=values_students[0])
     col_note = df_students.columns.tolist().index("رقم المذكرة") + 1
 
-    # الطالب الأول
     row_idx1 = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == student1['اسم المستخدم'].strip()].index[0] + 2
     sheets_service.spreadsheets().values().update(
         spreadsheetId=STUDENTS_SHEET_ID,
@@ -120,7 +116,6 @@ def update_memo_registration(note_number, student1, student2=None):
         body={"values": [[note_number]]}
     ).execute()
 
-    # الطالب الثاني
     if student2 is not None:
         row_idx2 = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == student2['اسم المستخدم'].strip()].index[0] + 2
         sheets_service.spreadsheets().values().update(
@@ -146,31 +141,22 @@ if 'logged_in' not in st.session_state:
 # --- واجهة تسجيل الدخول ---
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
-    
-    # --- شعار الجامعة من LOGO.PNG ---
-    st.image("LOGO.PNG", width=120)
 
-    # --- عنوان الجامعة والكلية الرسمي ---
-    st.markdown("<h2 style='text-align:center; color:#00CED1; font-weight:bold; margin-bottom:0;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h2>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align:center; color:#00CED1; font-weight:bold; margin-top:0;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
-    st.markdown("<hr style='border:2px solid #00CED1; margin:10px 0;'>", unsafe_allow_html=True)
+    # --- شعار الجامعة ---
+    st.image("/mnt/data/6fc05347-f5fb-4f63-8558-d13a04495526.png", width=120)
 
-    # --- عنوان تسجيل الدخول ---
-    st.markdown("<h2 style='text-align:center;color:white; margin-top:10px;'>🎓 تسجيل الدخول</h2>", unsafe_allow_html=True)
+    # --- اسم الجامعة ---
+    st.markdown("<h3 style='text-align:center; color:#FFD700;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج<br>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
 
-    # --- اختيار نوع المذكرة ---
+    st.markdown("<h2 style='text-align:center;color:white;'>🎓 تسجيل الدخول</h2>", unsafe_allow_html=True)
+
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
-    
-    # --- بيانات الطالب الأول ---
     username1 = st.text_input("اسم المستخدم الطالب الأول")
     password1 = st.text_input("كلمة السر الطالب الأول", type="password")
-    
-    # --- بيانات الطالب الثاني إذا كانت المذكرة ثنائية ---
     if st.session_state.memo_type == "ثنائية":
         username2 = st.text_input("اسم المستخدم الطالب الثاني")
         password2 = st.text_input("كلمة السر الطالب الثاني", type="password")
 
-    # --- زر تسجيل الدخول والتحقق ---
     if st.button("تسجيل الدخول"):
         valid1, student1 = verify_student(username1, password1, df_students)
         if not valid1:
@@ -189,7 +175,6 @@ if not st.session_state.logged_in:
                     st.success(f"✅ تم تسجيل الدخول للطالبين: {student1['الإسم']} و {student2['الإسم']}")
             else:
                 st.success(f"✅ تم تسجيل الدخول للطالب: {student1['الإسم']}")
-            
             st.session_state.logged_in = True
             st.session_state.student1 = student1
             st.session_state.student2 = student2
@@ -201,15 +186,12 @@ else:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;color:white;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
 
-    # عرض أسماء الطلاب بخط أكبر
     st.markdown(f"<h3 style='color:#FFD700;'>👤 الطالب الأول: {st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}</h3>", unsafe_allow_html=True)
     if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
         st.markdown(f"<h3 style='color:#FFD700;'>👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}</h3>", unsafe_allow_html=True)
 
-    # ملاحظة باللون الأصفر
     st.markdown("<p style='text-align:center; color:#FFFF00; font-size:18px; font-weight:bold;'>⚠️ يجب الاتصال بالأستاذ المشرف للحصول على كلمة السر</p>", unsafe_allow_html=True)
 
-    # إدخال رقم المذكرة وكلمة السر
     note_number = st.text_input("رقم المذكرة")
     memo_password = st.text_input("كلمة سر المذكرة", type="password")
 
