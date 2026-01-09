@@ -66,11 +66,9 @@ def verify_memo(note_number, memo_password, df_memos):
         return False, None, "رقم المذكرة غير موجود."
     memo_row = memo.iloc[0]
 
-    # التحقق من كلمة السر
     if memo_row["كلمة سر التسجيل"].strip() != memo_password.strip():
         return False, None, "كلمة سر المذكرة غير صحيحة."
     
-    # التحقق من حالة التسجيل
     if str(memo_row.get("تم التسجيل", "")).strip() == "نعم":
         return False, None, "❌ هذه المذكرة مسجلة بالفعل ولا يمكن تسجيلها مرة ثانية!"
     
@@ -147,12 +145,14 @@ if 'logged_in' not in st.session_state:
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
 
-    # عنوان الجامعة والكلية الرسمي فوق تسجيل الدخول
+    # عنوان الجامعة والكلية الرسمي
     st.markdown("<h2 style='text-align:center; color:#00CED1; font-weight:bold; margin-bottom:0;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h2>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center; color:#00CED1; font-weight:bold; margin-top:0;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
 
-    # إضافة اللوجو أسفل عنوان الكلية
-    st.image("https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/logo.png", width=150, use_column_width=False)
+    # اللوجو المصغر في منتصف الصفحة
+    cols = st.columns([1, 2, 1])
+    with cols[1]:
+        st.image("https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/logo.png", width=40)
 
     st.markdown("<hr style='border:2px solid #00CED1; margin:10px 0;'>", unsafe_allow_html=True)
 
@@ -194,15 +194,12 @@ else:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;color:white;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
 
-    # عرض أسماء الطلاب بخط أكبر
     st.markdown(f"<h3 style='color:#FFD700;'>👤 الطالب الأول: {st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}</h3>", unsafe_allow_html=True)
     if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
         st.markdown(f"<h3 style='color:#FFD700;'>👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}</h3>", unsafe_allow_html=True)
 
-    # ملاحظة باللون الأصفر
     st.markdown("<p style='text-align:center; color:#FFFF00; font-size:18px; font-weight:bold;'>⚠️ يجب الاتصال بالأستاذ المشرف للحصول على كلمة السر</p>", unsafe_allow_html=True)
 
-    # إدخال رقم المذكرة وكلمة السر
     note_number = st.text_input("رقم المذكرة")
     memo_password = st.text_input("كلمة سر المذكرة", type="password")
 
