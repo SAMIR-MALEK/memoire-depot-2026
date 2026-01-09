@@ -169,7 +169,7 @@ st.markdown("<h1 style='text-align: center;'>📥 منصة تسجيل مذكرا
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; font-weight: bold; font-size: 20px; font-weight: bold; color: white;">
-    أدخل المعلومات الخاصة بالطالب (أو الطالبين):
+    أدخل المعلومات الخاصة بالمذكرة
 </div>
 """, unsafe_allow_html=True)
 
