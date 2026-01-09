@@ -150,6 +150,10 @@ if not st.session_state.logged_in:
     # عنوان الجامعة والكلية الرسمي فوق تسجيل الدخول
     st.markdown("<h2 style='text-align:center; color:#00CED1; font-weight:bold; margin-bottom:0;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h2>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center; color:#00CED1; font-weight:bold; margin-top:0;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
+
+    # إضافة اللوجو أسفل عنوان الكلية
+    st.image("https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/logo.png", width=150, use_column_width=False)
+
     st.markdown("<hr style='border:2px solid #00CED1; margin:10px 0;'>", unsafe_allow_html=True)
 
     # عنوان تسجيل الدخول
