@@ -146,22 +146,31 @@ if 'logged_in' not in st.session_state:
 # --- واجهة تسجيل الدخول ---
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
+    
+    # --- شعار الجامعة من LOGO.PNG ---
+    st.image("LOGO.PNG", width=120)
 
-    # عنوان الجامعة والكلية الرسمي فوق تسجيل الدخول
+    # --- عنوان الجامعة والكلية الرسمي ---
     st.markdown("<h2 style='text-align:center; color:#00CED1; font-weight:bold; margin-bottom:0;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h2>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align:center; color:#00CED1; font-weight:bold; margin-top:0;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
     st.markdown("<hr style='border:2px solid #00CED1; margin:10px 0;'>", unsafe_allow_html=True)
 
-    # عنوان تسجيل الدخول
+    # --- عنوان تسجيل الدخول ---
     st.markdown("<h2 style='text-align:center;color:white; margin-top:10px;'>🎓 تسجيل الدخول</h2>", unsafe_allow_html=True)
 
+    # --- اختيار نوع المذكرة ---
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
-    username1 = st.text_input("اسم المستخدم الطالب 1")
-    password1 = st.text_input("كلمة السر الطالب 1", type="password")
+    
+    # --- بيانات الطالب الأول ---
+    username1 = st.text_input("اسم المستخدم الطالب الأول")
+    password1 = st.text_input("كلمة السر الطالب الأول", type="password")
+    
+    # --- بيانات الطالب الثاني إذا كانت المذكرة ثنائية ---
     if st.session_state.memo_type == "ثنائية":
-        username2 = st.text_input("اسم المستخدم الطالب 2")
-        password2 = st.text_input("كلمة السر الطالب 2", type="password")
+        username2 = st.text_input("اسم المستخدم الطالب الثاني")
+        password2 = st.text_input("كلمة السر الطالب الثاني", type="password")
 
+    # --- زر تسجيل الدخول والتحقق ---
     if st.button("تسجيل الدخول"):
         valid1, student1 = verify_student(username1, password1, df_students)
         if not valid1:
@@ -180,9 +189,11 @@ if not st.session_state.logged_in:
                     st.success(f"✅ تم تسجيل الدخول للطالبين: {student1['الإسم']} و {student2['الإسم']}")
             else:
                 st.success(f"✅ تم تسجيل الدخول للطالب: {student1['الإسم']}")
+            
             st.session_state.logged_in = True
             st.session_state.student1 = student1
             st.session_state.student2 = student2
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- صفحة تسجيل المذكرة بعد الدخول ---
