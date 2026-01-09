@@ -4,15 +4,20 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-# ---------------- إعداد الصفحة ----------------
+# إعداد الصفحة
 st.set_page_config(page_title="تسجيل مذكرة الماستر", page_icon="🎓", layout="centered")
 
-# ---------------- CSS للواجهة الزرقاء الليلية ----------------
+# CSS للواجهة الزرقاء الليلية
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
-html, body, [class*="css"]  { font-family: 'Cairo', sans-serif !important; }
-.main { background-color: #0A1B2C; color: #ffffff; }
+html, body, [class*="css"]  {
+    font-family: 'Cairo', sans-serif !important;
+}
+.main {
+    background-color: #0A1B2C;
+    color: #ffffff;
+}
 .block-container {
     padding: 2rem;
     background-color: #1A2A3D;
@@ -21,8 +26,12 @@ html, body, [class*="css"]  { font-family: 'Cairo', sans-serif !important; }
     max-width: 700px;
     margin: auto;
 }
-label, h1, h2, h3, h4, h5, h6, p, span, .stTextInput label { color: #ffffff !important; }
-input, button, select { font-size: 16px !important; }
+label, h1, h2, h3, h4, h5, h6, p, span, .stTextInput label {
+    color: #ffffff !important;
+}
+input, button, select {
+    font-size: 16px !important;
+}
 button {
     background-color: #256D85 !important;
     color: white !important;
@@ -31,25 +40,33 @@ button {
     border-radius: 6px !important;
     transition: background-color 0.3s ease;
 }
-button:hover { background-color: #2C89A0 !important; }
-.header-container { text-align: center; margin-bottom: 30px; }
-.header-logo { width: 70px; margin-bottom: 10px; }
+button:hover {
+    background-color: #2C89A0 !important;
+}
+.header-container {
+    text-align: center;
+    margin-bottom: 30px;
+}
+.header-logo {
+    width: 70px;
+    margin-bottom: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- إعداد الاتصال بـ Google Sheets ----------------
+# إعداد الاتصال بـ Google Sheets
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 info = st.secrets["service_account"]
 credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
 sheets_service = build('sheets', 'v4', credentials=credentials)
 
-# ---------------- Google Sheets IDs ----------------
+# Google Sheets IDs
 STUDENTS_SHEET_ID = "1gvNkOVVKo6AO07dRKMnSQw6vZ3KdUnW7I4HBk61Sqns"  # شيت الطلاب
-MEMOS_SHEET_ID = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"    # شيت المذكرات الجديد
-STUDENTS_RANGE = "Feuille 1!A1:Z1000"
+MEMOS_SHEET_ID = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"   # شيت المذكرات الجديد
 MEMOS_RANGE = "Feuille 1!A1:Z1000"
+STUDENTS_RANGE = "Feuille 1!A1:Z1000"
 
-# ---------------- تحميل بيانات الطلاب ----------------
+# تحميل بيانات الطلاب
 @st.cache_data(ttl=300)
 def load_students():
     try:
@@ -61,13 +78,18 @@ def load_students():
         if not values:
             st.error("❌ لا توجد بيانات في شيت الطلاب.")
             st.stop()
+        # تعويض الأعمدة الناقصة
+        max_cols = len(values[0])
+        for i in range(len(values)):
+            if len(values[i]) < max_cols:
+                values[i] += [""] * (max_cols - len(values[i]))
         df = pd.DataFrame(values[1:], columns=values[0])
         return df
     except Exception as e:
         st.error(f"❌ خطأ في تحميل بيانات الطلاب: {e}")
         st.stop()
 
-# ---------------- تحميل بيانات المذكرات ----------------
+# تحميل بيانات المذكرات
 @st.cache_data(ttl=300)
 def load_memos():
     try:
@@ -79,13 +101,18 @@ def load_memos():
         if not values:
             st.error("❌ لا توجد بيانات في شيت المذكرات.")
             st.stop()
+        # تعويض الأعمدة الناقصة
+        max_cols = len(values[0])
+        for i in range(len(values)):
+            if len(values[i]) < max_cols:
+                values[i] += [""] * (max_cols - len(values[i]))
         df = pd.DataFrame(values[1:], columns=values[0])
         return df
     except Exception as e:
         st.error(f"❌ خطأ في تحميل بيانات المذكرات: {e}")
         st.stop()
 
-# ---------------- التحقق من الطالب ----------------
+# التحقق من الطالب
 def verify_student(username, password, df_students):
     student = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == username.strip()]
     if student.empty:
@@ -94,18 +121,19 @@ def verify_student(username, password, df_students):
         return False, "كلمة السر غير صحيحة."
     return True, student.iloc[0]
 
-# ---------------- التحقق من المذكرة ----------------
+# التحقق من المذكرة
 def verify_memo(note_number, memo_password, df_memos):
     memo = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]
     if memo.empty:
         return False, None, "رقم المذكرة غير موجود."
-    if memo.iloc[0]["تم التسجيل"].strip() == "نعم":
-        return False, None, "⚠️ هذه المذكرة تم تسجيلها مسبقًا."
     if memo.iloc[0]["كلمة سر التسجيل"].strip() != memo_password.strip():
         return False, None, "كلمة سر المذكرة غير صحيحة."
+    # التأكد من أن المذكرة لم يتم تسجيلها مسبقًا
+    if str(memo.iloc[0]["تم التسجيل"]).strip() == "نعم":
+        return False, None, "❌ تم تسجيل هذه المذكرة مسبقًا."
     return True, memo.iloc[0], None
 
-# ---------------- تحديث حالة التسجيل ----------------
+# تحديث حالة التسجيل
 def update_memo_registration(note_number):
     try:
         result = sheets_service.spreadsheets().values().get(
@@ -113,6 +141,10 @@ def update_memo_registration(note_number):
             range=MEMOS_RANGE
         ).execute()
         values = result.get('values', [])
+        max_cols = len(values[0])
+        for i in range(len(values)):
+            if len(values[i]) < max_cols:
+                values[i] += [""] * (max_cols - len(values[i]))
         df = pd.DataFrame(values[1:], columns=values[0])
         row_idx = df[df["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].index
         if row_idx.empty:
@@ -125,8 +157,8 @@ def update_memo_registration(note_number):
         updates = {
             "valueInputOption": "USER_ENTERED",
             "data": [
-                {"range": f"Feuille 1!{chr(64+registration_col)}{idx}", "values": [["نعم"]] },
-                {"range": f"Feuille 1!{chr(64+date_col)}{idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]] },
+                {"range": f"Feuille 1!{chr(64+registration_col)}{idx}", "values": [["نعم"]]},
+                {"range": f"Feuille 1!{chr(64+date_col)}{idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},
             ]
         }
         sheets_service.spreadsheets().values().batchUpdate(
@@ -138,29 +170,32 @@ def update_memo_registration(note_number):
         st.error(f"❌ فشل تحديث حالة التسجيل: {e}")
         return False
 
-# ---------------- تحميل البيانات ----------------
+# تحميل البيانات
 df_students = load_students()
 df_memos = load_memos()
 
-# ---------------- واجهة التسجيل ----------------
+# صندوق التسجيل
 st.markdown('<div class="block-container">', unsafe_allow_html=True)
-st.markdown("<div style='text-align:center; font-weight:bold; font-size:18px;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج<br>كلية الحقوق والعلوم السياسية</div>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center;color:white;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج<br>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
 st.markdown("<h2 style='text-align:center;color:white;'>🎓 منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
 
-# ---------------- اختيار نوع المذكرة ----------------
+# اختيار نوع المذكرة
 memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
 
-# ---------------- بيانات الطالب 1 ----------------
-username1 = st.text_input("اسم المستخدم للطالب 1 (استعمل معلومات موودل)")
-password1 = st.text_input("كلمة السر للطالب 1", type="password")
+# حقول الطلاب
+username1 = st.text_input(" اسم المستخدم للطالب 1 (استعمل معلومات موودل)")
+password1 = st.text_input("كلمة السر للطالب 1 (استعمل معلومات موودل)", type="password")
 
-# ---------------- بيانات الطالب 2 إذا ثنائية ----------------
 if memo_type == "ثنائية":
     username2 = st.text_input("اسم المستخدم للطالب 2 (استعمل معلومات موودل)")
-    password2 = st.text_input("كلمة السر للطالب 2", type="password")
+    password2 = st.text_input("كلمة السر للطالب 2 (استعمل معلومات موودل)", type="password")
 
-# ---------------- زر تسجيل الدخول ----------------
-if st.button("تسجيل الدخول"):
+# إدخال رقم المذكرة وكلمة سر التسجيل
+note_number = st.text_input("رقم المذكرة")
+memo_password = st.text_input("كلمة سر المذكرة", type="password")
+
+if st.button("موافق على التسجيل"):
+    # التحقق من الطلاب
     valid1, student1 = verify_student(username1, password1, df_students)
     if not valid1:
         st.error(f"الطالب 1: {student1}")
@@ -170,15 +205,18 @@ if st.button("تسجيل الدخول"):
             if not valid2:
                 st.error(f"الطالب 2: {student2}")
             else:
-                st.success(f"✅ تم تسجيل الدخول للطالبين: {student1['الإسم']} و {student2['الإسم']}")
+                # تحقق المذكرة بعد تحقق الطالبين
+                valid_memo, memo_info, error_msg = verify_memo(note_number, memo_password, df_memos)
+                if not valid_memo:
+                    st.error(error_msg)
+                else:
+                    st.info(f"📄 عنوان المذكرة: {memo_info['عنوان المذكرة']}")
+                    st.info(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}")
+                    updated = update_memo_registration(note_number)
+                    if updated:
+                        st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث الشيت.")
         else:
-            st.success(f"✅ تم تسجيل الدخول للطالب: {student1['الإسم']}")
-
-        # ---------------- إدخال بيانات المذكرة ----------------
-        note_number = st.text_input("رقم المذكرة")
-        memo_password = st.text_input("كلمة سر المذكرة", type="password")
-
-        if st.button("موافق على التسجيل"):
+            # تحقق المذكرة بعد تحقق الطالب الفردي
             valid_memo, memo_info, error_msg = verify_memo(note_number, memo_password, df_memos)
             if not valid_memo:
                 st.error(error_msg)
