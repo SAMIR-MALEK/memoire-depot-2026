@@ -159,7 +159,7 @@ df_memos = load_memos()
 
 # صندوق التسجيل
 st.markdown('<div class="block-container">', unsafe_allow_html=True)
-st.markdown("<h2 style='text-align:center;color:white;'>🎓 تسجيل الطلاب</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;color:white;'>🎓 منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
 
 # اختيار نوع المذكرة
 memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
