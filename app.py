@@ -37,7 +37,7 @@ STUDENTS_RANGE = "Feuille 1!A1:K1000"
 def load_students():
     result = sheets_service.spreadsheets().values().get(spreadsheetId=STUDENTS_SHEET_ID, range=STUDENTS_RANGE).execute()
     values = result.get('values', [])
-    if not values: st.error("❌ لا توجد بيانات في شيت الطلاب."); st.stop()
+    if not values: st.error("❌ لا توجد بيانات في صفحة الطلاب."); st.stop()
     df = pd.DataFrame(values[1:], columns=values[0])
     return df
 
@@ -45,7 +45,7 @@ def load_students():
 def load_memos():
     result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range=MEMOS_RANGE).execute()
     values = result.get('values', [])
-    if not values: st.error("❌ لا توجد بيانات في شيت المذكرات."); st.stop()
+    if not values: st.error("❌ لا توجد بيانات في صفحة المذكرات."); st.stop()
     df = pd.DataFrame(values[1:], columns=values[0])
     return df
 
@@ -214,5 +214,5 @@ else:
             st.info(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}")
             updated = update_memo_registration(note_number, st.session_state.student1, st.session_state.student2)
             if updated:
-                st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث الشيت.")
+                st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.")
     st.markdown('</div>', unsafe_allow_html=True)
