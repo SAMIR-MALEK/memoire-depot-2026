@@ -183,6 +183,12 @@ else:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;color:white;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
 
+    # عرض أسماء الطلاب
+    st.info(f"👤 الطالب 1: {st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}")
+    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
+        st.info(f"👤 الطالب 2: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}")
+
+    # إدخال رقم المذكرة وكلمة السر
     note_number = st.text_input("رقم المذكرة")
     memo_password = st.text_input("كلمة سر المذكرة", type="password")
 
@@ -197,3 +203,4 @@ else:
             if updated:
                 st.success("✅ تم تسجيل المذكرة بنجاح! تم تحديث الشيت.")
     st.markdown('</div>', unsafe_allow_html=True)
+
