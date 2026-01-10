@@ -166,11 +166,28 @@ if 'logged_in' not in st.session_state:
     st.session_state.memo_type = "فردية"
 
 # ---------------- واجهة تسجيل الدخول ----------------
+
+
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
+
+    # 1. عنوان الجامعة
     st.markdown("<h2 style='text-align:center;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h2>", unsafe_allow_html=True)
+    # 2. عنوان الكلية
     st.markdown("<h3 style='text-align:center;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
 
+    # 3. اللوجو في الوسط مع اسم اللوجو
+    st.markdown("""
+        <div style="text-align:center; margin:20px 0;">
+            <img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/LOGO2.png" width="100">
+            <div style="color:#FFFFFF; font-size:20px; font-weight:bold; margin-top:10px;">LOGO2</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 4. عنوان المنصة أسفل اللوجو
+    st.markdown("<h2 style='text-align:center; color:#FFFFFF;'>منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
+
+    # --- اختيار نوع المذكرة ---
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
     username1 = st.text_input("اسم المستخدم الطالب الأول")
     password1 = st.text_input("كلمة السر الطالب الأول", type="password")
@@ -199,7 +216,10 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.student1 = student1
             st.session_state.student2 = student2
+
     st.markdown('</div>', unsafe_allow_html=True)
+
+
 
 # ---------------- واجهة تسجيل المذكرة بعد الدخول ----------------
 else:
