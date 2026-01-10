@@ -166,8 +166,6 @@ if 'logged_in' not in st.session_state:
     st.session_state.memo_type = "فردية"
 
 # ---------------- واجهة تسجيل الدخول ----------------
-
-
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
 
@@ -176,11 +174,10 @@ if not st.session_state.logged_in:
     # 2. عنوان الكلية
     st.markdown("<h6 style='text-align:center;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
 
-    # 3. اللوجو في الوسط مع اسم اللوجو
+    # 3. اللوجو في الوسط
     st.markdown("""
         <div style="text-align:center; margin:20px 0;">
             <img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/LOGO2.png" width="100">
-            
         </div>
     """, unsafe_allow_html=True)
 
@@ -219,40 +216,51 @@ if not st.session_state.logged_in:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-
-
-# ---------------- واجهة تسجيل المذكرة بعد الدخول ----------------
+# ---------------- واجهة الاطلاع على المذكرات بعد تسجيل الدخول ----------------
 else:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align:center;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>📝 الاطلاع على المذكرات المتاحة</h2>", unsafe_allow_html=True)
     st.markdown(f"<h3>👤 الطالب الأول: {st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}</h3>", unsafe_allow_html=True)
     if st.session_state.memo_type == "ثنائية" and st.session_state.student2:
         st.markdown(f"<h3>👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}</h3>", unsafe_allow_html=True)
 
-    st.markdown('<p class="message">⚠️ يجب الاتصال بالأستاذ المشرف للحصول على كلمة السر</p>', unsafe_allow_html=True)
+    st.markdown('<p class="message">⚠️ هذه القائمة للعرض فقط قبل إدخال كلمة سر المشرف</p>', unsafe_allow_html=True)
 
+    # --- قائمة الأساتذة ---
+    professors = df_memos["الأستاذ"].dropna().unique().tolist()
+    selected_prof = st.selectbox("📌 اختر الأستاذ للاطلاع على المذكرات:", ["اختر أستاذ"] + professors)
+
+    if selected_prof != "اختر أستاذ":
+        available_memos = df_memos[
+            (df_memos["الأستاذ"].str.strip() == selected_prof.strip()) &
+            (df_memos["تم التسجيل"].astype(str).str.strip() != "نعم") &
+            (df_memos["التخصص"].str.strip() == st.session_state.student1["التخصص"].strip())
+        ]
+        if available_memos.empty:
+            st.markdown('<p class="message">❌ لا توجد مذكرات متاحة لهذا الأستاذ وتخصصك.</p>', unsafe_allow_html=True)
+        else:
+            memo_options = available_memos["رقم المذكرة"].astype(str) + " - " + available_memos["عنوان المذكرة"]
+            st.selectbox("📄 المذكرات المتاحة:", ["اختر مذكرة"] + memo_options.tolist(), disabled=True)
+
+    # --- إدخال رقم المذكرة وكلمة السر لتأكيد التسجيل ---
+    st.markdown('<hr>', unsafe_allow_html=True)
+    st.markdown("<h3>🖊️ لتسجيل المذكرة، أدخل المعلومات أدناه:</h3>", unsafe_allow_html=True)
     note_number = st.text_input("رقم المذكرة")
     prof_password = st.text_input("كلمة سر المشرف", type="password")
 
     if st.button("تأكيد تسجيل المذكرة"):
-        valid_memo, prof_row, error_msg = verify_professor_password(note_number, prof_password, df_memos, df_prof_memos)
-        if not valid_memo:
-            st.markdown(f'<p class="message">{error_msg}</p>', unsafe_allow_html=True)
+        if not note_number:
+            st.markdown('<p class="message">❌ الرجاء إدخال رقم المذكرة.</p>', unsafe_allow_html=True)
         else:
-            updated = update_registration(note_number, st.session_state.student1, st.session_state.student2)
-            if updated:
-                memo_info = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].iloc[0]
-                students_info = [f"{st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}"]
-                if st.session_state.student2:
-                    students_info.append(f"{st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}")
-                
-                # الرسالة التفصيلية بعد التسجيل
-                st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">📄 رقم المذكرة: {note_number}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">🎯 التخصص: {memo_info["التخصص"]}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">👨‍🏫 المشرف: {memo_info["الأستاذ"]}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">👤 الطلاب: {", ".join(students_info)}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+            valid_memo, prof_row, error_msg = verify_professor_password(note_number, prof_password, df_memos, df_prof_memos)
+            if not valid_memo:
+                st.markdown(f'<p class="message">{error_msg}</p>', unsafe_allow_html=True)
+            else:
+                updated = update_registration(note_number, st.session_state.student1, st.session_state.student2)
+                if updated:
+                    memo_info = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].iloc[0]
+                    students_info = [f"{st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}"]
+                    if st.session_state.student2:
+                        students_info.append(f"{st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}")
+
+                    st.markdown(f
