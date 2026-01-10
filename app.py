@@ -256,4 +256,5 @@ else:
 
                     st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</p>', unsafe_allow_html=True)
                     st.markdown(f'<p class="message">📄 رقم المذكرة: {note_number}</p>', unsafe_allow_html=True)
-                    st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة
+                    st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">🎯 التخصص: {memo
