@@ -218,8 +218,12 @@ else:
     st.markdown('<p class="message">⚠️ اختر الأستاذ لمعرفة المذكرات المتاحة (للاطلاع فقط)</p>', unsafe_allow_html=True)
 
     # -------- قائمة الأساتذة --------
-    all_profs = df_memos["الأستاذ"].dropna().unique().tolist()
-    selected_prof = st.selectbox("اختر الأستاذ:", [""] + all_profs)
+    
+all_profs = sorted(df_memos["الأستاذ"].dropna().unique().tolist())
+    
+
+
+selected_prof = st.selectbox("اختر الأستاذ:", [""] + all_profs)
 
     if selected_prof:
         student_specialty = st.session_state.student1["التخصص"]
