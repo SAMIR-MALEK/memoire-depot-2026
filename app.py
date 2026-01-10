@@ -180,7 +180,7 @@ if not st.session_state.logged_in:
     st.markdown("""
         <div style="text-align:center; margin:20px 0;">
             <img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/LOGO2.png" width="100">
-            <div style="color:#FFFFFF; font-size:20px; font-weight:bold; margin-top:10px;">LOGO2</div>
+           
         </div>
     """, unsafe_allow_html=True)
 
