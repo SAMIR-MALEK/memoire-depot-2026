@@ -3,6 +3,7 @@ from datetime import datetime
 import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+
 from fpdf import FPDF  # لتوليد PDF
 import smtplib
 from email.mime.text import MIMEText
@@ -42,19 +43,18 @@ credentials = Credentials.from_service_account_info(
 )
 sheets_service = build('sheets', 'v4', credentials=credentials)
 
-# معرفات الشيتات
-STUDENTS_SHEET_ID = "1gvNkOVVKo6AO07dRKMnSQw6vZ3KdUnW7I4HBk61Sqns"
-MEMOS_SHEET_ID = "1OnZi1o-oPMUI_W_Ew-op0a1uOhSj006hw_2jrMD6FSE"
+# معرف شيتات Google
+STUDENTS_SHEET_ID = "1gvNkOVVKo6AO07dRKMnSQw6vZ3KdUnW7I4HBk61Sqns"  # شيت الطلبة
+MEMOS_SHEET_ID = "1OnZi1o-oPMUI_W_Ew-op0a1uOhSj006hw_2jrMD6FSE"    # شيت المذكرات - الأساتذة
 
-# نطاقات الشيتات
-STUDENTS_RANGE = "Feuille 1!A1:K1000"
-MEMOS_RANGE = "Feuille 1!A1:K1000"
+STUDENTS_RANGE = "Feuille 1!A1:K1000"  # نطاق شيت الطلبة
+MEMOS_RANGE = "Feuille 1!A1:K1000"     # نطاق شيت المذكرات
 
 # ---------------------------
 # دوال مساعدة
 # ---------------------------
 def col_letter(n):
-    """تحويل رقم العمود إلى حرف لاستخدامه مع Google Sheets API"""
+    """تحويل رقم العمود إلى حرف (A, B, C...) لاستخدامه في Google Sheets API"""
     result = ""
     while n:
         n, r = divmod(n - 1, 26)
@@ -84,7 +84,7 @@ def load_memos():
 # التحقق من بيانات الطالب
 def verify_student(username, password, df):
     """التحقق من اسم المستخدم وكلمة السر للطالب"""
-    row = df[df["اسم المستخدم"].str.strip() == username.strip()]
+    row = df[df["اسم المستخدم"].astype(str).str.strip() == username.strip()]
     if row.empty:
         return False, "❌ اسم المستخدم غير موجود."
     if row.iloc[0]["كلمة السر"].strip() != password.strip():
@@ -97,15 +97,34 @@ def student_has_memo(student):
 
 # التحقق من كلمة سر الأستاذ وربطها بالمذكرة
 def verify_memo(note_number, password, df):
-    """التحقق من كلمة السر، وتأكد أنها لم تُستخدم مسبقًا"""
-    row = df[df["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]
+    """
+    التحقق من كلمة السر، وتأكد أنها لم تُستخدم مسبقًا،
+    ويعالج فرق النوع بين أرقام ونصوص في العمود.
+    """
+    # تحويل رقم المذكرة إلى int إذا أمكن
+    try:
+        note_number_int = int(str(note_number).strip())
+    except ValueError:
+        return False, None, "❌ رقم المذكرة يجب أن يكون رقماً صحيحاً."
+
+    # تحويل العمود إلى أرقام لتجنب مشاكل النصوص
+    df['رقم المذكرة'] = pd.to_numeric(df['رقم المذكرة'], errors='coerce')
+
+    # البحث عن المذكرة
+    row = df[df["رقم المذكرة"] == note_number_int]
     if row.empty:
         return False, None, "❌ رقم المذكرة غير موجود."
+
     memo = row.iloc[0]
-    if memo["كلمة سر التسجيل"].strip() != password.strip():
+
+    # التحقق من كلمة السر
+    if str(memo["كلمة سر التسجيل"]).strip() != str(password).strip():
         return False, None, "❌ كلمة السر هذه لا تخص الأستاذ المشرف على هذه المذكرة."
-    if str(memo["تم التسجيل"]).strip() == "نعم":
+
+    # التحقق من حالة التسجيل
+    if str(memo.get("تم التسجيل", "")).strip() == "نعم":
         return False, None, "❌ هذه كلمة السر مستعملة مسبقًا."
+
     return True, memo, None
 
 # ---------------------------
@@ -114,7 +133,7 @@ def verify_memo(note_number, password, df):
 def update_registration(note_number, student1, student2=None):
     """تحديث شيت المذكرات وشيت الطلبة بعد التسجيل"""
     memos = load_memos()
-    idx = memos[memos["رقم المذكرة"].astype(str) == str(note_number)].index[0] + 2
+    idx = memos[memos["رقم المذكرة"].astype(str) == str(note_number).strip()].index[0] + 2
 
     cols = memos.columns.tolist()
     updates = []
@@ -165,7 +184,6 @@ def update_registration(note_number, student1, student2=None):
 # توليد PDF باستخدام FPDF
 # ---------------------------
 def generate_pdf(note, memo, s1, s2=None):
-    """إنشاء وصل PDF للمذكرة"""
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
@@ -194,7 +212,6 @@ def generate_pdf(note, memo, s1, s2=None):
 # إشعار المشرف عبر البريد الإلكتروني
 # ---------------------------
 def notify_supervisor(memo, note, s1, s2=None):
-    """إرسال إشعار بالبريد للمشرف"""
     sender = st.secrets["EMAIL_SENDER"]
     password = st.secrets["EMAIL_PASSWORD"]
 
@@ -222,7 +239,7 @@ def notify_supervisor(memo, note, s1, s2=None):
         server.send_message(msg)
 
 # ---------------------------
-# تحميل البيانات
+# واجهة المستخدم
 # ---------------------------
 df_students = load_students()
 df_memos = load_memos()
@@ -230,20 +247,16 @@ df_memos = load_memos()
 if "logged" not in st.session_state:
     st.session_state.logged = False
 
-# ---------------------------
 # صفحة تسجيل الدخول
-# ---------------------------
 if not st.session_state.logged:
     st.markdown("## 🎓 تسجيل الدخول")
-
-    memo_type = st.radio("نوع المذكرة", ["فردية", "ثنائية"])
-    u1 = st.text_input("اسم مستخدم الطالب الأول")
-    p1 = st.text_input("كلمة السر الطالب الأول", type="password")
-
+    memo_type = st.radio("نوع المذكرة", ["فردية", "ثنائية"], key="memo_type")
+    u1 = st.text_input("اسم مستخدم الطالب الأول", key="u1")
+    p1 = st.text_input("كلمة السر", type="password", key="p1")
     u2 = p2 = None
     if memo_type == "ثنائية":
-        u2 = st.text_input("اسم مستخدم الطالب الثاني")
-        p2 = st.text_input("كلمة السر الطالب الثاني", type="password")
+        u2 = st.text_input("اسم مستخدم الطالب الثاني", key="u2")
+        p2 = st.text_input("كلمة السر", type="password", key="p2")
 
     if st.button("تسجيل الدخول"):
         ok1, s1 = verify_student(u1, p1, df_students)
@@ -273,13 +286,11 @@ if not st.session_state.logged:
         if s2:
             st.success(f"👤 الطالب الثاني: {s2['اللقب']} {s2['الإسم']}")
 
-# ---------------------------
 # صفحة تسجيل المذكرة بعد الدخول
-# ---------------------------
 else:
     st.markdown("## 📝 تسجيل المذكرة")
-    note = st.text_input("رقم المذكرة")
-    pwd = st.text_input("كلمة سر المشرف", type="password")
+    note = st.text_input("رقم المذكرة", key="note")
+    pwd = st.text_input("كلمة سر المشرف", type="password", key="pwd")
 
     if st.button("تأكيد التسجيل"):
         ok, memo, err = verify_memo(note, pwd, df_memos)
@@ -287,15 +298,20 @@ else:
             st.error(err)
             st.stop()
 
+        # تحديث الشيتات
         update_registration(note, st.session_state.s1, st.session_state.s2)
+
+        # توليد PDF
         pdf_path = generate_pdf(note, memo, st.session_state.s1, st.session_state.s2)
+
+        # إشعار المشرف
         notify_supervisor(memo, note, st.session_state.s1, st.session_state.s2)
 
         # زر تحميل PDF
         with open(pdf_path, "rb") as f:
             st.download_button("📄 تحميل وصل PDF", f, file_name=pdf_path.split("/")[-1])
 
-        # عرض ملخص التسجيل
+        # ملخص التسجيل
         st.success(
             f"✅ تم تسجيل المذكرة بنجاح!\n"
             f"📄 العنوان: {memo['عنوان المذكرة']}\n"
