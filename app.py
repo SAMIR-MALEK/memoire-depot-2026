@@ -1,20 +1,10 @@
-تمام، سأكتب لك الآن الكود الكامل الجديد والمتطور مع كل التحسينات التي اتفقنا عليها ✅
-هذا الكود:
-يعتمد على شيت “المذكرات – الأساتذة”
-يتحقق من رقم المذكرة + كلمة سر الأستاذ + كلمة سر غير مستعملة
-يمنع تسجيل الطلاب إذا سبق لهم التسجيل
-يُظهر رسائل احترافية واضحة للطالبين (لقب، اسم، عنوان المذكرة، المشرف، التخصص…)
-يولد وصل PDF رسمي
-يرسل إشعار المشرف عبر البريد
-Copier le code
-Python
 import streamlit as st
 from datetime import datetime
 import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-# PDF
+# PDF generation
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
@@ -25,10 +15,10 @@ import smtplib
 from email.mime.text import MIMEText
 
 # ---------------------------
-# إعداد Streamlit
+# Streamlit page config
 # ---------------------------
 st.set_page_config(
-    page_title="تسجيل مذكرة الماستر",
+    page_title="Master Memo Registration",
     page_icon="🎓",
     layout="centered"
 )
@@ -50,7 +40,7 @@ button { background-color: #256D85 !important; color: white !important; border-r
 """, unsafe_allow_html=True)
 
 # ---------------------------
-# إعداد Google Sheets
+# Google Sheets setup
 # ---------------------------
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 credentials = Credentials.from_service_account_info(
@@ -66,10 +56,10 @@ STUDENTS_RANGE = "Feuille 1!A1:K1000"
 MEMOS_RANGE = "Feuille 1!A1:K1000"
 
 # ---------------------------
-# أدوات مساعدة
+# Helper functions
 # ---------------------------
 def col_letter(n):
-    """تحويل رقم العمود إلى حرف"""
+    """Convert column number to letter (for Sheets API)"""
     result = ""
     while n:
         n, r = divmod(n - 1, 26)
@@ -97,9 +87,9 @@ def load_memos():
 def verify_student(username, password, df):
     row = df[df["اسم المستخدم"].str.strip() == username.strip()]
     if row.empty:
-        return False, "❌ اسم المستخدم غير موجود."
+        return False, "❌ Username not found."
     if row.iloc[0]["كلمة السر"].strip() != password.strip():
-        return False, "❌ كلمة السر غير صحيحة."
+        return False, "❌ Incorrect password."
     return True, row.iloc[0]
 
 def student_has_memo(student):
@@ -108,16 +98,16 @@ def student_has_memo(student):
 def verify_memo(note_number, password, df):
     row = df[df["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]
     if row.empty:
-        return False, None, "❌ رقم المذكرة غير موجود."
+        return False, None, "❌ Memo number not found."
     memo = row.iloc[0]
     if memo["كلمة سر التسجيل"].strip() != password.strip():
-        return False, None, "❌ كلمة السر لا تنتمي للأستاذ المشرف على هذه المذكرة."
+        return False, None, "❌ This password does not belong to the supervisor for this memo."
     if str(memo["تم التسجيل"]).strip() == "نعم":
-        return False, None, "❌ كلمة السر هذه مستعملة بالفعل."
+        return False, None, "❌ This password has already been used."
     return True, memo, None
 
 # ---------------------------
-# تحديث التسجيل
+# Update registration in Sheets
 # ---------------------------
 def update_registration(note_number, student1, student2=None):
     memos = load_memos()
@@ -126,6 +116,7 @@ def update_registration(note_number, student1, student2=None):
     cols = memos.columns.tolist()
     updates = []
 
+    # Update students in memo
     updates.append({
         "range": f"Feuille 1!{col_letter(cols.index('الطالب الأول')+1)}{idx}",
         "values": [[student1["اللقب"] + " " + student1["الإسم"]]]
@@ -136,6 +127,7 @@ def update_registration(note_number, student1, student2=None):
             "values": [[student2["اللقب"] + " " + student2["الإسم"]]]
         })
 
+    # Update registration flag and date
     updates += [
         {
             "range": f"Feuille 1!{col_letter(cols.index('تم التسجيل')+1)}{idx}",
@@ -152,7 +144,7 @@ def update_registration(note_number, student1, student2=None):
         body={"valueInputOption": "USER_ENTERED", "data": updates}
     ).execute()
 
-    # تحديث شيت الطلاب
+    # Update students sheet
     students = load_students()
     col_note = col_letter(students.columns.tolist().index("رقم المذكرة")+1)
 
@@ -167,36 +159,36 @@ def update_registration(note_number, student1, student2=None):
             ).execute()
 
 # ---------------------------
-# توليد PDF
+# Generate PDF
 # ---------------------------
 def generate_pdf(note, memo, s1, s2=None):
-    path = f"/tmp/وصل_مذكرة_{note}.pdf"
+    path = f"/tmp/memo_receipt_{note}.pdf"
     doc = SimpleDocTemplate(path, pagesize=A4)
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="C", alignment=TA_CENTER, fontSize=16))
 
     content = [
-        Paragraph("جامعة محمد البشير الإبراهيمي<br/>كلية الحقوق والعلوم السياسية", styles["C"]),
+        Paragraph("Université Mohamed B. El-Ibrahimi - Faculté de Droit et Science Politique", styles["C"]),
         Spacer(1, 20),
-        Paragraph("<b>وصل تسجيل مذكرة ماستر</b>", styles["Title"]),
+        Paragraph("<b>Master Memo Registration Receipt</b>", styles["Title"]),
         Spacer(1, 15),
-        Paragraph(f"رقم المذكرة: {note}", styles["Normal"]),
-        Paragraph(f"العنوان: {memo['عنوان المذكرة']}", styles["Normal"]),
-        Paragraph(f"المشرف: {memo['الأستاذ']}", styles["Normal"]),
-        Paragraph(f"التخصص: {memo.get('التخصص', 'غير محدد')}", styles["Normal"]),
+        Paragraph(f"Memo Number: {note}", styles["Normal"]),
+        Paragraph(f"Title: {memo['عنوان المذكرة']}", styles["Normal"]),
+        Paragraph(f"Supervisor: {memo['الأستاذ']}", styles["Normal"]),
+        Paragraph(f"Specialization: {memo.get('التخصص', 'Not specified')}", styles["Normal"]),
         Spacer(1, 10),
-        Paragraph(f"الطالب: {s1['اللقب']} {s1['الإسم']}", styles["Normal"]),
+        Paragraph(f"Student: {s1['اللقب']} {s1['الإسم']}", styles["Normal"]),
     ]
-    if s2 is not None:
-        content.append(Paragraph(f"الطالب الثاني: {s2['اللقب']} {s2['الإسم']}", styles["Normal"]))
+    if s2:
+        content.append(Paragraph(f"Student 2: {s2['اللقب']} {s2['الإسم']}", styles["Normal"]))
     content.append(Spacer(1, 20))
-    content.append(Paragraph(f"تاريخ التسجيل: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles["Normal"]))
+    content.append(Paragraph(f"Registration Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles["Normal"]))
 
     doc.build(content)
     return path
 
 # ---------------------------
-# إشعار المشرف
+# Notify supervisor via email
 # ---------------------------
 def notify_supervisor(memo, note, s1, s2=None):
     sender = st.secrets["EMAIL_SENDER"]
@@ -204,20 +196,20 @@ def notify_supervisor(memo, note, s1, s2=None):
 
     students = f"{s1['اللقب']} {s1['الإسم']}"
     if s2:
-        students += f" و {s2['اللقب']} {s2['الإسم']}"
+        students += f" and {s2['اللقب']} {s2['الإسم']}"
 
     body = f"""
-تم تسجيل مذكرة ماستر بنجاح
+A master memo has been successfully registered.
 
-رقم المذكرة: {note}
-العنوان: {memo['عنوان المذكرة']}
-الطلبة: {students}
-المشرف: {memo['الأستاذ']}
-التاريخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Memo Number: {note}
+Title: {memo['عنوان المذكرة']}
+Students: {students}
+Supervisor: {memo['الأستاذ']}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 """
 
     msg = MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = "إشعار تسجيل مذكرة"
+    msg["Subject"] = "Master Memo Registration Notification"
     msg["From"] = sender
     msg["To"] = memo["Email المشرف"]
 
@@ -226,7 +218,7 @@ def notify_supervisor(memo, note, s1, s2=None):
         server.send_message(msg)
 
 # ---------------------------
-# الواجهة
+# Main UI
 # ---------------------------
 df_students = load_students()
 df_memos = load_memos()
@@ -234,34 +226,34 @@ df_memos = load_memos()
 if "logged" not in st.session_state:
     st.session_state.logged = False
 
-# --- صفحة تسجيل الدخول ---
+# --- Login page ---
 if not st.session_state.logged:
-    st.markdown("## 🎓 تسجيل الدخول")
-    memo_type = st.radio("نوع المذكرة", ["فردية", "ثنائية"])
-    u1 = st.text_input("اسم المستخدم الطالب الأول")
-    p1 = st.text_input("كلمة السر", type="password")
+    st.markdown("## 🎓 Login")
+    memo_type = st.radio("Memo Type", ["Individual", "Group"])
+    u1 = st.text_input("Student 1 Username")
+    p1 = st.text_input("Password", type="password")
     u2 = p2 = None
-    if memo_type == "ثنائية":
-        u2 = st.text_input("اسم المستخدم الطالب الثاني")
-        p2 = st.text_input("كلمة السر الطالب الثاني", type="password")
+    if memo_type == "Group":
+        u2 = st.text_input("Student 2 Username")
+        p2 = st.text_input("Student 2 Password", type="password")
 
-    if st.button("دخول"):
+    if st.button("Login"):
         ok1, s1 = verify_student(u1, p1, df_students)
         if not ok1:
             st.error(s1)
             st.stop()
         if student_has_memo(s1):
-            st.error("❌ الطالب الأول سجل مذكرة من قبل!")
+            st.error("❌ Student 1 already registered a memo!")
             st.stop()
 
         s2 = None
-        if memo_type == "ثنائية":
+        if memo_type == "Group":
             ok2, s2 = verify_student(u2, p2, df_students)
             if not ok2:
                 st.error(s2)
                 st.stop()
             if student_has_memo(s2):
-                st.error("❌ الطالب الثاني سجل مذكرة من قبل!")
+                st.error("❌ Student 2 already registered a memo!")
                 st.stop()
 
         st.session_state.logged = True
@@ -269,39 +261,33 @@ if not st.session_state.logged:
         st.session_state.s2 = s2
         st.session_state.memo_type = memo_type
 
-        # عرض تفاصيل احترافية
-        st.success(f"✅ تسجيل دخول ناجح\n👤 الطالب الأول: {s1['اللقب']} {s1['الإسم']}")
+        st.success(f"✅ Login successful\n👤 Student 1: {s1['اللقب']} {s1['الإسم']}")
         if s2:
-            st.success(f"👤 الطالب الثاني: {s2['اللقب']} {s2['الإسم']}")
+            st.success(f"👤 Student 2: {s2['اللقب']} {s2['الإسم']}")
 
-# --- صفحة تسجيل المذكرة بعد الدخول ---
+# --- Memo registration page ---
 else:
-    st.markdown("## 📝 تسجيل المذكرة")
-    note = st.text_input("رقم المذكرة")
-    pwd = st.text_input("كلمة سر الأستاذ", type="password")
+    st.markdown("## 📝 Register Memo")
+    note = st.text_input("Memo Number")
+    pwd = st.text_input("Supervisor Password", type="password")
 
-    if st.button("تأكيد التسجيل"):
+    if st.button("Confirm Registration"):
         ok, memo, err = verify_memo(note, pwd, df_memos)
         if not ok:
             st.error(err)
             st.stop()
 
-        # تحديث الشيتات
+        # Update sheets
         update_registration(note, st.session_state.s1, st.session_state.s2)
 
-        # توليد PDF
+        # Generate PDF
         pdf_path = generate_pdf(note, memo, st.session_state.s1, st.session_state.s2)
 
-        # إشعار المشرف
+        # Notify supervisor
         notify_supervisor(memo, note, st.session_state.s1, st.session_state.s2)
 
-        # عرض PDF للتحميل
+        # Show PDF download
         with open(pdf_path, "rb") as f:
-            st.download_button("📄 تحميل وصل PDF", f, file_name=pdf_path.split("/")[-1])
+            st.download_button("📄 Download PDF Receipt", f, file_name=pdf_path.split("/")[-1])
 
-        # عرض رسالة احترافية
-        st.success(f"✅ تم تسجيل المذكرة بنجاح!\n📄 العنوان: {memo['عنوان المذكرة']}\n👨‍🏫 المشرف: {memo['الأستاذ']}\n📝 التخصص: {memo.get('التخصص', 'غير محدد')}")
-إذا أحببت، الخطوة التالية يمكن أن نضيف:
-تأكيد أن كل كلمة سر لا تُستخدم إلا مرة واحدة بشكل صارم في كل التسجيلات السابقة.
-لوحة تحكم للإدارة لمعرفة كم بقي من كلمات سر لكل أستاذ.
-هل تريد أن أضيف هذه الميزة الآن؟
+        st.success(f"✅ Memo registered successfully!\n📄 Title: {memo['عنوان المذكرة']}\n👨‍🏫 Supervisor: {memo['الأستاذ']}\n📝 Specialization: {memo.get('التخصص', 'Not specified')}")
