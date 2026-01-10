@@ -19,7 +19,7 @@ input, button, select { font-size: 16px !important; }
 button { background-color: #256D85 !important; color: white !important; border: none !important; padding: 10px 20px !important; border-radius: 6px !important; transition: background-color 0.3s ease; }
 button:hover { background-color: #2C89A0 !important; }
 hr { border: 1px solid #00CED1; margin: 20px 0; }
-.message { font-size: 18px; font-weight: bold; text-align: center; margin: 10px 0; }
+.message { font-size: 18px; font-weight: bold; text-align: center; margin: 10px 0; color: #FFFFFF; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -181,21 +181,21 @@ if not st.session_state.logged_in:
     if st.button("تسجيل الدخول"):
         valid1, student1 = verify_student(username1, password1, df_students)
         if not valid1:
-            st.markdown(f'<div class="message">❌ {student1}</div>', unsafe_allow_html=True)
+            st.markdown(f'<p class="message">❌ {student1}</p>', unsafe_allow_html=True)
         elif check_student_already_registered(student1):
-            st.markdown('<div class="message">❌ الطالب الأول سجل مذكرة من قبل!</div>', unsafe_allow_html=True)
+            st.markdown('<p class="message">❌ الطالب الأول سجل مذكرة من قبل!</p>', unsafe_allow_html=True)
         else:
             student2 = None
             if st.session_state.memo_type == "ثنائية":
                 valid2, student2 = verify_student(username2, password2, df_students)
                 if not valid2:
-                    st.markdown(f'<div class="message">❌ {student2}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">❌ {student2}</p>', unsafe_allow_html=True)
                 elif check_student_already_registered(student2):
-                    st.markdown('<div class="message">❌ الطالب الثاني سجل مذكرة من قبل!</div>', unsafe_allow_html=True)
+                    st.markdown('<p class="message">❌ الطالب الثاني سجل مذكرة من قبل!</p>', unsafe_allow_html=True)
                 else:
-                    st.markdown(f'<div class="message">✅ تم تسجيل الدخول للطالبين: {student1["الإسم"]} و {student2["الإسم"]}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">✅ تم تسجيل الدخول للطالبين: {student1["اللقب"]} {student1["الإسم"]} و {student2["اللقب"]} {student2["الإسم"]}</p>', unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="message">✅ تم تسجيل الدخول للطالب: {student1["الإسم"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<p class="message">✅ تم تسجيل الدخول للطالب: {student1["اللقب"]} {student1["الإسم"]}</p>', unsafe_allow_html=True)
             st.session_state.logged_in = True
             st.session_state.student1 = student1
             st.session_state.student2 = student2
@@ -209,7 +209,7 @@ else:
     if st.session_state.memo_type == "ثنائية" and st.session_state.student2:
         st.markdown(f"<h3>👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}</h3>", unsafe_allow_html=True)
 
-    st.markdown('<div class="message">⚠️ يجب الاتصال بالأستاذ المشرف للحصول على كلمة السر</div>', unsafe_allow_html=True)
+    st.markdown('<p class="message">⚠️ يجب الاتصال بالأستاذ المشرف للحصول على كلمة السر</p>', unsafe_allow_html=True)
 
     note_number = st.text_input("رقم المذكرة")
     prof_password = st.text_input("كلمة سر المشرف", type="password")
@@ -217,7 +217,7 @@ else:
     if st.button("تأكيد تسجيل المذكرة"):
         valid_memo, prof_row, error_msg = verify_professor_password(note_number, prof_password, df_memos, df_prof_memos)
         if not valid_memo:
-            st.markdown(f'<div class="message">{error_msg}</div>', unsafe_allow_html=True)
+            st.markdown(f'<p class="message">{error_msg}</p>', unsafe_allow_html=True)
         else:
             updated = update_registration(note_number, st.session_state.student1, st.session_state.student2)
             if updated:
@@ -225,13 +225,13 @@ else:
                 students_info = [f"{st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}"]
                 if st.session_state.student2:
                     students_info.append(f"{st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}")
-                st.markdown(f'<div class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</div>', unsafe_allow_html=True)
-                st.markdown('<div class="message">')
-                st.markdown(f"📄 رقم المذكرة: {note_number}", unsafe_allow_html=True)
-                st.markdown(f"📑 عنوان المذكرة: {memo_info['عنوان المذكرة']}", unsafe_allow_html=True)
-                st.markdown(f"🎯 التخصص: {memo_info['التخصص']}", unsafe_allow_html=True)
-                st.markdown(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}", unsafe_allow_html=True)
-                st.markdown(f"👤 الطلاب: {', '.join(students_info)}", unsafe_allow_html=True)
-                st.markdown(f"🕒 تاريخ التسجيل: {datetime.now().strftime('%Y-%m-%d %H:%M')}", unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # الرسالة التفصيلية بعد التسجيل
+                st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="message">📄 رقم المذكرة: {note_number}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="message">🎯 التخصص: {memo_info["التخصص"]}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="message">👨‍🏫 المشرف: {memo_info["الأستاذ"]}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="message">👤 الطلاب: {", ".join(students_info)}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
