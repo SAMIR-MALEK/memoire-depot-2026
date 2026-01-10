@@ -172,9 +172,9 @@ if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
 
     # 1. عنوان الجامعة
-    st.markdown("<h5 style='text-align:center;'>جامعة محمد البشير الإبراهيمي - برج بوعريريج</h2>", unsafe_allow_html=True)
+    st.markdown("<h5 style='text-align:center;'>جامعة محمد البشير الإبراهيمي</h2>", unsafe_allow_html=True)
     # 2. عنوان الكلية
-    st.markdown("<h3 style='text-align:center;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
+    st.markdown("<h6 style='text-align:center;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
 
     # 3. اللوجو في الوسط مع اسم اللوجو
     st.markdown("""
