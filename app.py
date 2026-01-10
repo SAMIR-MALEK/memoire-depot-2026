@@ -258,4 +258,4 @@ else:
                 st.markdown(f'<p class="message">🎯 التخصص: {memo_info["التخصص"]}</p>', unsafe_allow_html=True)
                 st.markdown(f'<p class="message">👨‍🏫 المشرف: {memo_info["الأستاذ"]}</p>', unsafe_allow_html=True)
                 st.markdown(f'<p class="message">👤 الطلاب: {", ".join(students_info)}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
