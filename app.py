@@ -168,23 +168,15 @@ if 'logged_in' not in st.session_state:
 # ---------------- واجهة تسجيل الدخول ----------------
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
-
-    # 1. عنوان الجامعة
     st.markdown("<h5 style='text-align:center;'>جامعة محمد البشير الإبراهيمي</h2>", unsafe_allow_html=True)
-    # 2. عنوان الكلية
     st.markdown("<h6 style='text-align:center;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
-
-    # 3. اللوجو في الوسط
     st.markdown("""
         <div style="text-align:center; margin:20px 0;">
             <img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/LOGO2.png" width="100">
         </div>
     """, unsafe_allow_html=True)
-
-    # 4. عنوان المنصة أسفل اللوجو بالأصفر
     st.markdown("<h4 style='text-align:center; color:#FFD700;'>منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
 
-    # --- اختيار نوع المذكرة ---
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
     username1 = st.text_input("اسم المستخدم الطالب الأول")
     password1 = st.text_input("كلمة السر الطالب الأول", type="password")
@@ -213,10 +205,9 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.student1 = student1
             st.session_state.student2 = student2
-
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- واجهة الاطلاع على المذكرات بعد تسجيل الدخول ----------------
+# ---------------- واجهة الاطلاع وتسجيل المذكرة بعد تسجيل الدخول ----------------
 else:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;'>📝 الاطلاع على المذكرات المتاحة</h2>", unsafe_allow_html=True)
@@ -224,7 +215,7 @@ else:
     if st.session_state.memo_type == "ثنائية" and st.session_state.student2:
         st.markdown(f"<h3>👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}</h3>", unsafe_allow_html=True)
 
-    st.markdown('<p class="message">⚠️ هذه القائمة للعرض فقط قبل إدخال كلمة سر المشرف</p>', unsafe_allow_html=True)
+    st.markdown('<p class="message">⚠️ هذه القوائم للعرض فقط قبل إدخال كلمة سر المشرف</p>', unsafe_allow_html=True)
 
     # --- قائمة الأساتذة ---
     professors = df_memos["الأستاذ"].dropna().unique().tolist()
@@ -262,12 +253,7 @@ else:
                     students_info = [f"{st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}"]
                     if st.session_state.student2:
                         students_info.append(f"{st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}")
-st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</p>', unsafe_allow_html=True)
-                    st.markdown(f'<p class="message">📄 رقم المذكرة: {note_number}</p>', unsafe_allow_html=True)
-                    st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
-                    st.markdown(f'<p class="message">🎯 التخصص: {memo_info["التخصص"]}</p>', unsafe_allow_html=True)
-                    st.markdown(f'<p class="message">👨‍🏫 المشرف: {memo_info["الأستاذ"]}</p>', unsafe_allow_html=True)
-                    st.markdown(f'<p class="message">👤 الطلاب: {", ".join(students_info)}</p>', unsafe_allow_html=True)
-                    st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">📄 رقم المذكرة: {note_number}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة
