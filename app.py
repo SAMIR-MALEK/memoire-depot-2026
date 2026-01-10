@@ -262,5 +262,12 @@ else:
                     students_info = [f"{st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}"]
                     if st.session_state.student2:
                         students_info.append(f"{st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}")
+st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">📄 رقم المذكرة: {note_number}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">🎯 التخصص: {memo_info["التخصص"]}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">👨‍🏫 المشرف: {memo_info["الأستاذ"]}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">👤 الطلاب: {", ".join(students_info)}</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
 
-                    st.markdown(f
+    st.markdown('</div>', unsafe_allow_html=True)
