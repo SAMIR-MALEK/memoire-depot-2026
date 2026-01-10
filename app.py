@@ -185,7 +185,8 @@ if not st.session_state.logged_in:
     """, unsafe_allow_html=True)
 
     # 4. عنوان المنصة أسفل اللوجو
-    st.markdown("<h2 style='text-align:center; color:#FFFFFF;'>منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align:center; color:#FFD700;'>منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
+
 
     # --- اختيار نوع المذكرة ---
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
