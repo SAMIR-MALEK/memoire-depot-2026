@@ -168,15 +168,23 @@ if 'logged_in' not in st.session_state:
 # ---------------- واجهة تسجيل الدخول ----------------
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
+
+    # 1. عنوان الجامعة
     st.markdown("<h5 style='text-align:center;'>جامعة محمد البشير الإبراهيمي</h2>", unsafe_allow_html=True)
+    # 2. عنوان الكلية
     st.markdown("<h6 style='text-align:center;'>كلية الحقوق والعلوم السياسية</h3>", unsafe_allow_html=True)
+
+    # 3. اللوجو في الوسط
     st.markdown("""
         <div style="text-align:center; margin:20px 0;">
             <img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/LOGO2.png" width="100">
         </div>
     """, unsafe_allow_html=True)
+
+    # 4. عنوان المنصة بالأصفر
     st.markdown("<h4 style='text-align:center; color:#FFD700;'>منصة تسجيل مذكرة الماستر</h2>", unsafe_allow_html=True)
 
+    # --- اختيار نوع المذكرة ---
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
     username1 = st.text_input("اسم المستخدم الطالب الأول")
     password1 = st.text_input("كلمة السر الطالب الأول", type="password")
@@ -205,11 +213,13 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.student1 = student1
             st.session_state.student2 = student2
+
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- واجهة تسجيل المذكرة بعد الدخول ----------------
-
-# ---------------- واجهة تسجيل المذكرة بعد الدخول ----------------
+# ---------------- صفحة تسجيل المذكرة بعد تسجيل الدخول ----------------
+else:
+    # ---------- الجزء الذي أرسلته مسبقًا مع قائمة الأساتذة ---------- #
+    # ---------------- واجهة تسجيل المذكرة بعد الدخول ----------------
 st.markdown('<div class="block-container">', unsafe_allow_html=True)
 st.markdown("<h2 style='text-align:center;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
 st.markdown(f"<h3>👤 الطالب الأول: {st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}</h3>", unsafe_allow_html=True)
@@ -262,28 +272,3 @@ if st.button("تأكيد تسجيل المذكرة"):
             st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
-
-
-    # -------- إدخال رقم المذكرة وكلمة سر المشرف --------
-    note_number = st.text_input("رقم المذكرة")
-    prof_password = st.text_input("كلمة سر المشرف", type="password")
-
-    if st.button("تأكيد تسجيل المذكرة"):
-        valid_memo, prof_row, error_msg = verify_professor_password(note_number, prof_password, df_memos, df_prof_memos)
-        if not valid_memo:
-            st.markdown(f'<p class="message">{error_msg}</p>', unsafe_allow_html=True)
-        else:
-            updated = update_registration(note_number, st.session_state.student1, st.session_state.student2)
-            if updated:
-                memo_info = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].iloc[0]
-                students_info = [f"{st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}"]
-                if st.session_state.student2:
-                    students_info.append(f"{st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}")
-                st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح! تم تحديث البيانات.</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">📄 رقم المذكرة: {note_number}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">📑 عنوان المذكرة: {memo_info["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">🎯 التخصص: {memo_info["التخصص"]}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">👨‍🏫 المشرف: {memo_info["الأستاذ"]}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">👤 الطلاب: {", ".join(students_info)}</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
