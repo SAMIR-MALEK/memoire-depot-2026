@@ -221,31 +221,18 @@ else:
     all_profs = df_memos["الأستاذ"].dropna().unique().tolist()
     selected_prof = st.selectbox("اختر الأستاذ:", [""] + all_profs)
 
-    available_memos = []
     if selected_prof:
         student_specialty = st.session_state.student1["التخصص"]
-        available_memos = df_memos[
+        available_memos_df = df_memos[
             (df_memos["الأستاذ"].astype(str).str.strip() == selected_prof.strip()) &
             (df_memos["التخصص"].astype(str).str.strip() == student_specialty.strip()) &
             (df_memos["تم التسجيل"].astype(str).str.strip() != "نعم")
-        ]["عنوان المذكرة"].tolist()
+        ][["رقم المذكرة", "عنوان المذكرة"]]
 
-        
-
-
-
-if available_memos:
-    st.markdown("📚 **المذكرات المتاحة:**")
-    for note_title in available_memos:
-        # الحصول على رقم المذكرة المقابل للعنوان
-        note_number_tmp = df_memos[
-            (df_memos["عنوان المذكرة"].astype(str).str.strip() == note_title.strip())
-        ]["رقم المذكرة"].values[0]
-        st.markdown(f'<p style="color:white;">{note_number_tmp} • {note_title}</p>', unsafe_allow_html=True)
-
-
-
-
+        if not available_memos_df.empty:
+            st.markdown("📚 **المذكرات المتاحة:**")
+            for idx, row in available_memos_df.iterrows():
+                st.markdown(f'<p style="color:white;">{row["رقم المذكرة"]} • {row["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
         else:
             st.markdown("❌ لا توجد مذكرات متاحة لهذا الأستاذ مع تخصصك.", unsafe_allow_html=True)
 
@@ -271,3 +258,4 @@ if available_memos:
                 st.markdown(f'<p class="message">👨‍🏫 المشرف: {memo_info["الأستاذ"]}</p>', unsafe_allow_html=True)
                 st.markdown(f'<p class="message">👤 الطلاب: {", ".join(students_info)}</p>', unsafe_allow_html=True)
                 st.markdown(f'<p class="message">🕒 تاريخ التسجيل: {datetime.now().strftime("%Y-%m-%d %H:%M")}</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
