@@ -230,10 +230,22 @@ else:
             (df_memos["تم التسجيل"].astype(str).str.strip() != "نعم")
         ]["عنوان المذكرة"].tolist()
 
-        if available_memos:
-            st.markdown("📚 **المذكرات المتاحة:**")
-            for m in available_memos:
-                st.markdown(f"- {m}")
+        
+
+
+
+if available_memos:
+    st.markdown("📚 **المذكرات المتاحة:**")
+    for note_title in available_memos:
+        # الحصول على رقم المذكرة المقابل للعنوان
+        note_number_tmp = df_memos[
+            (df_memos["عنوان المذكرة"].astype(str).str.strip() == note_title.strip())
+        ]["رقم المذكرة"].values[0]
+        st.markdown(f'<p style="color:white;">{note_number_tmp} • {note_title}</p>', unsafe_allow_html=True)
+
+
+
+
         else:
             st.markdown("❌ لا توجد مذكرات متاحة لهذا الأستاذ مع تخصصك.", unsafe_allow_html=True)
 
