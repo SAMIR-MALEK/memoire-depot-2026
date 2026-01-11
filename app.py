@@ -164,7 +164,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.student1 = None
     st.session_state.student2 = None
     st.session_state.memo_type = "فردية"
-    st.session_state.mode = "register"  # register = تسجيل جديد, view = عرض فقط
+    st.session_state.mode = "register"
 
 # ---------------- واجهة تسجيل الدخول ----------------
 if not st.session_state.logged_in:
@@ -195,7 +195,6 @@ if not st.session_state.logged_in:
             if st.session_state.memo_type == "ثنائية":
                 valid2, student2 = verify_student(username2, password2, df_students)
                 n2 = str(student2['رقم المذكرة']).strip() if valid2 else ""
-                # ---- منطق فضاء الطالب ----
                 if valid2 and n1 and n2 and n1 == n2:
                     st.session_state.mode = "view"
                 elif valid2 and (n1 or n2):
@@ -234,4 +233,57 @@ if st.session_state.logged_in and st.session_state.mode == "view":
     st.markdown(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}", unsafe_allow_html=True)
     st.markdown(f"🕒 تاريخ التسجيل: {memo_info.get('تاريخ التسجيل', '')}", unsafe_allow_html=True)
     st.info("هذا فضاء عرض فقط — سيتم تطويره لاحقًا")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------- تسجيل المذكرة جديد ----------------
+if st.session_state.logged_in and st.session_state.mode == "register":
+    st.markdown('<div class="block-container">', unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
+    st.markdown(f"👤 الطالب الأول: {st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}", unsafe_allow_html=True)
+    if st.session_state.memo_type == "ثنائية" and st.session_state.student2:
+        st.markdown(f"👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}", unsafe_allow_html=True)
+
+    st.markdown('<p class="message">⚠️ اختر الأستاذ لمعرفة المذكرات المتاحة (للاطلاع فقط)</p>', unsafe_allow_html=True)
+
+    # -------- قائمة الأساتذة --------
+    all_profs = sorted(df_memos["الأستاذ"].dropna().unique())
+    selected_prof = st.selectbox("اختر الأستاذ:", [""] + all_profs)
+
+    if selected_prof:
+        student_specialty = st.session_state.student1["التخصص"]
+        available_memos_df = df_memos[
+            (df_memos["الأستاذ"].astype(str).str.strip() == selected_prof.strip()) &
+            (df_memos["التخصص"].astype(str).str.strip() == student_specialty.strip()) &
+            (df_memos["تم التسجيل"].astype(str).str.strip() != "نعم")
+        ][["رقم المذكرة", "عنوان المذكرة"]]
+
+        if not available_memos_df.empty:
+            st.markdown(f'<p style="color:#FFD700;">⚠️ هذه المذكرات متاحة فقط لتخصصك: {student_specialty}</p>', unsafe_allow_html=True)
+            st.markdown("📚 **المذكرات المتاحة:**")
+            for idx, row in available_memos_df.iterrows():
+                st.markdown(f'<p style="color:white;">{row["رقم المذكرة"]} • {row["عنوان المذكرة"]}</p>', unsafe_allow_html=True)
+        else:
+            st.markdown("❌ لا توجد مذكرات متاحة لهذا الأستاذ مع تخصصك.", unsafe_allow_html=True)
+
+    note_number = st.text_input("رقم المذكرة")
+    prof_password = st.text_input("كلمة سر المشرف", type="password")
+
+    if st.button("تأكيد تسجيل المذكرة"):
+        valid_memo, prof_row, error_msg = verify_professor_password(note_number, prof_password, df_memos, df_prof_memos)
+        if not valid_memo:
+            st.markdown(f'<p class="message">❌ {error_msg}</p>', unsafe_allow_html=True)
+        else:
+            # حالة مذكرة فردية
+            if st.session_state.memo_type == "فردية":
+                update_registration(note_number, st.session_state.student1)
+                st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح!</p>', unsafe_allow_html=True)
+                st.session_state.mode = "view"
+
+            # حالة مذكرة ثنائية
+            else:
+                student2 = st.session_state.student2
+                update_registration(note_number, st.session_state.student1, student2)
+                st.markdown(f'<p class="message">✅ تم تسجيل المذكرة الثنائية بنجاح!</p>', unsafe_allow_html=True)
+                st.session_state.mode = "view"
+
     st.markdown('</div>', unsafe_allow_html=True)
