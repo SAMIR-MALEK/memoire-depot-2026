@@ -223,7 +223,7 @@ if st.session_state.logged_in and st.session_state.mode == "view":
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;'>📘 فضاء الطالب</h2>", unsafe_allow_html=True)
     st.markdown(f"👤 الطالب الأول: {s1['اللقب']} {s1['الإسم']}", unsafe_allow_html=True)
-    if st.session_state.memo_type == "ثنائية" and st.session_state.student2:
+    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
         s2 = st.session_state.student2
         st.markdown(f"👤 الطالب الثاني: {s2['اللقب']} {s2['الإسم']}", unsafe_allow_html=True)
 
@@ -240,7 +240,7 @@ if st.session_state.logged_in and st.session_state.mode == "register":
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
     st.markdown(f"👤 الطالب الأول: {st.session_state.student1['اللقب']} {st.session_state.student1['الإسم']}", unsafe_allow_html=True)
-    if st.session_state.memo_type == "ثنائية" and st.session_state.student2:
+    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
         st.markdown(f"👤 الطالب الثاني: {st.session_state.student2['اللقب']} {st.session_state.student2['الإسم']}", unsafe_allow_html=True)
 
     st.markdown('<p class="message">⚠️ اختر الأستاذ لمعرفة المذكرات المتاحة (للاطلاع فقط)</p>', unsafe_allow_html=True)
