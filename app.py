@@ -221,26 +221,57 @@ if not st.session_state.logged_in:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- فضاء الطالب (عرض فقط) ----------------
+# ---------------- فضاء الطالب (عرض فقط) محدث ----------------
 if st.session_state.logged_in and st.session_state.mode == "view":
     s1 = st.session_state.student1
     note_number = str(s1.get("رقم المذكرة", "")).strip()
-    memo_info = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == note_number].iloc[0]
-
-    st.markdown('<div class="block-container">', unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align:center;'>📘 فضاء الطالب</h2>", unsafe_allow_html=True)
-    st.markdown(f"👤 الطالب الأول: {s1['اللقب']} {s1['الإسم']}", unsafe_allow_html=True)
+    
+    # التحقق من وجود رقم المذكرة في جدول المذكرات
+    memo_info = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == note_number]
+    if memo_info.empty:
+        st.error("❌ لم يتم العثور على المذكرة المسجلة لهذا الطالب")
+        st.stop()
+    memo_info = memo_info.iloc[0]
+    
+    # جلب بيانات المشرف الفعلية من جدول الأساتذة
+    prof_info = df_prof_memos[
+        (df_prof_memos["الطالب الأول"].astype(str).str.strip() == f"{s1['اللقب']} {s1['الإسم']}")
+    ]
+    
+    # إذا كانت المذكرة ثنائية، تحقق من الطالب الثاني
     if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
         s2 = st.session_state.student2
-        st.markdown(f"👤 الطالب الثاني: {s2['اللقب']} {s2['الإسم']}", unsafe_allow_html=True)
+        prof_info2 = df_prof_memos[
+            (df_prof_memos["الطالب الثاني"].astype(str).str.strip() == f"{s2['اللقب']} {s2['الإسم']}")
+        ]
+        if not prof_info2.empty:
+            prof_info = prof_info2
 
+    # تحديد المشرف الفعلي
+    if prof_info.empty:
+        actual_prof = memo_info['الأستاذ']  # fallback
+    else:
+        actual_prof = prof_info.iloc[0]["الأستاذ"]
+    
+    # بناء واجهة العرض
+    st.markdown('<div class="block-container">', unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>📘 فضاء الطالب</h2>", unsafe_allow_html=True)
+    
+    # بيانات الطلاب
+    st.markdown(f"👤 الطالب الأول: {s1['اللقب']} {s1['الإسم']}", unsafe_allow_html=True)
+    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
+        st.markdown(f"👤 الطالب الثاني: {s2['اللقب']} {s2['الإسم']}", unsafe_allow_html=True)
+    
+    # بيانات المذكرة
     st.markdown(f"📄 رقم المذكرة: {memo_info['رقم المذكرة']}", unsafe_allow_html=True)
     st.markdown(f"📑 عنوان المذكرة: {memo_info['عنوان المذكرة']}", unsafe_allow_html=True)
     st.markdown(f"🎯 التخصص: {memo_info['التخصص']}", unsafe_allow_html=True)
-    st.markdown(f"👨‍🏫 المشرف: {memo_info['الأستاذ']}", unsafe_allow_html=True)
+    st.markdown(f"👨‍🏫 المشرف: {actual_prof}", unsafe_allow_html=True)
     st.markdown(f"🕒 تاريخ التسجيل: {memo_info.get('تاريخ التسجيل', '')}", unsafe_allow_html=True)
+    
     st.info("هذا فضاء عرض فقط — سيتم تطويره لاحقًا")
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 # ---------------- تسجيل المذكرة جديد ----------------
 if st.session_state.logged_in and st.session_state.mode == "register":
