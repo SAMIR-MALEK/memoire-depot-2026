@@ -256,6 +256,8 @@ if st.session_state.logged_in and st.session_state.mode == "view":
     # بناء واجهة العرض
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;'>📘 فضاء الطالب</h2>", unsafe_allow_html=True)
+
+    st.info("الطالب / الطالبين مسجلين سابقا")
     
     # بيانات الطلاب
     st.markdown(f"👤 الطالب الأول: {s1['اللقب']} {s1['الإسم']}", unsafe_allow_html=True)
@@ -269,7 +271,7 @@ if st.session_state.logged_in and st.session_state.mode == "view":
     st.markdown(f"👨‍🏫 المشرف: {actual_prof}", unsafe_allow_html=True)
     st.markdown(f"🕒 تاريخ التسجيل: {memo_info.get('تاريخ التسجيل', '')}", unsafe_allow_html=True)
     
-    st.info("هذا فضاء عرض فقط — سيتم تطويره لاحقًا")
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 
