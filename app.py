@@ -234,24 +234,8 @@ if st.session_state.logged_in and st.session_state.mode == "view":
     memo_info = memo_info.iloc[0]
     
     # جلب بيانات المشرف الفعلية من جدول الأساتذة
-    prof_info = df_prof_memos[
-        (df_prof_memos["الطالب الأول"].astype(str).str.strip() == f"{s1['اللقب']} {s1['الإسم']}")
-    ]
-    
-    # إذا كانت المذكرة ثنائية، تحقق من الطالب الثاني
-    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
-        s2 = st.session_state.student2
-        prof_info2 = df_prof_memos[
-            (df_prof_memos["الطالب الثاني"].astype(str).str.strip() == f"{s2['اللقب']} {s2['الإسم']}")
-        ]
-        if not prof_info2.empty:
-            prof_info = prof_info2
+    actual_prof = memo_info["الأستاذ"]
 
-    # تحديد المشرف الفعلي
-    if prof_info.empty:
-        actual_prof = memo_info['الأستاذ']  # fallback
-    else:
-        actual_prof = prof_info.iloc[0]["الأستاذ"]
     
     # بناء واجهة العرض
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
