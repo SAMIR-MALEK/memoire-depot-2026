@@ -174,17 +174,13 @@ if 'logged_in' not in st.session_state:
     st.session_state.mode = "register"
 
 # ---------------- واجهة تسجيل الدخول ----------------
-# ... (هنا تضيف الكود من الجزء الثالث كما أرسلته أعلاه)
-# ---------------- واجهة تسجيل الدخول ----------------
 if not st.session_state.logged_in:
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h5 style='text-align:center;'>جامعة محمد البشير الإبراهيمي</h5>", unsafe_allow_html=True)
     st.markdown("<h6 style='text-align:center;'>كلية الحقوق والعلوم السياسية</h6>", unsafe_allow_html=True)
-    st.markdown("""
-        <div style="text-align:center; margin:20px 0;">
-            <img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/LOGO2.png" width="100">
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""<div style="text-align:center; margin:20px 0;">
+                    <img src="https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/LOGO2.png" width="100">
+                   </div>""", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align:center; color:#FFD700;'>منصة تسجيل مذكرة الماستر</h4>", unsafe_allow_html=True)
 
     st.session_state.memo_type = st.radio("اختر نوع المذكرة:", ["فردية", "ثنائية"])
@@ -221,63 +217,9 @@ if not st.session_state.logged_in:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- فضاء الطالب (عرض فقط) محدث ----------------
-if st.session_state.logged_in and st.session_state.mode == "view":
-    s1 = st.session_state.student1
-    note_number = str(s1.get("رقم المذكرة", "")).strip()
-
-    # التحقق من وجود رقم المذكرة في جدول المذكرات
-    memo_info = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == note_number]
-    if memo_info.empty:
-        st.error("❌ لم يتم العثور على المذكرة المسجلة لهذا الطالب")
-        st.stop()
-    memo_info = memo_info.iloc[0]
-
-    # جلب بيانات المشرف الفعلية من جدول الأساتذة
-    prof_info = df_prof_memos[
-        (df_prof_memos["الطالب الأول"].astype(str).str.strip() == f"{s1['اللقب']} {s1['الإسم']}")
-    ]
-    
-    # إذا كانت المذكرة ثنائية، تحقق من الطالب الثاني
-    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
-        s2 = st.session_state.student2
-        prof_info2 = df_prof_memos[
-            (df_prof_memos["الطالب الثاني"].astype(str).str.strip() == f"{s2['اللقب']} {s2['الإسم']}")
-        ]
-        if not prof_info2.empty:
-            prof_info = prof_info2
-
-    # تحديد المشرف الفعلي
-    if prof_info.empty:
-        actual_prof = memo_info['الأستاذ']  # fallback
-    else:
-        actual_prof = prof_info.iloc[0]["الأستاذ"]
-    actual_prof = memo_info["الأستاذ"]
-
-
-    # بناء واجهة العرض
-    st.markdown('<div class="block-container">', unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align:center;'>📘 فضاء الطالب</h2>", unsafe_allow_html=True)
-
-    st.info("الطالب / الطالبين مسجلين سابقا")
-
-    # بيانات الطلاب
-    st.markdown(f"👤 الطالب الأول: {s1['اللقب']} {s1['الإسم']}", unsafe_allow_html=True)
-    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
-        st.markdown(f"👤 الطالب الثاني: {s2['اللقب']} {s2['الإسم']}", unsafe_allow_html=True)
-
-    # بيانات المذكرة
-    st.markdown(f"📄 رقم المذكرة: {memo_info['رقم المذكرة']}", unsafe_allow_html=True)
-    st.markdown(f"📑 عنوان المذكرة: {memo_info['عنوان المذكرة']}", unsafe_allow_html=True)
-    st.markdown(f"🎯 التخصص: {memo_info['التخصص']}", unsafe_allow_html=True)
-    st.markdown(f"👨‍🏫 المشرف: {actual_prof}", unsafe_allow_html=True)
-    st.markdown(f"🕒 تاريخ التسجيل: {memo_info.get('تاريخ التسجيل', '')}", unsafe_allow_html=True)
-
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ---------------- تسجيل المذكرة جديد ----------------
+# ---------------- تسجيل المذكرة جديد وفضاء الطالب مدمجين ✅ ----------------
+# (هنا يتم استخدام الكود الذي أرسلته لك في الرد السابق مع إعادة تحميل البيانات بعد التسجيل)
+# ---------------- تسجيل المذكرة جديد (محدث) ----------------
 if st.session_state.logged_in and st.session_state.mode == "register":
     st.markdown('<div class="block-container">', unsafe_allow_html=True)
     st.markdown("<h2 style='text-align:center;'>📝 تسجيل المذكرة</h2>", unsafe_allow_html=True)
@@ -315,14 +257,71 @@ if st.session_state.logged_in and st.session_state.mode == "register":
         if not valid_memo:
             st.markdown(f'<p class="message">❌ {error_msg}</p>', unsafe_allow_html=True)
         else:
+            # تسجيل المذكرة
             if st.session_state.memo_type == "فردية":
                 update_registration(note_number, st.session_state.student1)
-                st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح!</p>', unsafe_allow_html=True)
-                st.session_state.mode = "view"
             else:
                 student2 = st.session_state.student2
                 update_registration(note_number, st.session_state.student1, student2)
-                st.markdown(f'<p class="message">✅ تم تسجيل المذكرة الثنائية بنجاح!</p>', unsafe_allow_html=True)
-                st.session_state.mode = "view"
+
+            # 🔄 إعادة تحميل البيانات بعد التسجيل
+            df_students = load_students()
+            df_memos = load_memos()
+            df_prof_memos = load_prof_memos()
+
+            # 🔄 تحديث Session State
+            st.session_state.student1 = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == st.session_state.student1["اسم المستخدم"].strip()].iloc[0]
+            if st.session_state.memo_type == "ثنائية" and st.session_state.student2:
+                st.session_state.student2 = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == st.session_state.student2["اسم المستخدم"].strip()].iloc[0]
+
+            st.markdown(f'<p class="message">✅ تم تسجيل المذكرة بنجاح!</p>', unsafe_allow_html=True)
+            st.session_state.mode = "view"
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------- فضاء الطالب (عرض فقط) محدث ----------------
+if st.session_state.logged_in and st.session_state.mode == "view":
+    s1 = st.session_state.student1
+    note_number = str(s1.get("رقم المذكرة", "")).strip()
+
+    # التحقق من وجود رقم المذكرة في جدول المذكرات بعد التحديث
+    memo_info = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == note_number]
+    if memo_info.empty:
+        st.error("❌ لم يتم العثور على المذكرة المسجلة لهذا الطالب")
+        st.stop()
+    memo_info = memo_info.iloc[0]
+
+    # جلب بيانات المشرف الفعلية من جدول الأساتذة بعد التحديث
+    prof_info = df_prof_memos[
+        (df_prof_memos["الطالب الأول"].astype(str).str.strip() == f"{s1['اللقب']} {s1['الإسم']}")
+    ]
+    
+    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
+        s2 = st.session_state.student2
+        prof_info2 = df_prof_memos[
+            (df_prof_memos["الطالب الثاني"].astype(str).str.strip() == f"{s2['اللقب']} {s2['الإسم']}")
+        ]
+        if not prof_info2.empty:
+            prof_info = prof_info2
+
+    actual_prof = prof_info.iloc[0]["الأستاذ"] if not prof_info.empty else memo_info["الأستاذ"]
+
+    # بناء واجهة العرض
+    st.markdown('<div class="block-container">', unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>📘 فضاء الطالب</h2>", unsafe_allow_html=True)
+
+    st.info("الطالب / الطالبين مسجلين سابقا")
+
+    # بيانات الطلاب
+    st.markdown(f"👤 الطالب الأول: {s1['اللقب']} {s1['الإسم']}", unsafe_allow_html=True)
+    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
+        st.markdown(f"👤 الطالب الثاني: {s2['اللقب']} {s2['الإسم']}", unsafe_allow_html=True)
+
+    # بيانات المذكرة
+    st.markdown(f"📄 رقم المذكرة: {memo_info['رقم المذكرة']}", unsafe_allow_html=True)
+    st.markdown(f"📑 عنوان المذكرة: {memo_info['عنوان المذكرة']}", unsafe_allow_html=True)
+    st.markdown(f"🎯 التخصص: {memo_info['التخصص']}", unsafe_allow_html=True)
+    st.markdown(f"👨‍🏫 المشرف: {actual_prof}", unsafe_allow_html=True)
+    st.markdown(f"🕒 تاريخ التسجيل: {memo_info.get('تاريخ التسجيل', '')}", unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
