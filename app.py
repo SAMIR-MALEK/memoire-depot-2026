@@ -270,7 +270,7 @@ if st.session_state.logged_in and st.session_state.mode == "view":
     st.markdown(f"📄 رقم المذكرة: {memo_info['رقم المذكرة']}", unsafe_allow_html=True)
     st.markdown(f"📑 عنوان المذكرة: {memo_info['عنوان المذكرة']}", unsafe_allow_html=True)
     st.markdown(f"🎯 التخصص: {memo_info['التخصص']}", unsafe_allow_html=True)
-    st.markdown(f"👨‍🏫 المشرف: {actual_prof}", unsafe_allow_html=True)
+#   st.markdown(f"👨‍🏫 المشرف: {actual_prof}", unsafe_allow_html=True)
     st.markdown(f"🕒 تاريخ التسجيل: {memo_info.get('تاريخ التسجيل', '')}", unsafe_allow_html=True)
 
 
