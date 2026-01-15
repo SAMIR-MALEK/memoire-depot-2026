@@ -93,7 +93,6 @@ def update_registration(note_number, student1, student2=None):
     df_prof_memos = load_prof_memos()
     
     df_students = load_students()
-    st.write("أسماء أعمدة شيت الطلاب:", df_students.columns.tolist())
 
     prof_name = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]["الأستاذ"].iloc[0].strip()
     prof_row_idx = df_prof_memos[
@@ -198,10 +197,12 @@ if st.session_state.memo_type == "ثنائية":
     password2 = st.text_input("كلمة السر الطالب الثاني", type="password")
 
 if st.button("تسجيل الدخول"):
+    
     # التحقق من الطالب الأول
     valid1, student1 = verify_student(username1, password1, df_students)
 
-
+    st.write("أسماء أعمدة شيت الطلاب:", df_students.columns.tolist())
+    
     if not valid1:
         st.markdown(f'<p class="message">❌ {student1}</p>', unsafe_allow_html=True)
     else:
