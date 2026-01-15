@@ -199,8 +199,6 @@ if st.button("تسجيل الدخول"):
     # التحقق من الطالب الأول
     valid1, student1 = verify_student(username1, password1, df_students)
 
-    st.write("📌 بيانات الطالب:", student1)
-    st.write("📌 قيمة فردية:", student1.get("فردية", "❌ العمود غير موجود"))
 
     if not valid1:
         st.markdown(f'<p class="message">❌ {student1}</p>', unsafe_allow_html=True)
