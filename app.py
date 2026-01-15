@@ -91,6 +91,8 @@ def verify_professor_password(note_number, prof_password, df_memos, df_prof_memo
 def update_registration(note_number, student1, student2=None):
     df_memos = load_memos()
     df_prof_memos = load_prof_memos()
+    st.write(df_students.columns.tolist())
+
     df_students = load_students()
 
     prof_name = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]["الأستاذ"].iloc[0].strip()
