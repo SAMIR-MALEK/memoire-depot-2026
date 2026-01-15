@@ -206,7 +206,7 @@ if st.button("تسجيل الدخول"):
             # قراءة القيمة كنص وإزالة الفراغات
             value = str(student1.get("فردية", "")).strip()
             # إذا لم تكن 1، يظهر التحذير ويتوقف التنفيذ
-            if value != "1":
+            if value.lower() != "نعم":
                 st.markdown(
                     '<div class="block-container">'
                     '<h4 style="text-align:center; color:#FF4500;">❌ لا يمكن تسجيل مذكرة فردية. يرجى الاتصال بمسؤول الميدان للحصول على الموافقة</h4>'
