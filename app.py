@@ -91,8 +91,7 @@ def verify_professor_password(note_number, prof_password, df_memos, df_prof_memo
 def update_registration(note_number, student1, student2=None):
     df_memos = load_memos()
     df_prof_memos = load_prof_memos()
-    st.write(df_students.columns.tolist())
-
+    
     df_students = load_students()
 
     prof_name = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]["الأستاذ"].iloc[0].strip()
@@ -207,10 +206,8 @@ if st.button("تسجيل الدخول"):
     else:
         # ===== تحقق من عمود "فردية" إذا كانت المذكرة فردية =====
         if st.session_state.memo_type == "فردية":
-            # قراءة القيمة كنص وإزالة الفراغات
-            value = str(student1.get("فردية", "")).strip()
-            # إذا لم تكن 1، يظهر التحذير ويتوقف التنفيذ
-            if value.lower() != "نعم":
+            value = str(student1.get("فردية", "")).strip().lower()  # قراءة العمود وتحويله للصغير
+            if value not in ["1", "نعم"]:  # قبول "1" أو "نعم"
                 st.markdown(
                     '<div class="block-container">'
                     '<h4 style="text-align:center; color:#FF4500;">❌ لا يمكن تسجيل مذكرة فردية. يرجى الاتصال بمسؤول الميدان للحصول على الموافقة</h4>'
@@ -218,7 +215,7 @@ if st.button("تسجيل الدخول"):
                     '</div>',
                     unsafe_allow_html=True
                 )
-                st.stop()
+            st.stop()
         
         # متابعة باقي تسجيل الدخول
         student2 = None
