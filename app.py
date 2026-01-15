@@ -191,33 +191,48 @@ if not st.session_state.logged_in:
     username1 = st.text_input("اسم المستخدم الطالب الأول")
     password1 = st.text_input("كلمة السر الطالب الأول", type="password")
     username2 = password2 = None
-    if st.session_state.memo_type == "ثنائية":
-        username2 = st.text_input("اسم المستخدم الطالب الثاني")
-        password2 = st.text_input("كلمة السر الطالب الثاني", type="password")
+if st.session_state.memo_type == "ثنائية":
+    username2 = st.text_input("اسم المستخدم الطالب الثاني")
+    password2 = st.text_input("كلمة السر الطالب الثاني", type="password")
 
-    if st.button("تسجيل الدخول"):
-        valid1, student1 = verify_student(username1, password1, df_students)
-        if not valid1:
-            st.markdown(f'<p class="message">❌ {student1}</p>', unsafe_allow_html=True)
+if st.button("تسجيل الدخول"):
+    # التحقق من الطالب الأول
+    valid1, student1 = verify_student(username1, password1, df_students)
+    if not valid1:
+        st.markdown(f'<p class="message">❌ {student1}</p>', unsafe_allow_html=True)
+    else:
+        # ===== تحقق من عمود "فردية" إذا كانت المذكرة فردية =====
+        if st.session_state.memo_type == "فردية":
+            if str(student1.get("فردية", "")).strip() != "1":
+                st.markdown(
+                    '<div class="block-container">'
+                    '<h4 style="text-align:center; color:#FF4500;">❌ لا يمكن تسجيل مذكرة فردية. يرجى الاتصال بمسؤول الميدان للحصول على الموافقة</h4>'
+                    '<p style="text-align:center; color:#FFD700;">📧 Email: domaie.dsp@univ-bba.dz</p>'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
+                st.stop()
+        
+        # متابعة باقي التسجيل
+        student2 = None
+        n1 = str(student1.get('رقم المذكرة', '')).strip()
+        if st.session_state.memo_type == "ثنائية":
+            valid2, student2 = verify_student(username2, password2, df_students)
+            if not valid2:
+                st.markdown(f'<p class="message">❌ {student2}</p>', unsafe_allow_html=True)
+                st.stop()
+            n2 = str(student2.get('رقم المذكرة', '')).strip()
+            if n1 and n2 and n1 != n2:
+                st.markdown('<p class="message">❌ أحد الطالبين مسجل مسبقًا أو مسجل في مذكرتين مختلفتين!</p>', unsafe_allow_html=True)
+                st.stop()
+            st.session_state.mode = "register" if not n1 else "view"
         else:
-            student2 = None
-            n1 = str(student1.get('رقم المذكرة', '')).strip()
-            if st.session_state.memo_type == "ثنائية":
-                valid2, student2 = verify_student(username2, password2, df_students)
-                if not valid2:
-                    st.markdown(f'<p class="message">❌ {student2}</p>', unsafe_allow_html=True)
-                    st.stop()
-                n2 = str(student2.get('رقم المذكرة', '')).strip()
-                if n1 and n2 and n1 != n2:
-                    st.markdown('<p class="message">❌ أحد الطالبين مسجل مسبقًا أو مسجل في مذكرتين مختلفتين!</p>', unsafe_allow_html=True)
-                    st.stop()
-                st.session_state.mode = "register" if not n1 else "view"
-            else:
-                st.session_state.mode = "register" if not n1 else "view"
+            st.session_state.mode = "register" if not n1 else "view"
+        
+        st.session_state.logged_in = True
+        st.session_state.student1 = student1
+        st.session_state.student2 = student2
 
-            st.session_state.logged_in = True
-            st.session_state.student1 = student1
-            st.session_state.student2 = student2
 
     st.markdown('</div>', unsafe_allow_html=True)
 
