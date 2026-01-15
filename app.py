@@ -217,7 +217,7 @@ if st.button("تسجيل الدخول"):
                     '</div>',
                     unsafe_allow_html=True
                 )
-            st.stop()
+                st.stop()
         
         # متابعة باقي تسجيل الدخول
         student2 = None
