@@ -207,6 +207,8 @@ if st.button("تسجيل الدخول"):
         # ===== تحقق من عمود "فردية" إذا كانت المذكرة فردية =====
         if st.session_state.memo_type == "فردية":
             value = str(student1.get("فردية", "")).strip().lower()  # قراءة العمود وتحويله للصغير
+            st.write("قيمة فردية من شيت الطلاب:", repr(value))
+
             if value not in ["1", "نعم"]:  # قبول "1" أو "نعم"
                 st.markdown(
                     '<div class="block-container">'
