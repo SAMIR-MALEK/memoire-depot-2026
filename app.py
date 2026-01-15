@@ -203,7 +203,7 @@ if st.button("تسجيل الدخول"):
     else:
         # ===== تحقق من عمود "فردية" إذا كانت المذكرة فردية =====
         if st.session_state.memo_type == "فردية":
-            if str(student1.get("فردية", "")).strip() != "1":
+            if str(student1.get("فردية", "")).strip() != 1:
                 st.markdown(
                     '<div class="block-container">'
                     '<h4 style="text-align:center; color:#FF4500;">❌ لا يمكن تسجيل مذكرة فردية. يرجى الاتصال بمسؤول الميدان للحصول على الموافقة</h4>'
