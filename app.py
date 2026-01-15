@@ -203,19 +203,10 @@ if st.button("تسجيل الدخول"):
     else:
         # ===== تحقق من عمود "فردية" إذا كانت المذكرة فردية =====
         if st.session_state.memo_type == "فردية":
-            try:
-                # تحويل القيمة إلى رقم ومقارنة بالـ 1
-                if int(float(student1.get("فردية", 0))) != 1:
-                    st.markdown(
-                        '<div class="block-container">'
-                        '<h4 style="text-align:center; color:#FF4500;">❌ لا يمكن تسجيل مذكرة فردية. يرجى الاتصال بمسؤول الميدان للحصول على الموافقة</h4>'
-                        '<p style="text-align:center; color:#FFD700;">📧 Email: domaie.dsp@univ-bba.dz</p>'
-                        '</div>',
-                        unsafe_allow_html=True
-                    )
-                    st.stop()
-            except:
-                # إذا العمود فارغ أو غير رقمي
+            # قراءة القيمة كنص وإزالة الفراغات
+            value = str(student1.get("فردية", "")).strip()
+            # إذا لم تكن 1، يظهر التحذير ويتوقف التنفيذ
+            if value != "1":
                 st.markdown(
                     '<div class="block-container">'
                     '<h4 style="text-align:center; color:#FF4500;">❌ لا يمكن تسجيل مذكرة فردية. يرجى الاتصال بمسؤول الميدان للحصول على الموافقة</h4>'
@@ -225,7 +216,7 @@ if st.button("تسجيل الدخول"):
                 )
                 st.stop()
         
-        # متابعة باقي التسجيل
+        # متابعة باقي تسجيل الدخول
         student2 = None
         n1 = str(student1.get('رقم المذكرة', '')).strip()
         if st.session_state.memo_type == "ثنائية":
@@ -244,6 +235,7 @@ if st.button("تسجيل الدخول"):
         st.session_state.logged_in = True
         st.session_state.student1 = student1
         st.session_state.student2 = student2
+
 
 
 
