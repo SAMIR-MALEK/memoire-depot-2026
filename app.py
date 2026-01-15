@@ -201,7 +201,6 @@ if st.button("تسجيل الدخول"):
     # التحقق من الطالب الأول
     valid1, student1 = verify_student(username1, password1, df_students)
 
-    st.write("أسماء أعمدة شيت الطلاب:", df_students.columns.tolist())
     
     if not valid1:
         st.markdown(f'<p class="message">❌ {student1}</p>', unsafe_allow_html=True)
