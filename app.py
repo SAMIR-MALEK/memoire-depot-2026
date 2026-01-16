@@ -382,7 +382,7 @@ def update_registration(note_number, student1, student2=None):
             body={"valueInputOption": "USER_ENTERED", "data": updates}
         ).execute()
         
-        logger.info(f"تم تحديث شيت الأساتذة للمذكرة: {note_number}")
+        logger.info(f"تم تحديث صفحة الأساتذة للمذكرة: {note_number}")
 
         memo_row_idx = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].index[0] + 2
         memo_cols = df_memos.columns.tolist()
@@ -706,7 +706,7 @@ if st.session_state.logged_in:
                 for idx, row in available_memos_df.iterrows():
                     st.markdown(f"**{row['رقم المذكرة']}.** {row['عنوان المذكرة']}")
             else:
-                st.markdown('<div class="error-msg">لا توجد مذكرات متاحة لهذا الأستاذ في تخصصك .</div>', unsafe_allow_html=True)
+                st.markdown('<div class="error-msg">لا توجد مذكرات متاحة لهذا الأستاذ في تخصصك ❌ .</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         
