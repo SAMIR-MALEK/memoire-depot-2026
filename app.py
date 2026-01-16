@@ -151,7 +151,7 @@ def load_prof_memos():
 def clear_cache_and_reload():
     """مسح الكاش وإعادة تحميل البيانات"""
     st.cache_data.clear()
-    logger.info("تم مسح الكاش")
+    logger.info("تم مسح السجلات")
 
 # ---------------- إرسال البريد الإلكتروني ----------------
 def send_email_to_professor(prof_email, prof_name, memo_info, student1, student2=None):
@@ -204,7 +204,7 @@ def send_email_to_professor(prof_email, prof_name, memo_info, student1, student2
         </div>
         
         <div class="content">
-            <p>السلام عليكم الأستاذ(ة) الفاضل(ة) <span class="highlight">{prof_name}</span>،</p>
+            <p>تحية طيبة وبعد : الأستاذ(ة) الفاضل(ة) <span class="highlight">{prof_name}</span>،</p>
             
             <p>نحيطكم علماً بأنه تم تسجيل مذكرة جديدة تحت إشرافكم:</p>
             
@@ -230,7 +230,7 @@ def send_email_to_professor(prof_email, prof_name, memo_info, student1, student2
                 <ul style="white-space: pre-line;">{passwords_list}</ul>
             </div>
             
-            <p style="margin-top: 20px; color: #666;">للاستفسار أو الدعم، يرجى التواصل مع إدارة الكلية.</p>
+            <p style="margin-top: 20px; color: #666;">للاستفسار أو الدعم، يرجى التواصل مع السيد مسؤول الميدان الدكتور رفاف لخضر.</p>
         </div>
         
         <div class="footer">
@@ -407,7 +407,7 @@ def update_registration(note_number, student1, student2=None):
             body={"valueInputOption": "USER_ENTERED", "data": updates2}
         ).execute()
         
-        logger.info(f"تم تحديث شيت المذكرات للمذكرة: {note_number}")
+        logger.info(f"تم تحديث صفحة المذكرات للمذكرة: {note_number}")
 
         students_cols = df_students.columns.tolist()
         student1_row_idx = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == student1['اسم المستخدم'].strip()].index[0] + 2
@@ -701,12 +701,12 @@ if st.session_state.logged_in:
             ][["رقم المذكرة", "عنوان المذكرة"]]
             
             if not available_memos_df.empty:
-                st.markdown(f'<p style="color:#4CAF50; font-weight:bold;">✅ المذكرات المتاحة لتخصصك ({student_specialty}):</p>', unsafe_allow_html=True)
+                st.markdown(f'<p style="color:#4CAF50; font-weight:bold;">✅ المذكرات المتاحة في تخصصك ({student_specialty}):</p>', unsafe_allow_html=True)
                 
                 for idx, row in available_memos_df.iterrows():
                     st.markdown(f"**{row['رقم المذكرة']}.** {row['عنوان المذكرة']}")
             else:
-                st.markdown('<div class="error-msg">❌ لا توجد مذكرات متاحة لهذا الأستاذ مع تخصصك.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="error-msg">لا توجد مذكرات متاحة لهذا الأستاذ في تخصصك .</div>', unsafe_allow_html=True)
 
         st.markdown("---")
         
@@ -788,6 +788,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align:center; color:#888; font-size:12px; padding:20px;'>
         <p>© 2026 جامعة محمد البشير الإبراهيمي - كلية الحقوق والعلوم السياسية</p>
-        <p>للدعم الفني، يرجى الاتصال بالإدارة</p>
+        <p>للاستفسار يرجى الاتصال بمكتب فريق التكوين</p>
     </div>
 """, unsafe_allow_html=True)
