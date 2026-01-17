@@ -352,10 +352,16 @@ def update_registration(note_number, student1, student2=None):
         df_prof_memos = load_prof_memos()
         df_students = load_students()
 
+        # الحصول على معلومات المذكرة والأستاذ
         prof_name = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]["الأستاذ"].iloc[0].strip()
+        
+        # الحصول على كلمة السر المستخدمة من session_state
+        used_prof_password = st.session_state.prof_password.strip()
+        
+        # البحث عن السطر الصحيح باستخدام الأستاذ وكلمة السر المحددة
         prof_row_idx = df_prof_memos[
             (df_prof_memos["الأستاذ"].astype(str).str.strip() == prof_name) &
-            (df_prof_memos["تم التسجيل"].astype(str).str.strip() != "نعم")
+            (df_prof_memos["كلمة سر التسجيل"].astype(str).str.strip() == used_prof_password)
         ].index[0] + 2
 
         col_names = df_prof_memos.columns.tolist()
@@ -384,6 +390,7 @@ def update_registration(note_number, student1, student2=None):
         
         logger.info(f"تم تحديث صفحة الأساتذة للمذكرة: {note_number}")
 
+        # تحديث شيت المذكرات (مع حفظ كلمة سر المشرف)
         memo_row_idx = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].index[0] + 2
         memo_cols = df_memos.columns.tolist()
         
@@ -395,6 +402,13 @@ def update_registration(note_number, student1, student2=None):
             {"range": f"Feuille 1!{col_letter(memo_cols.index('تاريخ التسجيل')+1)}{memo_row_idx}",
              "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]}
         ]
+        
+        # إضافة كلمة سر المشرف إلى شيت المذكرات
+        if 'كلمة سر التسجيل' in memo_cols:
+            updates2.append({
+                "range": f"Feuille 1!{col_letter(memo_cols.index('كلمة سر التسجيل')+1)}{memo_row_idx}",
+                "values": [[used_prof_password]]
+            })
         
         if student2 is not None:
             updates2.append({
