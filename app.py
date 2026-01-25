@@ -687,7 +687,7 @@ if st.session_state.logged_in:
             st.markdown(f"**🕒 تاريخ التسجيل:** {memo_info.get('تاريخ التسجيل','')}")
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="error-msg">⚠️ لم يتم العثور على معلومات المذكرة. يرجى تحديث الصفحة.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="error-msg">⚠️1275 لم يتم العثور على معلومات المذكرة. قد تكون مسجلا في مذكرة مؤسسة ناشئة.</div>', unsafe_allow_html=True)
             if st.button("🔄 تحديث الصفحة"):
                 clear_cache_and_reload()
                 time.sleep(1)
