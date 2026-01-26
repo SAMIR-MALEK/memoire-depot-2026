@@ -706,18 +706,18 @@ if st.session_state.user_type is None:
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("<div class='card' style='text-align: center;'>", unsafe_allow_html=True)
-        st.markdown("<h3>👨‍🎓 فضاء الطلبة</h3>", unsafe_allow_html=True)
-        if st.button("دخول الطلبة", key="btn_student", use_container_width=True): st.session_state.user_type = "student"; st.rerun()
+        st.markdown("<h3> فضاء الطلبة</h3>", unsafe_allow_html=True)
+        if فضاء الطلبة", key="btn_student", use_container_width=True): st.session_state.user_type = "student"; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with col2:
         st.markdown("<div class='card' style='text-align: center;'>", unsafe_allow_html=True)
-        st.markdown("<h3>👨‍🏫 فضاء الأساتذة</h3>", unsafe_allow_html=True)
-        if st.button("دخول الأساتذة", key="btn_prof", use_container_width=True): st.session_state.user_type = "professor"; st.rerun()
+        st.markdown("<h3> فضاء الأساتذة</h3>", unsafe_allow_html=True)
+        if st.button("فضاء الأساتذة", key="btn_prof", use_container_width=True): st.session_state.user_type = "professor"; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with col3:
         st.markdown("<div class='card' style='text-align: center;'>", unsafe_allow_html=True)
         st.markdown("<h3>⚙️ فضاء الإدارة</h3>", unsafe_allow_html=True)
-        if st.button("دخول الإدارة", key="btn_admin", use_container_width=True): st.session_state.user_type = "admin"; st.rerun()
+        if فضاء الإدارة", key="btn_admin", use_container_width=True): st.session_state.user_type = "admin"; st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
