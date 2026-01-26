@@ -1166,4 +1166,4 @@ elif st.session_state.user_type == "admin":
             st.dataframe(df_requests, use_container_width=True, height=500)
 
 st.markdown("---")
-st.markdown('<div style="text-align:center; color:#64748B; font-size:12px; padding:20px;">©  إشراف مسؤول الميدان الدكتور لخضر رفاف</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center; color:#64748B; font-size:12px; padding:20px;">  إشراف مسؤول الميدان الدكتور لخضر رفاف © </div>', unsafe_allow_html=True)
