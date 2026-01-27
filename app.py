@@ -447,12 +447,12 @@ def send_email_to_professor(prof_name, memo_info, student1, student2=None):
         
         # 5. تجهيز بيانات الطلاب
         s1_lname = student1.get('لقب', student1.get('اللقب', ''))
-        s1_fname = student1.get('إسم', student1.get('إسم', ''))
+        s1_fname = student1.get('إسم', student1.get('الإسم', ''))
         student2_info = ""
         
         if student2 is not None:
             s2_lname = student2.get('لقب', student2.get('اللقب', ''))
-            s2_fname = student2.get('إسم', student2.get('إسم', ''))
+            s2_fname = student2.get('إسم', student2.get('الإسم', ''))
             student2_info = f"\n👤 **الطالب الثاني:** {s2_lname} {s2_fname}"
         
         passwords_list = "\n".join(used_passwords + available_passwords) if (used_passwords or available_passwords) else "لا توجد كلمات سر مسجلة"
