@@ -21,7 +21,7 @@ st.set_page_config(page_title="تسجيل مذكرات الماستر", page_ico
 # إعداد الموعد النهائي
 # ========================
 # يرجى تعديل السنة (2025) إذا كان الموعد في سنة أخرى
-REGISTRATION_DEADLINE = datetime(2025, 1, 28, 23, 59)
+REGISTRATION_DEADLINE = datetime(2025, 2, 28, 23, 59)
 
 # ---------------- CSS (تصميم زرقاء بلا حدود ومثبت) ----------------
 st.markdown("""
