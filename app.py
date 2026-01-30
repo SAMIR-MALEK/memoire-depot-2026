@@ -244,7 +244,7 @@ def get_student_info_from_memo(memo_row, df_students):
         parts = student1_name.strip().split(' ', 1)
         if len(parts) == 2:
             col_l = "لقب" if "لقب" in df_students.columns else ("اللقب" if "اللقب" in df_students.columns else None)
-            col_f = "إسم" if "إسم" in df_students.columns else ("إسم" if "إسم" in df_students.columns else None)
+            col_f = "إسم" if "إسم" in df_students.columns else ("الإسم" if "الإسم" in df_students.columns else None)
             if col_l and col_f:
                 s_data = df_students[(df_students[col_l].astype(str).str.strip() == parts[0]) & (df_students[col_f].astype(str).str.strip() == parts[1])]
                 if not s_data.empty:
@@ -260,7 +260,7 @@ def get_student_info_from_memo(memo_row, df_students):
         parts = student2_name.strip().split(' ', 1)
         if len(parts) == 2:
             col_l = "لقب" if "لقب" in df_students.columns else ("اللقب" if "اللقب" in df_students.columns else None)
-            col_f = "إسم" if "إسم" in df_students.columns else ("إسم" if "إسم" in df_students.columns else None)
+            col_f = "إسم" if "إسم" in df_students.columns else ("الإسم" if "الإسم" in df_students.columns else None)
             if col_l and col_f:
                 s_data = df_students[(df_students[col_l].astype(str).str.strip() == parts[0]) & (df_students[col_f].astype(str).str.strip() == parts[1])]
                 if not s_data.empty:
