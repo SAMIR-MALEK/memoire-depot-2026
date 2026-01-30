@@ -210,66 +210,75 @@ def validate_note_number(note_number):
     if len(note_number) > 20: return False, "⚠️ رقم المذكرة غير صالح"
     return True, note_number
 
+def get_email_smart(row):
+    """
+    دالة مساعدة لاستخراج الإيميل.
+    تعتمد أولاً على العمود K (الفهرس 10) لأنه مكان الإيميل الثابت.
+    ثم تعود للبحث بالاسم إذا فشلت.
+    """
+    # 1. محاولة القراءة من العمود K مباشرة (الفهرس 10)
+    try:
+        values_list = row.tolist()
+        if len(values_list) > 10:
+            val = str(values_list[10]).strip() 
+            if val and val != "nan" and "@" in val: 
+                return val
+    except:
+        pass
+
+    # 2. البحث العادي بالاسم إذا فشل الموقع
+    if "البريد المهني" in row.index:
+        val = str(row["البريد المهني"]).strip()
+        if val and val != "nan": return val
+    if "البريد الإلكتروني" in row.index:
+        val = str(row["البريد الإلكتروني"]).strip()
+        if val and val != "nan": return val
+        
+    return ""
+
 def get_student_info_from_memo(memo_row, df_students):
     student1_name = str(memo_row.get("الطالب الأول", "")).strip()
     student2_name = str(memo_row.get("الطالب الثاني", "")).strip()
    
-    reg1 = str(memo_row.get('رقم تسجيل الطالب 1', '')).strip()
-    if not reg1: reg1 = str(memo_row.get('رقم التسجيل 1', '')).strip()
-   
-    reg2 = str(memo_row.get('رقم تسجيل الطالب 2', '')).strip()
-    if not reg2: reg2 = str(memo_row.get('رقم التسجيل 2', '')).strip()
-   
     s1_email = s2_email = s1_reg_display = s2_reg_display = ""
-   
-    def get_email_smart(row):
-        if "البريد المهني" in row.index:
-            val = str(row["البريد المهني"]).strip()
-            if val and val != "nan": return val
-        if "البريد الإلكتروني" in row.index:
-            val = str(row["البريد الإلكتروني"]).strip()
-            if val and val != "nan": return val
-        for col in row.index:
-            if 'mail' in col.lower() or 'بريد' in col or 'email' in col.lower():
-                val = str(row[col]).strip()
-                if val and val != "nan": return val
-        return ""
+    
+    # استدعاء الدالة المساعدة المحدثة
+    email_fetcher = get_email_smart
 
+    # --- قراءة رقم التسجيل من الأعمدة S و T مباشرة ---
+    try:
+        memo_list = memo_row.tolist()
+        
+        # العمود S هو رقم 18 (A=0, B=1 ... S=18)
+        reg1 = str(memo_list[18]).strip() if len(memo_list) > 18 else ""
+        
+        # العمود T هو رقم 19 (A=0, B=1 ... T=19)
+        reg2 = str(memo_list[19]).strip() if len(memo_list) > 19 else ""
+        
+    except:
+        # في حال حدوث خطأ نحاول القراءة بالاسم كاحتياطي
+        reg1 = str(memo_row.get("رقم تسجيل الطالب 1", "")).strip()
+        reg2 = str(memo_row.get("رقم تسجيل الطالب 2", "")).strip()
+
+    # --- جلب بيانات الطالب الأول (عمود S) ---
     if reg1:
         s_data = df_students[df_students["رقم التسجيل"].astype(str).str.strip() == reg1]
         if not s_data.empty:
-            s1_email = get_email_smart(s_data.iloc[0])
-   
-    if not s1_email and student1_name != '--':
-        parts = student1_name.strip().split(' ', 1)
-        if len(parts) == 2:
-            col_l = "لقب" if "لقب" in df_students.columns else ("اللقب" if "اللقب" in df_students.columns else None)
-            col_f = "إسم" if "إسم" in df_students.columns else ("الإسم" if "الإسم" in df_students.columns else None)
-            if col_l and col_f:
-                s_data = df_students[(df_students[col_l].astype(str).str.strip() == parts[0]) & (df_students[col_f].astype(str).str.strip() == parts[1])]
-                if not s_data.empty:
-                    s1_email = get_email_smart(s_data.iloc[0])
-                    s1_reg_display = str(s_data.iloc[0].get("رقم التسجيل", "")).strip()
+            s1_email = email_fetcher(s_data.iloc[0])
+            s1_reg_display = reg1
 
+    # --- جلب بيانات الطالب الثاني (عمود T) ---
+    # نتحقق أولاً من وجود اسم للطالب الثاني ورقم تسجيل
+    # هذا الشرط يضمن عدم عمل بحث للمذكرات الفردية
     if student2_name and reg2:
         s_data = df_students[df_students["رقم التسجيل"].astype(str).str.strip() == reg2]
         if not s_data.empty:
-            s2_email = get_email_smart(s_data.iloc[0])
-   
-    if student2_name and not s2_email:
-        parts = student2_name.strip().split(' ', 1)
-        if len(parts) == 2:
-            col_l = "لقب" if "لقب" in df_students.columns else ("اللقب" if "اللقب" in df_students.columns else None)
-            col_f = "إسم" if "إسم" in df_students.columns else ("الإسم" if "الإسم" in df_students.columns else None)
-            if col_l and col_f:
-                s_data = df_students[(df_students[col_l].astype(str).str.strip() == parts[0]) & (df_students[col_f].astype(str).str.strip() == parts[1])]
-                if not s_data.empty:
-                    s2_email = get_email_smart(s_data.iloc[0])
-                    s2_reg_display = str(s_data.iloc[0].get("رقم التسجيل", "")).strip()
+            s2_email = email_fetcher(s_data.iloc[0])
+            s2_reg_display = reg2
 
     return {
-        "s1_name": student1_name, "s1_email": s1_email, "s1_reg": s1_reg_display or reg1,
-        "s2_name": student2_name, "s2_email": s2_email, "s2_reg": s2_reg_display or reg2
+        "s1_name": student1_name, "s1_email": s1_email, "s1_reg": s1_reg_display,
+        "s2_name": student2_name, "s2_email": s2_email, "s2_reg": s2_reg_display
     }
 
 @st.cache_data(ttl=60)
