@@ -212,28 +212,32 @@ def validate_note_number(note_number):
 
 def get_email_smart(row):
     """
-    دالة مساعدة لاستخراج الإيميل.
-    تعتمد أولاً على العمود K (الفهرس 10) لأنه مكان الإيميل الثابت.
-    ثم تعود للبحث بالاسم إذا فشلت.
+    دالة محسنة جداً لاستخراج الإيميل:
+    1. تبحث في نطاق أوسع حول العمود K (من 9 إلى 12).
+    2. تقبل الأرقام التي تحتوي على نقاط (.0).
+    3. تبحث بالاسم بعد تنظيف المسافات.
     """
-    # 1. محاولة القراءة من العمود K مباشرة (الفهرس 10)
-    try:
-        values_list = row.tolist()
-        if len(values_list) > 10:
-            val = str(values_list[10]).strip() 
-            if val and val != "nan" and "@" in val: 
+    # 1. تحويل الصف إلى قائمة
+    values_list = row.tolist()
+    
+    # 2. البحث العشوائي الذكي حول العمود K (الفهرس 10) في حال كان هناك إزاحة بسيطة في الأعمدة
+    # سنبحث في الأعمدة 9, 10, 11, 12 (J, K, L, M)
+    for i in range(9, 13):
+        if i < len(values_list):
+            val = str(values_list[i]).strip()
+            # نتحقق من وجود @ وأن القيمة ليست nan أو فارغة
+            if "@" in val and val != "nan":
                 return val
-    except:
-        pass
 
-    # 2. البحث العادي بالاسم إذا فشل الموقع
-    if "البريد المهني" in row.index:
-        val = str(row["البريد المهني"]).strip()
-        if val and val != "nan": return val
-    if "البريد الإلكتروني" in row.index:
-        val = str(row["البريد الإلكتروني"]).strip()
-        if val and val != "nan": return val
-        
+    # 3. محاولة البحث بالاسم مع تنظيف أسماء الأعمدة
+    # نقوم بعمل loop على أسماء الأعمدة وننظفها قبل المقارنة
+    for col in row.index:
+        clean_col_name = str(col).strip()
+        if clean_col_name in ["البريد المهني", "البريد الإلكتروني", "email", "Email", "E-mail"]:
+            val = str(row[col]).strip()
+            if "@" in val and val != "nan":
+                return val
+                
     return ""
 
 def get_student_info_from_memo(memo_row, df_students):
@@ -242,36 +246,39 @@ def get_student_info_from_memo(memo_row, df_students):
    
     s1_email = s2_email = s1_reg_display = s2_reg_display = ""
     
-    # استدعاء الدالة المساعدة المحدثة
+    # استدعاء الدالة المساعدة
     email_fetcher = get_email_smart
 
-    # --- قراءة رقم التسجيل من الأعمدة S و T مباشرة ---
+    # --- قراءة رقم التسجيل من الأعمدة S و T ---
     try:
         memo_list = memo_row.tolist()
         
-        # العمود S هو رقم 18 (A=0, B=1 ... S=18)
-        reg1 = str(memo_list[18]).strip() if len(memo_list) > 18 else ""
+        # قراءة القيم الخام وتنظيفها من النقطة إن وجدت
+        raw_reg1 = str(memo_list[18]).strip() if len(memo_list) > 18 else ""
+        raw_reg2 = str(memo_list[19]).strip() if len(memo_list) > 19 else ""
         
-        # العمود T هو رقم 19 (A=0, B=1 ... T=19)
-        reg2 = str(memo_list[19]).strip() if len(memo_list) > 19 else ""
+        # تنظيف النقطة .0 إن وجدت (لضمان التطابق)
+        reg1 = raw_reg1.replace('.0', '')
+        reg2 = raw_reg2.replace('.0', '')
         
     except:
-        # في حال حدوث خطأ نحاول القراءة بالاسم كاحتياطي
-        reg1 = str(memo_row.get("رقم تسجيل الطالب 1", "")).strip()
-        reg2 = str(memo_row.get("رقم تسجيل الطالب 2", "")).strip()
+        # الاحتياطي
+        reg1 = str(memo_row.get("رقم تسجيل الطالب 1", "")).replace('.0', '').strip()
+        reg2 = str(memo_row.get("رقم تسجيل الطالب 2", "")).replace('.0', '').strip()
 
-    # --- جلب بيانات الطالب الأول (عمود S) ---
+    # --- جلب بيانات الطالب الأول ---
     if reg1:
-        s_data = df_students[df_students["رقم التسجيل"].astype(str).str.strip() == reg1]
+        # محاولة البحث: ننظف رقم التسجيل في شيت الطلاب أيضاً من النقطة .0
+        df_students['رقم التسجيل'] = df_students['رقم التسجيل'].astype(str).str.replace('.0', '').str.strip()
+        
+        s_data = df_students[df_students["رقم التسجيل"] == reg1]
         if not s_data.empty:
             s1_email = email_fetcher(s_data.iloc[0])
             s1_reg_display = reg1
 
-    # --- جلب بيانات الطالب الثاني (عمود T) ---
-    # نتحقق أولاً من وجود اسم للطالب الثاني ورقم تسجيل
-    # هذا الشرط يضمن عدم عمل بحث للمذكرات الفردية
+    # --- جلب بيانات الطالب الثاني ---
     if student2_name and reg2:
-        s_data = df_students[df_students["رقم التسجيل"].astype(str).str.strip() == reg2]
+        s_data = df_students[df_students["رقم التسجيل"] == reg2]
         if not s_data.empty:
             s2_email = email_fetcher(s_data.iloc[0])
             s2_reg_display = reg2
@@ -288,11 +295,15 @@ def load_students():
         values = result.get('values', [])
         if not values: return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0])
+        
+        # --- تعديل هام: تنظيف أسماء الأعمدة من المسافات الزائدة ---
+        df.columns = df.columns.str.strip()
+        
         return df
     except Exception as e:
         logger.error(f"خطأ في تحميل بيانات الطلاب: {str(e)}")
         return pd.DataFrame()
-
+     
 @st.cache_data(ttl=60)
 def load_memos():
     try:
