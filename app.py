@@ -136,7 +136,8 @@ MEMOS_SHEET_ID = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"
 PROF_MEMOS_SHEET_ID = "1OnZi1o-oPMUI_W_Ew-op0a1uOhSj006hw_2jrMD6FSE"
 REQUESTS_SHEET_ID = "1sTJ6BZRM4Qgt0w2xUkpFZqquL-hfriMYTSN3x1_12_o"
 
-STUDENTS_RANGE = "Feuille 1!A1:L1000"
+# تحديث النطاق ليشمل عمود الهاتف (M)
+STUDENTS_RANGE = "Feuille 1!A1:M1000"
 MEMOS_RANGE = "Feuille 1!A1:U1000"
 PROF_MEMOS_RANGE = "Feuille 1!A1:P1000"
 REQUESTS_RANGE = "Feuille 1!A1:K1000"
@@ -272,6 +273,40 @@ def load_requests():
 def clear_cache_and_reload():
     st.cache_data.clear()
     logger.info("تم مسح السجلات")
+
+# دالة جديدة لتحديث رقم الهاتف
+def update_student_phone(username, new_phone):
+    """
+    تقوم بتحديث رقم هاتف الطالب في شيت الطلاب (العمود M)
+    """
+    try:
+        df_students = load_students()
+        # البحث عن الطالب
+        student_row = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == username]
+        
+        if student_row.empty:
+            return False, "❌ لم يتم العثور على الطالب"
+
+        # تحديد رقم الصف (Index + 2 لأن الـ Pandas يبدأ من 0 والشيت يبدأ من 1 + صف العناوين)
+        row_idx = student_row.index[0] + 2
+        
+        # تحديث العمود M (هو العمود رقم 13، أي الحرف M)
+        body = {"values": [[new_phone]]}
+        
+        sheets_service.spreadsheets().values().update(
+            spreadsheetId=STUDENTS_SHEET_ID,
+            range=f"Feuille 1!M{row_idx}", # العمود M
+            valueInputOption="USER_ENTERED",
+            body=body
+        ).execute()
+        
+        # مسح الذاكرة المؤقتة لتحديث البيانات فوراً
+        clear_cache_and_reload()
+        return True, "✅ تم تحديث رقم الهاتف بنجاح"
+        
+    except Exception as e:
+        logger.error(f"خطأ في تحديث الهاتف: {str(e)}")
+        return False, f"❌ حدث خطأ أثناء التحديث: {str(e)}"
 
 def sync_student_registration_numbers():
     try:
@@ -639,7 +674,6 @@ def restore_session_from_url():
 
     qp = st.query_params
     if 'ut' in qp and 'un' in qp:
-        # معالجة القيم من الرابط (قد تكون قائمة في بعض إصدارات Streamlit)
         user_type_raw = qp['ut']
         username_raw = qp['un']
         
@@ -673,13 +707,11 @@ def restore_session_from_url():
                 st.session_state.logged_in = True
                 st.session_state.admin_user = username
 
-# استدعاء دالة الاستعادة
 restore_session_from_url()
 
 # ============================================================
 # تهيئة Session State (Robust Initialization)
 # ============================================================
-# نستخدم هذه الطريقة لضمان وجود جميع المتغيرات دائماً، بغض النظر عن حالة الجلسة السابقة
 required_state = {
     'user_type': None,
     'logged_in': False,
@@ -692,7 +724,7 @@ required_state = {
     'note_number': "",
     'prof_password': "",
     'show_confirmation': False,
-    'selected_memo_id': None  # <--- هذا هو المتغير الذي كان يسبب الخطأ
+    'selected_memo_id': None
 }
 
 for key, value in required_state.items():
@@ -700,7 +732,7 @@ for key, value in required_state.items():
         st.session_state[key] = value
 
 def logout():
-    st.query_params.clear() # مسح الرابط
+    st.query_params.clear()
     for key in st.session_state.keys():
         if key not in ['user_type']: del st.session_state[key]
     st.session_state.update({'logged_in': False, 'student1': None, 'student2': None, 'professor': None, 'admin_user': None, 'mode': "register", 'note_number': "", 'prof_password': "", 'show_confirmation': False, 'user_type': None, 'selected_memo_id': None})
@@ -779,14 +811,92 @@ elif st.session_state.user_type == "student":
                     note_num = str(st.session_state.student1.get('رقم المذكرة', '')).strip()
                     st.session_state.mode = "view" if note_num else "register"
                     st.session_state.logged_in = True
-                    
-                    # --- حفظ الجلسة في الرابط (مع التشفير) ---
                     st.query_params['ut'] = 'student'
                     st.query_params['un'] = encode_str(st.session_state.student1['اسم المستخدم'])
-                    
                     st.rerun()
     else:
+        # ================= بداية التحقق الإلزامي من الهاتف =================
         s1 = st.session_state.student1; s2 = st.session_state.student2
+
+        # دالة بسيطة للتحقق من صحة الرقم
+        def is_phone_valid(phone_val):
+            if not phone_val: return False
+            return str(phone_val).strip() not in ['0', 'nan', '']
+
+        # التحقق من الطالب الأول
+        s1_phone_ok = is_phone_valid(s1.get('الهاتف'))
+        
+        # التحقق من الطالب الثاني (إذا وجد)
+        s2_phone_ok = is_phone_valid(s2.get('الهاتف')) if s2 else True
+
+        # إذا كانت هناك أرقام هواتف ناقصة، نوقف العملية ونطلب التحديث
+        if not s1_phone_ok or not s2_phone_ok:
+            
+            st.markdown(f"""
+            <div style='text-align: center; margin-top: 50px; margin-bottom: 30px;'>
+                <h1 style='color: #EF4444; font-size: 2.5rem;'>🚫 الوصول محظور</h1>
+                <p style='font-size: 1.2rem; color: #cbd5e1;'>نظام التسجيل يفرض وجود رقم هاتف صحيح لجميع الطلبة قبل الدخول.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # إذا كان هاتف الطالب الأول ناقصاً
+            if not s1_phone_ok:
+                st.markdown(f"""
+                <div class='card' style='border-right: 5px solid #EF4444; background: rgba(239, 68, 68, 0.1);'>
+                    <h3>❌ بيانات الطالب الأول: {s1.get('لقب', '')} {s1.get('إسم', '')}</h3>
+                    <p>رقم الهاتف الحالي: <span style='color: #EF4444; font-weight: bold;'>غير مدخل</span></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                with st.form(f"mandatory_update_s1"):
+                    new_s1_phone = st.text_input("أدخل رقم هاتف الطالب الأول (إجباري):", placeholder="0550...")
+                    if st.form_submit_button("✅ حفظ وفتح النظام", use_container_width=True):
+                        if new_s1_phone and len(new_s1_phone) >= 10:
+                            success, msg = update_student_phone(s1['اسم المستخدم'], new_s1_phone)
+                            if success:
+                                st.success(msg)
+                                # --- الإصلاح الأساسي: تحديث البيانات في الذاكرة فوراً ---
+                                st.session_state.student1['الهاتف'] = new_s1_phone
+                                # ---------------------------------------------
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(msg)
+                        else:
+                            st.error("⚠️ يرجى إدخال رقم هاتف صحيح")
+
+            # إذا كان الطالب الثاني موجوداً وهاتفه ناقصاً
+            if s2 and not s2_phone_ok:
+                st.markdown("---")
+                st.markdown(f"""
+                <div class='card' style='border-right: 5px solid #EF4444; background: rgba(239, 68, 68, 0.1);'>
+                    <h3>❌ بيانات الطالب الثاني: {s2.get('لقب', '')} {s2.get('إسم', '')}</h3>
+                    <p>رقم الهاتف الحالي: <span style='color: #EF4444; font-weight: bold;'>غير مدخل</span></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                with st.form(f"mandatory_update_s2"):
+                    new_s2_phone = st.text_input("أدخل رقم هاتف الطالب الثاني (إجباري):", placeholder="0660...")
+                    if st.form_submit_button("✅ حفظ وفتح النظام", use_container_width=True):
+                        if new_s2_phone and len(new_s2_phone) >= 10:
+                            success, msg = update_student_phone(s2['اسم المستخدم'], new_s2_phone)
+                            if success:
+                                st.success(msg)
+                                # --- الإصلاح الأساسي: تحديث البيانات في الذاكرة فوراً ---
+                                st.session_state.student2['الهاتف'] = new_s2_phone
+                                # ---------------------------------------------
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(msg)
+                        else:
+                            st.error("⚠️ يرجى إدخال رقم هاتف صحيح")
+
+            # إيقاف الكود هنا بالكامل لمنع الوصول للفضاء
+            st.stop()
+        # ================= نهاية التحقق الإلزامي من الهاتف =================
+
+        # باقي الفضاء الطبيعي
         col1, col2 = st.columns([4, 1])
         with col2:
             if st.button("خروج", key="logout_btn"): logout()
@@ -902,13 +1012,11 @@ elif st.session_state.user_type == "professor":
                 if not v: st.error(r)
                 else: 
                     st.session_state.professor = r; st.session_state.logged_in = True
-                    # --- حفظ الجلسة في الرابط (مع التشفير) ---
                     st.query_params['ut'] = 'professor'
                     st.query_params['un'] = encode_str(st.session_state.professor['إسم المستخدم'])
                     st.rerun()
     else:
         prof = st.session_state.professor; prof_name = prof["الأستاذ"]
-        # استخدام st.session_state.get لتجنب الأخطاء، رغم أن الكود التالي يضمن وجوده
         if st.session_state.get('selected_memo_id'):
             memo_id = st.session_state.selected_memo_id
             current_memo = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == memo_id].iloc[0]
@@ -1126,7 +1234,6 @@ elif st.session_state.user_type == "admin":
                 if not v: st.error(r)
                 else: 
                     st.session_state.admin_user = r; st.session_state.logged_in = True
-                    # --- حفظ الجلسة في الرابط (مع التشفير) ---
                     st.query_params['ut'] = 'admin'
                     st.query_params['un'] = encode_str(st.session_state.admin_user)
                     st.rerun()
