@@ -21,7 +21,7 @@ st.set_page_config(page_title="تسجيل مذكرات الماستر", page_ico
 # ========================
 # إعداد الموعد النهائي
 # ========================
-REGISTRATION_DEADLINE = 2027, 1, 28, 23, 59)
+REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
 
 # ---------------- CSS (تصميم زرقاء بلا حدود ومثبت) ----------------
 st.markdown("""
@@ -136,7 +136,7 @@ MEMOS_SHEET_ID = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"
 PROF_MEMOS_SHEET_ID = "1OnZi1o-oPMUI_W_Ew-op0a1uOhSj006hw_2jrMD6FSE"
 REQUESTS_SHEET_ID = "1sTJ6BZRM4Qgt0w2xUkpFZqquL-hfriMYTSN3x1_12_o"
 
-# تحديث النطاق ليشمل عمود الهاتف (M)
+# تحديث النطاق ليشمل عمود التسجيل (N) - العمود الرابع عشر
 STUDENTS_RANGE = "Feuille 1!A1:N1000"
 MEMOS_RANGE = "Feuille 1!A1:U1000"
 PROF_MEMOS_RANGE = "Feuille 1!A1:P1000"
@@ -951,6 +951,17 @@ elif st.session_state.user_type == "student":
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("تأكيد نهائي", type="primary"):
+                                # ================= منطق التحقق من عمود التسجيل =================
+                                # التحقق من أن قيمة عمود التسجيل (N) هي '1' لأحد الطالبين
+                                s1_reg_perm = str(s1.get('التسجيل', '')).strip()
+                                s2_reg_perm = str(s2.get('التسجيل', '')).strip() if s2 else ''
+
+                                if s1_reg_perm != '1' and s2_reg_perm != '1':
+                                    st.error("⛔ عذراً، لم يتم السماح لك بتسجيل المذكرة في الوقت الحالي.")
+                                    st.info("يرجى التواصل مع مسؤول الميدان: **الدكتور لخضر رفاف**", icon="ℹ️")
+                                    st.stop()
+                                # =============================================================
+
                                 valid, prof_row, err = verify_professor_password(st.session_state.note_number, st.session_state.prof_password, df_memos, df_prof_memos)
                                 if not valid: st.error(err); st.session_state.show_confirmation = False
                                 else:
