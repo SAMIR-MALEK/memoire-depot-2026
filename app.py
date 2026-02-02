@@ -142,13 +142,17 @@ MEMOS_RANGE = "Feuille 1!A1:U1000"
 PROF_MEMOS_RANGE = "Feuille 1!A1:P1000"
 REQUESTS_RANGE = "Feuille 1!A1:K1000"
 
-ADMIN_CREDENTIALS = {"admin": "admin2026", "dsp": "dsp@2026"}
+ADMIN_CREDENTIALS = {
+    "admin": st.secrets["ADMIN_PASSWORD"]
+}
 
-EMAIL_SENDER = "domaine.dsp@univ-bba.dz"
-EMAIL_PASSWORD = "oevruyiztgikwzah"
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-ADMIN_EMAIL = "domaine.dsp@univ-bba.dz"
+# --------- Email configuration ----------
+EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+SMTP_SERVER = st.secrets["SMTP_SERVER"]
+SMTP_PORT = st.secrets["SMTP_PORT"]
+
+ADMIN_EMAIL = EMAIL_SENDER
 
 # ---------------- دوال مساعدة ----------------
 def col_letter(n):
