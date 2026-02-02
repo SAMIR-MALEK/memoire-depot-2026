@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, time, date
 import pandas as pd
+import numpy as np
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import logging
@@ -231,6 +232,15 @@ def load_students():
         if not values: return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0])
         df.columns = df.columns.str.strip()
+        
+        # --- إصلاح مهم: تنظيف عمود رقم المذكرة ---
+        if 'رقم المذكرة' in df.columns:
+            # تحويل لنص وإزالة .0 والتأكد من عدم وجود NaN
+            df['رقم المذكرة'] = df['رقم المذكرة'].astype(str).str.replace('.0', '').str.strip()
+            # استبدال 'nan' أو النصوص الفارغة بسلسلة فارغة حقيقية
+            df['رقم المذكرة'] = df['رقم المذكرة'].replace('nan', '')
+            df['رقم المذكرة'] = df['رقم المذكرة'].replace('NaN', '')
+            
         return df
     except Exception as e:
         logger.error(f"خطأ في تحميل بيانات الطلاب: {str(e)}")
@@ -243,6 +253,12 @@ def load_memos():
         values = result.get('values', [])
         if not values: return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0])
+        # تنظيف الأعمدة من المسافات
+        df.columns = df.columns.str.strip()
+        # تنظيف الأعمدة النصية الهامة
+        for col in ['رقم المذكرة', 'الأستاذ', 'تم التسجيل', 'التخصص', 'نسبة التقدم']:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip()
         return df
     except Exception as e:
         logger.error(f"خطأ في تحميل بيانات المذكرات: {str(e)}")
@@ -255,6 +271,7 @@ def load_prof_memos():
         values = result.get('values', [])
         if not values: return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0])
+        df.columns = df.columns.str.strip()
         return df
     except Exception as e:
         logger.error(f"خطأ في تحميل بيانات مذكرات الأساتذة: {str(e)}")
@@ -649,7 +666,7 @@ def send_session_emails(students_data, session_info, prof_name):
         email_body = f"""
         <!DOCTYPE html>
         <html dir="rtl" lang="ar">
-        <head><meta charset="UTF-8"><style>body {{ font-family: 'Cairo', Arial, sans-serif; background-color: #f4f4f4; padding: 20px; direction: rtl; unicode-bidi: embed; }} .container {{ background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; border-top: 5px solid #256D85; }} .header {{ text-align: center; margin-bottom: 20px; }} .highlight {{ background-color: #e8f4f8; padding: 15px; border-radius: 8px; margin: 15px 0; font-size: 1.1em; }} .footer {{ text-align: center; color: #777; font-size: 12px; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; }} .ltr-text {{ direction: ltr; unicode-bidi: embed; }}</style></head>
+        <head><meta charset="UTF-8"><style>body {{ font-family: 'Cairo', Arial, sans-serif; background-color: #f4f4f4; padding: 20px; direction: rtl; unicode-bidi: embed; }} .container {{ background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; border-top: 5px solid #256D85; }} .header {{ text-align: center; margin-bottom: 20px; }} .highlight {{ background-color: #e8f4f8; padding: 15px; border-radius: 8px; margin: 15px 0; font-size: 1.1em; }} .footer {{ text-align: center; color: #777; font-size: 12px; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; }} .link {{ color: #256D85; text-decoration: none; font-weight: bold; }} .link:hover {{ text-decoration: underline; }} .ltr-text {{ direction: ltr; unicode-bidi: embed; }}</style></head>
         <body>
         <div class="container">
             <div class="header"><h2 style="color: #256D85; margin: 0;">📅 جدولة جلسة إشراف</h2></div>
@@ -992,7 +1009,7 @@ if st.session_state.user_type is None:
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# فضاء الطلبة
+# فضاء الطلبة (تم التصحيح هنا)
 # ============================================================
 elif st.session_state.user_type == "student":
     if not st.session_state.logged_in:
@@ -1011,41 +1028,85 @@ elif st.session_state.user_type == "student":
                 password2 = st.text_input("كلمة السر الطالب الثاني", type="password")
             submitted = st.form_submit_button("تسجيل الدخول")
             if submitted:
+                # 1. التحقق من المدخلات الأساسية
                 if st.session_state.memo_type == "فردية":
-                    if not username1 or not password1: st.error("⚠️ يرجى إدخال اسم المستخدم وكلمة السر"); st.stop()
+                    if not username1 or not password1: 
+                        st.error("⚠️ يرجى إدخال اسم المستخدم وكلمة السر"); 
+                        st.stop()
                 if st.session_state.memo_type == "ثنائية":
-                    if not username1 or not password1 or not username2 or not password2: st.error("⚠️ يرجى إدخال بيانات الطالبين كاملة"); st.stop()
+                    if not username1 or not password1 or not username2 or not password2: 
+                        st.error("⚠️ يرجى إدخال بيانات الطالبين كاملة"); 
+                        st.stop()
+                
+                # 2. التحقق من عدم تكرار الطالب
                 if username2 and username1.strip().lower() == username2.strip().lower():
                     st.error("❌ لا يمكن أن يكون الطالب الأول والثاني نفس الشخص!")
                     st.stop()
+                
+                # 3. التحقق من صحة البيانات في Google Sheets
                 students_data = [(username1, password1)]
-                if st.session_state.memo_type == "ثنائية" and username2: students_data.append((username2, password2))
+                if st.session_state.memo_type == "ثنائية" and username2: 
+                    students_data.append((username2, password2))
+                
                 valid, result = verify_students_batch(students_data, df_students)
-                if not valid: st.error(result)
-                else:
-                    verified_students = result
-                    if not verified_students: st.error("حدث خطأ غير متوقع في التحقق من البيانات"); st.stop()
-                    st.session_state.student1 = verified_students[0]
-                    st.session_state.student2 = verified_students[1] if len(verified_students) > 1 else None
-                    if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
-                        s1_note = str(st.session_state.student1.get('رقم المذكرة', '')).strip()
-                        s2_note = str(st.session_state.student2.get('رقم المذكرة', '')).strip()
-                        s1_spec = str(st.session_state.student1.get('التخصص', '')).strip()
-                        s2_spec = str(st.session_state.student2.get('التخصص', '')).strip()
-                        if s1_spec != s2_spec: st.error("❌ لا يمكن التسجيل الثنائي. الطالبان في تخصصين مختلفين"); st.session_state.logged_in=False; st.stop()
-                        if (s1_note and not s2_note) or (not s1_note and s2_note): st.error("❌ أحد الطالبين مسجل مسبقاً"); st.session_state.logged_in=False; st.stop()
-                        if s1_note and s2_note and s1_note != s2_note: st.error(f"❌ الطالبان مسجلان في مذكرتين مختلفتين"); st.session_state.logged_in=False; st.stop()
-                        if s1_note and s2_note and s1_note == s2_note: st.session_state.mode = "view"; st.session_state.logged_in = True; st.rerun()
-                    if st.session_state.memo_type == "فردية":
-                        fardiya_val = str(st.session_state.student1.get('فردية', '')).strip()
-                        if fardiya_val not in ["1", "نعم"]: st.error("❌ لا يمكنك تسجيل مذكرة فردية"); st.stop()
-                        note_num = str(st.session_state.student1.get('رقم المذكرة', '')).strip()
-                        st.session_state.mode = "view" if note_num else "register"
-                        st.session_state.logged_in = True
-                        st.query_params['ut'] = 'student'
-                        st.query_params['un'] = encode_str(st.session_state.student1['اسم المستخدم'])
+                if not valid: 
+                    st.error(result)
+                    st.stop()
+                
+                # 4. إذا كانت البيانات صحيحة، ن proceeded للتحقق من حالة التسجيل
+                verified_students = result
+                if not verified_students: 
+                    st.error("حدث خطأ غير متوقع في التحقق من البيانات"); 
+                    st.stop()
+                
+                st.session_state.student1 = verified_students[0]
+                st.session_state.student2 = verified_students[1] if len(verified_students) > 1 else None
+                
+                # --- منطق التحقق الخاص بالمذكرات الثنائية (سبب التوقف المحتمل) ---
+                if st.session_state.memo_type == "ثنائية" and st.session_state.student2 is not None:
+                    # جلب البيانات بشكل آمن (نظيف) من القاموس بعد التحقق
+                    s1_note = str(st.session_state.student1.get('رقم المذكرة', '')).strip()
+                    s2_note = str(st.session_state.student2.get('رقم المذكرة', '')).strip()
+                    s1_spec = str(st.session_state.student1.get('التخصص', '')).strip()
+                    s2_spec = str(st.session_state.student2.get('التخصص', '')).strip()
+                    
+                    if s1_spec != s2_spec: 
+                        st.error("❌ لا يمكن التسجيل الثنائي. الطالبان في تخصصين مختلفين"); 
+                        st.session_state.logged_in=False; 
+                        st.stop()
+                    
+                    if (s1_note and not s2_note) or (not s1_note and s2_note): 
+                        st.error("❌ أحد الطالبين مسجل مسبقاً"); 
+                        st.session_state.logged_in=False; 
+                        st.stop()
+                    
+                    if s1_note and s2_note and s1_note != s2_note: 
+                        st.error(f"❌ الطالبان مسجلان في مذكرتين مختلفتين"); 
+                        st.session_state.logged_in=False; 
+                        st.stop()
+                    
+                    if s1_note and s2_note and s1_note == s2_note: 
+                        st.session_state.mode = "view"; 
+                        st.session_state.logged_in = True; 
                         st.rerun()
+                
+                # --- منطق التحقق الخاص بالمذكرات الفردية ---
+                if st.session_state.memo_type == "فردية":
+                    fardiya_val = str(st.session_state.student1.get('فردية', '')).strip()
+                    if fardiya_val not in ["1", "نعم"]: 
+                        st.error("❌ لا يمكنك تسجيل مذكرة فردية"); 
+                        st.stop()
+                    
+                    note_num = str(st.session_state.student1.get('رقم المذكرة', '')).strip()
+                    st.session_state.mode = "view" if note_num else "register"
+                    st.session_state.logged_in = True
+                    
+                    # تحديث رابط المتصفح
+                    st.query_params['ut'] = 'student'
+                    st.query_params['un'] = encode_str(st.session_state.student1['اسم المستخدم'])
+                    st.rerun()
     else:
+        # (باقي كود واجهة الطالب المسجل يبقى كما هو)
         s1 = st.session_state.student1; s2 = st.session_state.student2
 
         def is_phone_valid(phone_val):
@@ -1176,7 +1237,7 @@ elif st.session_state.user_type == "student":
                                 else:
                                     with st.spinner('⏳ جاري تسجيل...'):
                                         success, msg = update_registration(st.session_state.note_number, s1, s2)
-                                        if success: st.success(msg); st.balloons(); clear_cache_and_reload(); st.session_state.mode = "view"; st.session_state.show_confirmation = False; time.sleep(2); st.rerun()
+                                        if success: st.success(msg); st.balloons(); clear_cache_and_reload(); st.session_state.mode = "view"; st.session_state.show_confirmation = False; time.sleep(2); st.run()
                                         else: st.error(msg); st.session_state.show_confirmation = False
                         with col2:
                             if st.button("إلغاء"): st.session_state.show_confirmation = False; st.rerun()
@@ -1198,7 +1259,7 @@ elif st.session_state.user_type == "student":
                         <div class='card' style='border-right: 4px solid #3B82F6; background: rgba(59, 130, 246, 0.1);'>
                         <h4>🔔 جلسة إشراف</h4>
                         <p>{last_session['المبررات']}</p>
-                        <small style='color: #666;'>{last_session['الوقت']}</small>
+                        <small style='color: #666;'>{last_session['وقت الطلب']}</small>
                         </div>
                         """, unsafe_allow_html=True)
                     my_reqs = df_requests[df_requests["رقم المذكرة"].astype(str).str.strip() == my_memo_id]
@@ -1208,7 +1269,7 @@ elif st.session_state.user_type == "student":
                             details = str(r.get('العنوان الجديد', r.get('المبررات', ''))).strip()
                             show_details = True
                             if req_type in ["حذف طالب", "تنازل"]: show_details = False
-                            st.markdown(f"""<div class="card" style="border-right: 4px solid #F59E0B; padding: 20px;"><h4>{req_type}</h4><p>التاريخ: {r['الوقت']}</p><p>الحالة: <b>{r.get('الحالة', 'غير محدد')}</b></p>{'<p>التفاصيل: ' + details + '</p>' if show_details else '<p><i>التفاصيل مخفية</i></p>'}</div>""", unsafe_allow_html=True)
+                            st.markdown(f"""<div class="card" style="border-right: 4px solid #F59E0B; padding: 20px;"><h4>{req_type}</h4><p>التاريخ: {r['وقت الطلب']}</p><p>الحالة: <b>{r.get('الحالة', 'غير محدد')}</b></p>{'<p>التفاصيل: ' + details + '</p>' if show_details else '<p><i>التفاصيل مخفية</i></p>'}</div>""", unsafe_allow_html=True)
                     if prof_sessions.empty and my_reqs.empty: st.info("لا توجد إشعارات جديدة.")
             else: st.info("يجب تسجيل مذكرة أولاً لتلقي الإشعارات.")
 
