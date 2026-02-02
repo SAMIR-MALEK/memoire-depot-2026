@@ -311,7 +311,7 @@ def sync_student_registration_numbers():
             reg_s1 = ""; reg_s2 = ""
             for _, s_row in matched_students.iterrows():
                 lname = s_row.get('لقب', s_row.get('اللقب', ''))
-                fname = s_row.get('إسم', s_row.get('إسم', ''))
+                fname = s_row.get('إسم', s_row.get('الإسم', ''))
                 full_name = f"{lname} {fname}".strip()
                 if full_name == s1_name: reg_s1 = str(s_row.get("رقم التسجيل", ""))
                 elif s2_name and full_name == s2_name: reg_s2 = str(s_row.get("رقم التسجيل", ""))
@@ -536,10 +536,10 @@ def send_email_to_professor(prof_name, memo_info, student1, student2=None):
             return False, error_msg
         total_memos = len(prof_row)
         registered_memos = len(prof_row[prof_row["تم التسجيل"].astype(str).str.strip() == "نعم"])
-        s1_lname = student1.get('لقب', student1.get('اللقب', '')); s1_fname = student1.get('إسم', student1.get('إسم', ''))
+        s1_lname = student1.get('لقب', student1.get('اللقب', '')); s1_fname = student1.get('إسم', student1.get('الإسم', ''))
         student2_info = ""
         if student2 is not None:
-            s2_lname = student2.get('لقب', student2.get('اللقب', '')); s2_fname = student2.get('إسم', student2.get('إسم', ''))
+            s2_lname = student2.get('لقب', student2.get('اللقب', '')); s2_fname = student2.get('إسم', student2.get('الإسم', ''))
             student2_info = f"\n👤 **الطالب الثاني:** {s2_lname} {s2_fname}"
         email_body = f"""
 <html dir="rtl"><head><style>body {{ font-family: 'Arial', sans-serif; background-color: #f4f4f4; padding: 20px; }} .container {{ background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }} .header {{ background-color: #256D85; color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }} .header h2 {{ margin: 0; }} .content {{ line-height:1.8; color: #333; }} .info-box {{ background-color: #f8f9fa; padding: 15px; border-right: 4px solid #256D85; margin: 15px 0; }} .stats-box {{ background-color: #e8f4f8; padding: 15px; border-radius: 8px; margin: 15px 0; }} .footer {{ text-align: center; color: #888; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }} .highlight {{ color: #256D85; font-weight: bold; }} ul {{ list-style: none; padding: 0; }} li {{ padding: 5px 0; }}</style></head>
@@ -656,7 +656,7 @@ def update_registration(note_number, student1, student2=None):
         
         # تجهيز البيانات للتحديث في شيت الأساتذة
         s1_lname = student1.get('لقب', student1.get('اللقب', ''))
-        s1_fname = student1.get('إسم', student1.get('إسم', ''))
+        s1_fname = student1.get('إسم', student1.get('الإسم', ''))
         
         updates = [
             {"range": f"Feuille 1!{col_letter(col_names.index('الطالب الأول')+1)}{prof_row_idx}", "values": [[s1_lname + ' ' + s1_fname]]},
@@ -667,7 +667,7 @@ def update_registration(note_number, student1, student2=None):
 
         if student2 is not None:
             s2_lname = student2.get('لقب', student2.get('اللقب', ''))
-            s2_fname = student2.get('إسم', student2.get('إسم', ''))
+            s2_fname = student2.get('إسم', student2.get('الإسم', ''))
             updates.append({"range": f"Feuille 1!{col_letter(col_names.index('الطالب الثاني')+1)}{prof_row_idx}", "values": [[s2_lname + ' ' + s2_fname]]})
 
         # تنفيذ التحديث لشيت الأساتذة
@@ -1021,8 +1021,8 @@ elif st.session_state.user_type == "student":
         col1, col2 = st.columns([4, 1])
         with col2:
             if st.button("خروج", key="logout_btn"): logout()
-        st.markdown(f'<div class="card"><h3>ملف الطالب</h3><p>الطالب الأول: <b style="color:#2F6F7E;">{s1.get("لقب", s1.get("اللقب"))} {s1.get("الإسم", s1.get("إسم"))}</b></p><p>التخصص: <b>{s1.get("التخصص")}</b></p></div>', unsafe_allow_html=True)
-        if s2 is not None: st.markdown(f'<div class="card"><p>الطالب الثاني: <b style="color:#2F6F7E;">{s2.get("لقب", s2.get("اللقب"))} {s2.get("الإسم", s2.get("إسم"))}</b></p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="card"><h3>ملف الطالب</h3><p>الطالب الأول: <b style="color:#2F6F7E;">{s1.get("لقب", s1.get("اللقب"))} {s1.get("إسم", s1.get("الإسم"))}</b></p><p>التخصص: <b>{s1.get("التخصص")}</b></p></div>', unsafe_allow_html=True)
+        if s2 is not None: st.markdown(f'<div class="card"><p>الطالب الثاني: <b style="color:#2F6F7E;">{s2.get("لقب", s2.get("اللقب"))} {s2.get("إسم", s2.get("الإسم"))}</b></p></div>', unsafe_allow_html=True)
 
         tab_memo, tab_notify = st.tabs(["مذكرتي", "الإشعارات والطلبات"])
         with tab_memo:
