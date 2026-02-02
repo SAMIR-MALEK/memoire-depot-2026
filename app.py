@@ -145,7 +145,7 @@ REQUESTS_RANGE = "Feuille 1!A1:K1000"
 ADMIN_CREDENTIALS = {"admin": "admin2026", "dsp": "dsp@2026"}
 
 EMAIL_SENDER = "domaine.dsp@univ-bba.dz"
-EMAIL_PASSWORD = "oevruyiztgikwzah"
+EMAIL_PASSWORD = "qptlxzunqhdcjcjt"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 ADMIN_EMAIL = "domaine.dsp@univ-bba.dz"
