@@ -147,16 +147,23 @@ ADMIN_CREDENTIALS = {
 }
 
 # --------- Email configuration ----------
-EMAIL_SENDER = st.secrets["EMAIL_SENDER"]
-EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
-SMTP_SERVER = st.secrets["SMTP_SERVER"]
-SMTP_PORT = st.secrets["SMTP_PORT"]
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    st.error("❌ ADMIN_PASSWORD غير موجود في secrets!")
+    st.stop()
+
+EMAIL_SENDER = st.secrets.get("EMAIL_SENDER")
+EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD")
+SMTP_SERVER = st.secrets.get("SMTP_SERVER")
+SMTP_PORT = st.secrets.get("SMTP_PORT")
+
+ADMIN_CREDENTIALS = {
+    "admin": ADMIN_PASSWORD
+}
 
 ADMIN_EMAIL = EMAIL_SENDER
 
-
-st.write("Keys in secrets:", st.secrets.keys())
-
+st.success("✅ تم تحميل جميع القيم من secrets بنجاح!")
 # ---------------- دوال مساعدة ----------------
 def col_letter(n):
     result = ""
