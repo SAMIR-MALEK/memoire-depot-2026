@@ -311,7 +311,7 @@ def sync_student_registration_numbers():
             reg_s1 = ""; reg_s2 = ""
             for _, s_row in matched_students.iterrows():
                 lname = s_row.get('لقب', s_row.get('اللقب', ''))
-                fname = s_row.get('إسم', s_row.get('الإسم', ''))
+                fname = s_row.get('إسم', s_row.get('إسم', ''))
                 full_name = f"{lname} {fname}".strip()
                 if full_name == s1_name: reg_s1 = str(s_row.get("رقم التسجيل", ""))
                 elif s2_name and full_name == s2_name: reg_s2 = str(s_row.get("رقم التسجيل", ""))
@@ -517,190 +517,42 @@ def send_email_to_professor(prof_name, memo_info, student1, student2=None):
     try:
         df_prof_memos = load_prof_memos()
         prof_row = df_prof_memos[df_prof_memos["الأستاذ"].astype(str).str.strip() == prof_name.strip()]
-        
-        # محاولة البحث عن الأستاذ بطرق مختلفة إذا لم يتم العثور عليه مباشرة
         if prof_row.empty:
             clean_name = prof_name.strip().replace("الأستاذ", "").replace("د.", "").replace("أ.د", "").strip()
-            if clean_name: 
-                prof_row = df_prof_memos[df_prof_memos["الأستاذ"].astype(str).str.contains(clean_name, case=False, na=False)]
-        
+            if clean_name: prof_row = df_prof_memos[df_prof_memos["الأستاذ"].astype(str).str.contains(clean_name, case=False, na=False)]
         if prof_row.empty:
             error_msg = f"فشل الإرسال: لم يتم العثور على البريد للأستاذ <b>{prof_name}</b>."
             logger.error(f"Email Error: Professor {prof_name} not found.")
             return False, error_msg
-        
-        prof_data = prof_row.iloc[0]
-        prof_email = ""
+        prof_data = prof_row.iloc[0]; prof_email = ""
         possible_email_cols = ["البريد الإلكتروني", "الإيميل", "email", "Email"]
         for col in possible_email_cols:
             if col in prof_data.index:
                 val = str(prof_data[col]).strip()
-                if val and val != "nan": 
-                    prof_email = val
-                    break
-        
+                if val and val != "nan": prof_email = val; break
         if "@" not in prof_email:
             error_msg = f"فشل الإرسال: الأستاذ <b>{prof_name}</b> موجود، ولكن البريد الإلكتروني فارغ."
             logger.error(f"Email Error: Invalid email for Prof {prof_name}: {prof_email}")
             return False, error_msg
-        
-        # --- تجهيز بيانات الطالب الأول ---
-        s1_lname = student1.get('لقب', student1.get('اللقب', ''))
-        s1_fname = student1.get('إسم', student1.get('إسم', ''))
-        s1_full_name = f"{s1_lname} {s1_fname}"
-        
-        # جلب البيانات الإضافية من القاموس مباشرة
-        s1_reg = str(student1.get('رقم التسجيل', '--')).strip()
-        s1_email = str(student1.get('البريد المهني', student1.get('البريد الإلكتروني', student1.get('email', '--')))).strip()
-        s1_phone = str(student1.get('الهاتف', '--')).strip()
-
-        # --- تجهيز بيانات الطالب الثاني (إذا وجد) ---
-        student2_html_table = ""
+        total_memos = len(prof_row)
+        registered_memos = len(prof_row[prof_row["تم التسجيل"].astype(str).str.strip() == "نعم"])
+        s1_lname = student1.get('لقب', student1.get('اللقب', '')); s1_fname = student1.get('إسم', student1.get('إسم', ''))
+        student2_info = ""
         if student2 is not None:
-            s2_lname = student2.get('لقب', student2.get('اللقب', ''))
-            s2_fname = student2.get('إسم', student2.get('إسم', ''))
-            s2_full_name = f"{s2_lname} {s2_fname}"
-            s2_reg = str(student2.get('رقم التسجيل', '--')).strip()
-            s2_email = str(student2.get('البريد المهني', student2.get('البريد الإلكتروني', student2.get('email', '--')))).strip()
-            s2_phone = str(student2.get('الهاتف', '--')).strip()
-
-            student2_html_table = f"""
-            <tr>
-                <td colspan='2' style='background-color:#f0f7ff; padding: 10px; border-bottom: 1px solid #e1e4e8;'>
-                    <strong style='color: #256D85; font-size: 1.1em;'>👤 الطالب الثاني:</strong> {s2_full_name}
-                </td>
-            </tr>
-            <tr>
-                <td style='padding: 8px; border-bottom: 1px solid #e1e4e8; width: 40%; color: #555;'><strong>رقم التسجيل:</strong></td>
-                <td style='padding: 8px; border-bottom: 1px solid #e1e4e8;'>{s2_reg}</td>
-            </tr>
-            <tr>
-                <td style='padding: 8px; border-bottom: 1px solid #e1e4e8; width: 40%; color: #555;'><strong>البريد الإلكتروني:</strong></td>
-                <td style='padding: 8px; border-bottom: 1px solid #e1e4e8;'><a href="mailto:{s2_email}" style="color: #256D85;">{s2_email}</a></td>
-            </tr>
-            <tr>
-                <td style='padding: 8px; color: #555;'><strong>رقم الهاتف:</strong></td>
-                <td style='padding: 8px;'>{s2_phone}</td>
-            </tr>
-            """
-
-        # --- إنشاء هيكل الإيميل (HTML) ---
+            s2_lname = student2.get('لقب', student2.get('اللقب', '')); s2_fname = student2.get('إسم', student2.get('إسم', ''))
+            student2_info = f"\n👤 **الطالب الثاني:** {s2_lname} {s2_fname}"
         email_body = f"""
-<html dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body {{ font-family: 'Arial', sans-serif; background-color: #f4f4f4; padding: 20px; margin: 0; }}
-        .container {{ 
-            max-width: 650px; 
-            margin: 0 auto; 
-            background-color: #ffffff; 
-            padding: 30px; 
-            border-radius: 10px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-            border-top: 5px solid #256D85; 
-        }}
-        .header {{ text-align: center; margin-bottom: 25px; }}
-        .header h2 {{ color: #256D85; margin: 0; font-size: 24px; }}
-        .content {{ line-height: 1.6; color: #333; }}
-        .info-box {{ 
-            background-color: #f8f9fa; 
-            padding: 20px; 
-            border-right: 4px solid #256D85; 
-            margin: 20px 0; 
-            border-radius: 5px;
-        }}
-        .stats-box {{ 
-            background-color: #e8f4f8; 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin: 20px 0; 
-            border: 1px solid #cceeff;
-        }}
-        .student-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-        .student-table td {{ padding: 8px; border-bottom: 1px solid #e1e4e8; }}
-        .footer {{ 
-            text-align: center; 
-            color: #888; 
-            font-size: 12px; 
-            margin-top: 30px; 
-            padding-top: 20px; 
-            border-top: 1px solid #ddd; 
-        }}
-        .highlight {{ color: #256D85; font-weight: bold; }}
-        ul {{ list-style: none; padding: 0; }}
-        li {{ padding: 5px 0; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h2>✅ تسجيل مذكرة جديدة</h2>
-        </div>
-        
-        <div class="content">
-            <p>تحية طيبة، الأستاذ(ة) <span class="highlight">{prof_name}</span>،</p>
-            <p>نحيطكم علماً بأنه تم تسجيل مذكرة جديدة تحت إشرافكم، مع التفاصيل الكاملة للطلبة:</p>
-            
-            <div class="info-box">
-                <p style="margin-top:0;"><strong>📄 رقم المذكرة:</strong> {memo_info['رقم المذكرة']}</p>
-                <p><strong>📑 عنوان المذكرة:</strong> {memo_info['عنوان المذكرة']}</p>
-                <p><strong>🎓 التخصص:</strong> {memo_info['التخصص']}</p>
-                <p><strong>🕒 تاريخ التسجيل:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-            </div>
-
-            <h3 style="color: #256D85; border-bottom: 2px solid #eee; padding-bottom: 10px;">بيانات الطلبة المسجلين:</h3>
-            
-            <table class="student-table">
-                <!-- الطالب الأول -->
-                <tr>
-                    <td colspan='2' style='background-color:#f0f7ff; padding: 10px; border-bottom: 1px solid #e1e4e8;'>
-                        <strong style='color: #256D85; font-size: 1.1em;'>👤 الطالب الأول:</strong> {s1_full_name}
-                    </td>
-                </tr>
-                <tr>
-                    <td style='padding: 8px; border-bottom: 1px solid #e1e4e8; width: 40%; color: #555;'><strong>رقم التسجيل:</strong></td>
-                    'td style='padding: 8px; border-bottom: 1px solid #e1e4e8;'>{s1_reg}</td>
-                </tr>
-                <tr>
-                    <td style='padding: 8px; border-bottom: 1px solid #e1e4e8; width: 40%; color: #555;'><strong>البريد الإلكتروني:</strong></td>
-                    <td style='padding: 8px; border-bottom: 1px solid #e1e4e8;'><a href="mailto:{s1_email}" style="color: #256D85;">{s1_email}</a></td>
-                and the HTML continues... (see previous context)
-                    </td>
-                </tr>
-            </table>
-
-            <div class="stats-box">
-                <h3 style="color: #256D85; margin-top: 0;">📊 إحصائيات مذكراتك:</h3>
-                <ul>
-                    <li>📝 <strong>إجمالي المذكرات:</strong> {total_memos}</li>
-                    <li>✅ <strong>المذكرات المسجلة:</strong> {registered_memos}</li>
-                    <li>⏳ <strong>المذكرات المتبقية:</strong> {total_memos - registered_memos}</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>© {datetime.now().year} جامعة محمد البشير الإبراهيمي - كلية الحقوق والعلوم السياسية</p>
-        </div>
-    </div>
-</body>
-</html>
+<html dir="rtl"><head><style>body {{ font-family: 'Arial', sans-serif; background-color: #f4f4f4; padding: 20px; }} .container {{ background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }} .header {{ background-color: #256D85; color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }} .header h2 {{ margin: 0; }} .content {{ line-height:1.8; color: #333; }} .info-box {{ background-color: #f8f9fa; padding: 15px; border-right: 4px solid #256D85; margin: 15px 0; }} .stats-box {{ background-color: #e8f4f8; padding: 15px; border-radius: 8px; margin: 15px 0; }} .footer {{ text-align: center; color: #888; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }} .highlight {{ color: #256D85; font-weight: bold; }} ul {{ list-style: none; padding: 0; }} li {{ padding: 5px 0; }}</style></head>
+<body><div class="container"><div class="header"><h2>✅ تسجيل مذكرة جديدة</h2></div><div class="content"><p>تحية طيبة، الأستاذ(ة) <span class="highlight">{prof_name}</span>،</p><p>نحيطكم علماً بأنه تم تسجيل مذكرة جديدة تحت إشرافكم:</p><div class="info-box"><p>📄 <strong>رقم المذكرة:</strong> {memo_info['رقم المذكرة']}</p><p>📑 <strong>عنوان المذكرة:</strong> {memo_info['عنوان المذكرة']}</p><p>🎓 <strong>التخصص:</strong> {memo_info['التخصص']}</p><p>👤 <strong>الطالب الأول:</strong> {s1_lname} {s1_fname}{student2_info}</p><p>🕒 <strong>تاريخ التسجيل:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p></div><div class="stats-box"><h3 style="color: #256D85; margin-top: 0;">📊 إحصائيات مذكراتك:</h3><ul><li>📝 <strong>إجمالي المذكرات:</strong> {total_memos}</li><li>✅ <strong>المذكرات المسجلة:</strong> {registered_memos}</li><li>⏳ <strong>المذكرات المتبقية:</strong> {total_memos - registered_memos}</li></ul></div><p style="margin-top: 20px; color: #666;">للاستفسار، يرجى التواصل مع الإدارة.</p></div><div class="footer"><p>© 2026 جامعة محمد البشير الإبراهيمي</p></div></div></body></html>
 """
         msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_SENDER
-        msg['To'] = prof_email
+        msg['From'] = EMAIL_SENDER; msg['To'] = prof_email
         msg['Subject'] = f"✅ تسجيل مذكرة جديدة - رقم {memo_info['رقم المذكرة']}"
         msg.attach(MIMEText(email_body, 'html', 'utf-8'))
-        
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
-        
+            server.starttls(); server.login(EMAIL_SENDER, EMAIL_PASSWORD); server.send_message(msg)
         logger.info(f"✅ Email sent to professor {prof_name}")
         return True, "تم إرسال البريد الإلكتروني بنجاح"
-
     except Exception as e:
         logger.error(f"❌ Error sending email: {str(e)}")
         return False, f"خطأ تقني أثناء الإرسال: {str(e)}"
@@ -804,7 +656,7 @@ def update_registration(note_number, student1, student2=None):
         
         # تجهيز البيانات للتحديث في شيت الأساتذة
         s1_lname = student1.get('لقب', student1.get('اللقب', ''))
-        s1_fname = student1.get('إسم', student1.get('الإسم', ''))
+        s1_fname = student1.get('إسم', student1.get('إسم', ''))
         
         updates = [
             {"range": f"Feuille 1!{col_letter(col_names.index('الطالب الأول')+1)}{prof_row_idx}", "values": [[s1_lname + ' ' + s1_fname]]},
@@ -815,7 +667,7 @@ def update_registration(note_number, student1, student2=None):
 
         if student2 is not None:
             s2_lname = student2.get('لقب', student2.get('اللقب', ''))
-            s2_fname = student2.get('إسم', student2.get('الإسم', ''))
+            s2_fname = student2.get('إسم', student2.get('إسم', ''))
             updates.append({"range": f"Feuille 1!{col_letter(col_names.index('الطالب الثاني')+1)}{prof_row_idx}", "values": [[s2_lname + ' ' + s2_fname]]})
 
         # تنفيذ التحديث لشيت الأساتذة
