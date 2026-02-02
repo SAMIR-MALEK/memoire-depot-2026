@@ -154,6 +154,9 @@ SMTP_PORT = st.secrets["SMTP_PORT"]
 
 ADMIN_EMAIL = EMAIL_SENDER
 
+
+st.write("Keys in secrets:", st.secrets.keys())
+
 # ---------------- دوال مساعدة ----------------
 def col_letter(n):
     result = ""
