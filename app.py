@@ -274,36 +274,22 @@ def clear_cache_and_reload():
     st.cache_data.clear()
     logger.info("تم مسح السجلات")
 
-# دالة جديدة لتحديث رقم الهاتف
+# دالة لتحديث رقم الهاتف
 def update_student_phone(username, new_phone):
-    """
-    تقوم بتحديث رقم هاتف الطالب في شيت الطلاب (العمود M)
-    """
     try:
         df_students = load_students()
-        # البحث عن الطالب
         student_row = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == username]
-        
-        if student_row.empty:
-            return False, "❌ لم يتم العثور على الطالب"
-
-        # تحديد رقم الصف (Index + 2 لأن الـ Pandas يبدأ من 0 والشيت يبدأ من 1 + صف العناوين)
+        if student_row.empty: return False, "❌ لم يتم العثور على الطالب"
         row_idx = student_row.index[0] + 2
-        
-        # تحديث العمود M (هو العمود رقم 13، أي الحرف M)
         body = {"values": [[new_phone]]}
-        
         sheets_service.spreadsheets().values().update(
             spreadsheetId=STUDENTS_SHEET_ID,
-            range=f"Feuille 1!M{row_idx}", # العمود M
+            range=f"Feuille 1!M{row_idx}",
             valueInputOption="USER_ENTERED",
             body=body
         ).execute()
-        
-        # مسح الذاكرة المؤقتة لتحديث البيانات فوراً
         clear_cache_and_reload()
         return True, "✅ تم تحديث رقم الهاتف بنجاح"
-        
     except Exception as e:
         logger.error(f"خطأ في تحديث الهاتف: {str(e)}")
         return False, f"❌ حدث خطأ أثناء التحديث: {str(e)}"
@@ -388,131 +374,36 @@ def update_progress(memo_number, progress_value):
         return False, f"❌ خطأ: {str(e)}"
 
 # -------------------------------------------------------------
-# دوال الإيميل الجديدة (إرسال للأساتذة)
+# دوال الإيميل (إرسال للأساتذة)
 # -------------------------------------------------------------
-
 def _send_email_to_professor_row(row):
-    """
-    دالة داخلية ترسل إيميل لصف واحد (داتا واحد) من الأساتذة
-    """
-    # تحديد أسماء الأعمدة المحتملة لضمان التوافق
     possible_username_keys = ["إسم المستخدم", "اسم المستخدم", "Identifiant", "Username", "user"]
     possible_password_keys = ["كلمة المرور", "كلمة السر", "Password", "pass"]
     possible_email_keys = ["البريد الإلكتروني", "الإيميل", "email", "Email", "E-mail"]
-
     prof_name = row.get("الأستاذ", "غير محدد")
-    
-    # البحث عن البيانات
-    email = ""
-    username = ""
-    password = ""
-    
-    # جلب البريد
+    email = ""; username = ""; password = ""
     for col in possible_email_keys:
         if col in row.index:
             val = str(row[col]).strip()
-            if "@" in val and val != "nan":
-                email = val
-                break
-                
-    # جلب اسم المستخدم
+            if "@" in val and val != "nan": email = val; break
     for col in possible_username_keys:
         if col in row.index:
             val = str(row[col]).strip()
-            if val != "nan" and val != "":
-                username = val
-                break
-
-    # جلب كلمة المرور
+            if val != "nan" and val != "": username = val; break
     for col in possible_password_keys:
         if col in row.index:
             val = str(row[col]).strip()
-            if val != "nan" and val != "":
-                password = val
-                break
-
-    # التحقق
-    if not email or not username or not password:
-        return False, "⚠️ بيانات ناقصة"
-
-    # محتوى الإيميل
+            if val != "nan" and val != "": password = val; break
+    if not email or not username or not password: return False, "⚠️ بيانات ناقصة"
     email_body = f"""
-    <html dir="rtl">
-    <head>
-    <meta charset="UTF-8">
-    <style>
-        body {{ font-family: 'Cairo', Arial, sans-serif; direction: rtl; text-align: right; line-height: 1.6; background-color: #f4f4f4; margin: 0; padding: 0; }}
-        .container {{ max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border: 1px solid #dddddd; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
-        .header {{ text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 20px; }}
-        .header h2 {{ color: #003366; margin: 0; font-size: 24px; }}
-        .header h3 {{ color: #005580; margin: 5px 0 0 0; font-size: 20px; }}
-        .content {{ margin-bottom: 30px; color: #333; }}
-        .content ul {{ padding-right: 20px; }}
-        .info-box {{ background-color: #eef7fb; border-right: 5px solid #005580; padding: 20px; margin: 20px 0; border-radius: 4px; }}
-        .info-box p {{ margin: 10px 0; font-weight: bold; font-size: 1.1em; }}
-        .footer {{ text-align: center; margin-top: 40px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 20px; }}
-        .link {{ color: #005580; text-decoration: none; font-weight: bold; }}
-        .link:hover {{ text-decoration: underline; }}
-    </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h2>جامعة محمد البشير الإبراهيمي – برج بوعريريج</h2>
-                <h3>كلية الحقوق والعلوم السياسية</h3>
-                <h4 style="color:#666; margin-top:5px;">فضاء الأساتذة</h4>
-            </div>
-            
-            <div class="content">
-                <p>تحية طيبة وبعد،</p>
-                <p>الأستاذ (ة) الفاضل (ة) : <strong>{prof_name}</strong></p>
-                <br>
-                <p>في إطار رقمنة متابعة مذكّرات الماستر، يشرفنا إعلامكم بأنه تم تفعيل فضاء الأساتذة على منصة متابعة مذكرات الماستر الخاصة بكلية الحقوق والعلوم السياسية، وذلك قصد تسهيل عملية المتابعة البيداغوجية وتنظيم الإشراف.</p>
-                
-                <p>يُمكِّنكم فضاء الأستاذ من القيام بالمهام التالية:</p>
-                <ul>
-                    <li>متابعة حالة تسجيل كل مذكرة (مسجلة / غير مسجلة).</li>
-                    <li>الاطلاع على أسماء الطلبة المسجلين وأرقام هواتفهم وبريدهم المهني.</li>
-                    <li>تحديث نسبة التقدم في إنجاز المذكرات.</li>
-                    <li>تحديد موعد جلسة إشراف واحدة يتم تعميمها آليًا على جميع الطلبة المعنيين.</li>
-                    <li>إرسال طلبات إدارية رقمية للإدارة، من بينها:
-                        <ul>
-                            <li>طلب تغيير عنوان المذكرة.</li>
-                            <li>طلب إضافة أو حذف طالب.</li>
-                            <li>طلب التنازل عن الإشراف.</li>
-                        </ul>
-                    </li>
-                </ul>
-
-                <div class="info-box">
-                    <p>الدخول إلى حسابكم يكون عبر الرابط:</p>
-                    <a href="https://memoires2026.streamlit.app" class="link">https://memoires2026.streamlit.app</a>
-                    <p style="margin-top: 15px;">إسم المستخدم: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{username}</span></p>
-                    <p>كلمة المرور: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{password}</span></p>
-                </div>
-            </div>
-
-            <div class="footer">
-                <p>تقبلوا تحياتنا الطيبة.</p>
-                <p>مسؤول الميدان: الدكتور لخضر رفاف</p>
-            </div>
-        </div>
-    </body>
-    </html>
+    <html dir="rtl"><head><meta charset="UTF-8"><style>body {{ font-family: 'Cairo', Arial, sans-serif; direction: rtl; text-align: right; line-height: 1.6; background-color: #f4f4f4; margin: 0; padding: 0; }} .container {{ max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border: 1px solid #dddddd; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }} .header {{ text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 20px; }} .header h2 {{ color: #003366; margin: 0; font-size: 24px; }} .header h3 {{ color: #005580; margin: 5px 0 0 0; font-size: 20px; }} .content {{ margin-bottom: 30px; color: #333; }} .content ul {{ padding-right: 20px; }} .info-box {{ background-color: #eef7fb; border-right: 5px solid #005580; padding: 20px; margin: 20px 0; border-radius: 4px; }} .info-box p {{ margin: 10px 0; font-weight: bold; font-size: 1.1em; }} .footer {{ text-align: center; margin-top: 40px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 20px; }} .link {{ color: #005580; text-decoration: none; font-weight: bold; }} .link:hover {{ text-decoration: underline; }}</style></head><body><div class="container"><div class="header"><h2>جامعة محمد البشير الإبراهيمي – برج بوعريريج</h2><h3>كلية الحقوق والعلوم السياسية</h3><h4 style="color:#666; margin-top:5px;">فضاء الأساتذة</h4></div><div class="content"><p>تحية طيبة وبعد،</p><p>الأستاذ (ة) الفاضل (ة) : <strong>{prof_name}</strong></p><br><p>في إطار رقمنة متابعة مذكّرات الماستر، يشرفنا إعلامكم بأنه تم تفعيل فضاء الأساتذة على منصة متابعة مذكرات الماستر الخاصة بكلية الحقوق والعلوم السياسية، وذلك قصد تسهيل عملية المتابعة البيداغوجية وتنظيم الإشراف.</p><p>يُمكِّنكم فضاء الأستاذ من القيام بالمهام التالية:</p><ul><li>متابعة حالة تسجيل كل مذكرة (مسجلة / غير مسجلة).</li><li>الاطلاع على أسماء الطلبة المسجلين وأرقام هواتفهم وبريدهم المهني.</li><li>تحديث نسبة التقدم في إنجاز المذكرات.</li><li>تحديد موعد جلسة إشراف واحدة يتم تعميمها آليًا على جميع الطلبة المعنيين.</li><li>إرسال طلبات إدارية رقمية للإدارة.</li></ul><div class="info-box"><p>الدخول إلى حسابكم يكون عبر الرابط:</p><a href="https://memoires2026.streamlit.app" class="link">https://memoires2026.streamlit.app</a><p style="margin-top: 15px;">إسم المستخدم: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{username}</span></p><p>كلمة المرور: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{password}</span></p></div></div><div class="footer"><p>تقبلوا تحياتنا الطيبة.</p><p>مسؤول الميدان: الدكتور لخضر رفاف</p></div></div></body></html>
     """
-
     try:
         msg = MIMEMultipart('alternative')
-        msg['From'] = EMAIL_SENDER
-        msg['To'] = email
-        msg['Subject'] = "تفعيل حساب فضاء الأساتذة - منصة المذكرات"
+        msg['From'] = EMAIL_SENDER; msg['To'] = email; msg['Subject'] = "تفعيل حساب فضاء الأساتذة - منصة المذكرات"
         msg.attach(MIMEText(email_body, 'html', 'utf-8'))
-        
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
-        
+            server.starttls(); server.login(EMAIL_SENDER, EMAIL_PASSWORD); server.send_message(msg)
         return True, f"✅ تم الإرسال إلى {email}"
     except Exception as e:
         logger.error(f"Error sending email to {prof_name}: {e}")
@@ -521,25 +412,16 @@ def _send_email_to_professor_row(row):
 def send_welcome_emails_to_all_profs():
     try:
         df_profs = load_prof_memos()
-        sent_count = 0
-        failed_count = 0
-        results_log = []
-        progress_bar = st.progress(0)
-        total_profs = len(df_profs)
-
+        sent_count = 0; failed_count = 0; results_log = []
+        progress_bar = st.progress(0); total_profs = len(df_profs)
         with st.spinner("⏳ جاري الإرسال لجميع الأساتذة... يرجى الانتظار"):
             for index, row in df_profs.iterrows():
                 success, msg = _send_email_to_professor_row(row)
-                if success:
-                    sent_count += 1
-                    results_log.append(msg)
-                else:
-                    failed_count += 1
-                    results_log.append(f"{row.get('الأستاذ', 'غير محدد')}: {msg}")
-                
+                if success: sent_count += 1
+                else: failed_count += 1
+                results_log.append(msg)
                 progress_bar.progress((index + 1) / total_profs)
-                time.sleep(0.5) # تأخير بسيط لتجنب الحظر
-
+                time.sleep(0.5)
         return sent_count, failed_count, results_log
     except Exception as e:
         return 0, 0, [f"خطأ عام: {str(e)}"]
@@ -547,27 +429,18 @@ def send_welcome_emails_to_all_profs():
 def send_welcome_email_to_one(prof_name):
     try:
         df_profs = load_prof_memos()
-        # البحث عن الصف الخاص بالأستاذ
         prof_rows = df_profs[df_profs["الأستاذ"].astype(str).str.strip() == prof_name.strip()]
-        
-        if prof_rows.empty:
-            return False, f"❌ لم يتم العثور على الأستاذ: {prof_name}"
-        
+        if prof_rows.empty: return False, f"❌ لم يتم العثور على الأستاذ: {prof_name}"
         row = prof_rows.iloc[0]
         with st.spinner(f"⏳ جاري الإرسال للأستاذ: {prof_name}..."):
             success, msg = _send_email_to_professor_row(row)
-        
-        if success:
-            return True, msg
-        else:
-            return False, msg
-            
+        if success: return True, msg
+        else: return False, msg
     except Exception as e:
         logger.error(f"Error sending single email: {e}")
         return False, f"حدث خطأ: {str(e)}"
-# -------------------------------------------------------------
 
-# ---------------- دوال الجلسات والطلبات الجديدة ----------------
+# -------------------------------------------------------------
 def format_datetime_ar(date_obj, time_str):
     days_ar = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
     day_name = days_ar[date_obj.weekday()]
@@ -575,45 +448,32 @@ def format_datetime_ar(date_obj, time_str):
     return f"{day_name} {date_str} الساعة {time_str}"
 
 def get_students_of_professor(prof_name, df_memos):
-    prof_memos = df_memos[
-        (df_memos["الأستاذ"].astype(str).str.strip() == prof_name.strip()) & 
-        (df_memos["تم التسجيل"].astype(str).str.strip() == "نعم")
-    ]
+    prof_memos = df_memos[(df_memos["الأستاذ"].astype(str).str.strip() == prof_name.strip()) & (df_memos["تم التسجيل"].astype(str).str.strip() == "نعم")]
     students_data = []
     for _, memo in prof_memos.iterrows():
         s1_name = str(memo.get("الطالب الأول", "")).strip()
         s1_reg = str(memo.get("رقم تسجيل الطالب 1", memo.get("رقم التسجيل 1", ""))).strip()
-        if s1_name and s1_name != "--" and s1_reg:
-            students_data.append({"name": s1_name, "reg": s1_reg, "memo": memo.get("رقم المذكرة")})
+        if s1_name and s1_name != "--" and s1_reg: students_data.append({"name": s1_name, "reg": s1_reg, "memo": memo.get("رقم المذكرة")})
         s2_name = str(memo.get("الطالب الثاني", "")).strip()
         s2_reg = str(memo.get("رقم تسجيل الطالب 2", memo.get("رقم التسجيل 2", ""))).strip()
-        if s2_name and s2_name != "--" and s2_reg:
-            students_data.append({"name": s2_name, "reg": s2_reg, "memo": memo.get("رقم المذكرة")})
+        if s2_name and s2_name != "--" and s2_reg: students_data.append({"name": s2_name, "reg": s2_reg, "memo": memo.get("رقم المذكرة")})
     return students_data
 
 def update_session_date_in_sheets(prof_name, date_str):
     try:
         df_memos = load_memos()
-        masks = (df_memos["الأستاذ"].astype(str).str.strip() == prof_name) & \
-                (df_memos["تم التسجيل"].astype(str).str.strip() == "نعم")
+        masks = (df_memos["الأستاذ"].astype(str).str.strip() == prof_name) & (df_memos["تم التسجيل"].astype(str).str.strip() == "نعم")
         target_indices = df_memos[masks].index
         if target_indices.empty: return True, "لا توجد مذكرات لتحديثها"
-        updates = []
-        col_names = df_memos.columns.tolist()
-        target_col_name = "موعد الجلسة القادمة"
-        if target_col_name in col_names:
-            col_idx = col_names.index(target_col_name) + 1
-            col_letter_str = col_letter(col_idx)
-        else:
-            col_idx = len(col_names)
-            col_letter_str = col_letter(col_idx)
+        updates = []; col_names = df_memos.columns.tolist(); target_col_name = "موعد الجلسة القادمة"
+        if target_col_name in col_names: col_idx = col_names.index(target_col_name) + 1
+        else: col_idx = len(col_names)
+        col_letter_str = col_letter(col_idx)
         for idx in target_indices:
             row_num = idx + 2
             updates.append({"range": f"Feuille 1!{col_letter_str}{row_num}", "values": [[date_str]]})
         body = {"valueInputOption": "USER_ENTERED", "data": updates}
-        sheets_service.spreadsheets().values().batchUpdate(
-            spreadsheetId=MEMOS_SHEET_ID, body=body
-        ).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body=body).execute()
         return True, "تم تحديث التواريخ بنجاح"
     except Exception as e:
         logger.error(f"Update Session Error: {e}")
@@ -621,8 +481,7 @@ def update_session_date_in_sheets(prof_name, date_str):
 
 def send_session_emails(students_data, session_info, prof_name):
     try:
-        df_students = load_students()
-        student_emails = []
+        df_students = load_students(); student_emails = []
         for s in students_data:
             s_row = df_students[df_students["رقم التسجيل"].astype(str).str.strip() == s['reg']]
             if not s_row.empty:
@@ -631,9 +490,7 @@ def send_session_emails(students_data, session_info, prof_name):
                 for col in possible_cols:
                     if col in s_row.columns:
                         val = str(s_row.iloc[0][col]).strip()
-                        if val and val != "nan" and "@" in val:
-                            email = val
-                            break
+                        if val and val != "nan" and "@" in val: email = val; break
                 if email: student_emails.append(email)
         subject = f"🔔 تنبيه هام: جلسة إشراف - {prof_name}"
         students_list_html = "<ul>"
@@ -642,20 +499,7 @@ def send_session_emails(students_data, session_info, prof_name):
             else: students_list_html += f"<li>... و {len(students_data) - 10} طالب آخر</li>"; break
         students_list_html += "</ul>"
         email_body = f"""
-        <html dir="rtl">
-        <head><style>body {{ font-family: 'Arial', sans-serif; background-color: #f4f4f4; padding: 20px; }} .container {{ background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; border-top: 5px solid #256D85; }} .header {{ text-align: center; margin-bottom: 20px; }} .highlight {{ background-color: #e8f4f8; padding: 15px; border-radius: 8px; margin: 15px 0; font-size: 1.1em; }} .footer {{ text-align: center; color: #777; font-size: 12px; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; }}</style></head>
-        <body>
-            <div class="container">
-                <div class="header"><h2 style="color: #256D85; margin: 0;">📅 جدولة جلسة إشراف</h2></div>
-                <p>السلام عليكم ورحمة الله،</p>
-                <p>يُعلن الأستاذ(ة) <b>{prof_name}</b> عن تنظيم جلسة إشراف للمذكرات.</p>
-                <div class="highlight"><strong>📆 الموعد:</strong> {session_info}</div>
-                <p>تم توجيه هذا الإشعار إلى الطلبة المسجلين تحت إشراف الأستاذ:</p>{students_list_html}
-                <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="font-size: 0.9em; color: #555;"><strong>للإدارة:</strong> يرجى نشر هذا الموعد في الفيسبوك وإعلام الطلبة غير الحاصلين على بريد إلكتروني.</p>
-            </div>
-            <div class="footer">جامعة محمد البشير الإبراهيمي - كلية الحقوق والعلوم السياسية</div>
-        </body></html>
+        <html dir="rtl"><head><style>body {{ font-family: 'Arial', sans-serif; background-color: #f4f4f4; padding: 20px; }} .container {{ background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; border-top: 5px solid #256D85; }} .header {{ text-align: center; margin-bottom: 20px; }} .highlight {{ background-color: #e8f4f8; padding: 15px; border-radius: 8px; margin: 15px 0; font-size: 1.1em; }} .footer {{ text-align: center; color: #777; font-size: 12px; margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; }}</style></head><body><div class="container"><div class="header"><h2 style="color: #256D85; margin: 0;">📅 جدولة جلسة إشراف</h2></div><p>السلام عليكم ورحمة الله،</p><p>يُعلن الأستاذ(ة) <b>{prof_name}</b> عن تنظيم جلسة إشراف للمذكرات.</p><div class="highlight"><strong>📆 الموعد:</strong> {session_info}</div><p>تم توجيه هذا الإشعار إلى الطلبة المسجلين تحت إشراف الأستاذ:</p>{students_list_html}<hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;"><p style="font-size: 0.9em; color: #555;"><strong>للإدارة:</strong> يرجى نشر هذا الموعد في الفيسبوك وإعلام الطلبة غير الحاصلين على بريد إلكتروني.</p></div><div class="footer">جامعة محمد البشير الإبراهيمي - كلية الحقوق والعلوم السياسية</div></body></html>
         """
         msg = MIMEMultipart('alternative')
         msg['From'] = EMAIL_SENDER; msg['To'] = ADMIN_EMAIL; msg['Subject'] = subject
@@ -669,7 +513,6 @@ def send_session_emails(students_data, session_info, prof_name):
         logger.error(f"Error sending session emails: {e}")
         return False, str(e)
 
-# ---------------- دالة الإرسال للأستاذ ----------------
 def send_email_to_professor(prof_name, memo_info, student1, student2=None):
     try:
         df_prof_memos = load_prof_memos()
@@ -681,8 +524,7 @@ def send_email_to_professor(prof_name, memo_info, student1, student2=None):
             error_msg = f"فشل الإرسال: لم يتم العثور على البريد للأستاذ <b>{prof_name}</b>."
             logger.error(f"Email Error: Professor {prof_name} not found.")
             return False, error_msg
-        prof_data = prof_row.iloc[0]
-        prof_email = ""
+        prof_data = prof_row.iloc[0]; prof_email = ""
         possible_email_cols = ["البريد الإلكتروني", "الإيميل", "email", "Email"]
         for col in possible_email_cols:
             if col in prof_data.index:
@@ -764,58 +606,157 @@ def verify_professor_password(note_number, prof_password, df_memos, df_prof_memo
     if prof_row.empty: return False, None, "❌ كلمة سر المشرف غير صحيحة"
     return True, prof_row.iloc[0].to_dict(), None
 
+# ============================================================
+# الدالة المعدلة: تحديث التسجيل (مع تصحيح البحث في شيت الأساتذة)
+# ============================================================
 def update_registration(note_number, student1, student2=None):
     try:
-        df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_students = load_students()
-        prof_name = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]["الأستاذ"].iloc[0].strip()
+        df_memos = load_memos()
+        df_prof_memos = load_prof_memos()
+        df_students = load_students()
+
+        # 1. جلب بيانات الأستاذ من شيت المذكرات الرئيسي للتأكد
+        memo_data_main = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]
+        if memo_data_main.empty:
+            return False, "❌ رقم المذكرة غير موجود في القائمة الرئيسية"
+        
+        prof_name = memo_data_main["الأستاذ"].iloc[0].strip()
         used_prof_password = st.session_state.prof_password.strip()
-        prof_row_idx = df_prof_memos[(df_prof_memos["الأستاذ"].astype(str).str.strip() == prof_name) & (df_prof_memos["كلمة سر التسجيل"].astype(str).str.strip() == used_prof_password)].index[0] + 2
+
+        # ============================================================
+        # === البحث الذكي عن الصف الصحيح في شيت الأساتذة ===
+        # ============================================================
+        
+        # أولاً: تصفية الصفوف الخاصة بهذا الأستاذ وكلمة السر
+        potential_rows = df_prof_memos[
+            (df_prof_memos["الأستاذ"].astype(str).str.strip() == prof_name) & 
+            (df_prof_memos["كلمة سر التسجيل"].astype(str).str.strip() == used_prof_password)
+        ]
+
+        if potential_rows.empty:
+            return False, "❌ بيانات الأستاذ أو كلمة السر غير متطابقة في شيت المتابعة"
+
+        # ثانياً: محاولة العثور على الصف الذي يحمل نفس رقم المذكرة (الأكثر دقة)
+        target_row = potential_rows[potential_rows["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()]
+
+        # إذا لم نجد الصف عن طريق رقم المذكرة، نبحث عن أول صف "غير مسجل"
+        if target_row.empty:
+            target_row = potential_rows[potential_rows["تم التسجيل"].astype(str).str.strip() != "نعم"]
+            
+            if target_row.empty:
+                return False, "❌ خطأ: جميع المذكرات المخصصة لهذا الأستاذ مسجلة بالفعل. لا يوجد مكان للتسجيل."
+
+        prof_row_idx = target_row.index[0] + 2 # +2 للوصول لرقم الصفح في الشيت (1-based + header)
+        
+        # ============================================================
+        # === نهاية التعديل ===
+        # ============================================================
+
         col_names = df_prof_memos.columns.tolist()
-        s1_lname = student1.get('لقب', student1.get('اللقب', '')); s1_fname = student1.get('إسم', student1.get('إسم', ''))
+        
+        # تجهيز البيانات للتحديث في شيت الأساتذة
+        s1_lname = student1.get('لقب', student1.get('اللقب', ''))
+        s1_fname = student1.get('إسم', student1.get('إسم', ''))
+        
         updates = [
             {"range": f"Feuille 1!{col_letter(col_names.index('الطالب الأول')+1)}{prof_row_idx}", "values": [[s1_lname + ' ' + s1_fname]]},
             {"range": f"Feuille 1!{col_letter(col_names.index('تم التسجيل')+1)}{prof_row_idx}", "values": [["نعم"]]},
             {"range": f"Feuille 1!{col_letter(col_names.index('تاريخ التسجيل')+1)}{prof_row_idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},
             {"range": f"Feuille 1!{col_letter(col_names.index('رقم المذكرة')+1)}{prof_row_idx}", "values": [[note_number]]}
         ]
+
         if student2 is not None:
-            s2_lname = student2.get('لقب', student2.get('اللقب', '')); s2_fname = student2.get('إسم', student2.get('إسم', ''))
+            s2_lname = student2.get('لقب', student2.get('اللقب', ''))
+            s2_fname = student2.get('إسم', student2.get('إسم', ''))
             updates.append({"range": f"Feuille 1!{col_letter(col_names.index('الطالب الثاني')+1)}{prof_row_idx}", "values": [[s2_lname + ' ' + s2_fname]]})
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=PROF_MEMOS_SHEET_ID, body={"valueInputOption": "USER_ENTERED", "data": updates}).execute()
+
+        # تنفيذ التحديث لشيت الأساتذة
+        sheets_service.spreadsheets().values().batchUpdate(
+            spreadsheetId=PROF_MEMOS_SHEET_ID, 
+            body={"valueInputOption": "USER_ENTERED", "data": updates}
+        ).execute()
+
+        # ==========================================
+        # تحديث شيت المذكرات الرئيسي (MEMOS)
+        # ==========================================
         memo_row_idx = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].index[0] + 2
         memo_cols = df_memos.columns.tolist()
-        reg1 = str(student1.get('رقم التسجيل', '')); reg2 = str(student2.get('رقم التسجيل', '')) if student2 else ""
+        
+        reg1 = str(student1.get('رقم التسجيل', ''))
+        reg2 = str(student2.get('رقم التسجيل', '')) if student2 else ""
+        
         updates2 = [
             {"range": f"Feuille 1!{col_letter(memo_cols.index('الطالب الأول')+1)}{memo_row_idx}", "values": [[s1_lname + ' ' + s1_fname]]},
             {"range": f"Feuille 1!{col_letter(memo_cols.index('تم التسجيل')+1)}{memo_row_idx}", "values": [["نعم"]]},
             {"range": f"Feuille 1!{col_letter(memo_cols.index('تاريخ التسجيل')+1)}{memo_row_idx}", "values": [[datetime.now().strftime('%Y-%m-%d %H:%M')]]},
-            {"range": f"Feuille 1!S{memo_row_idx}", "values": [[reg1]]}
+            {"range": f"Feuille 1!S{memo_row_idx}", "values": [[reg1]]} # العمود S
         ]
-        if 'كلمة سر التسجيل' in memo_cols: updates2.append({"range": f"Feuille 1!{col_letter(memo_cols.index('كلمة سر التسجيل')+1)}{memo_row_idx}", "values": [[used_prof_password]]})
+        
+        if 'كلمة سر التسجيل' in memo_cols: 
+            updates2.append({"range": f"Feuille 1!{col_letter(memo_cols.index('كلمة سر التسجيل')+1)}{memo_row_idx}", "values": [[used_prof_password]]})
+        
         if student2 is not None:
             updates2.append({"range": f"Feuille 1!{col_letter(memo_cols.index('الطالب الثاني')+1)}{memo_row_idx}", "values": [[s2_lname + ' ' + s2_fname]]})
-            updates2.append({"range": f"Feuille 1!T{memo_row_idx}", "values": [[reg2]]})
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption": "USER_ENTERED", "data": updates2}).execute()
+            updates2.append({"range": f"Feuille 1!T{memo_row_idx}", "values": [[reg2]]}) # العمود T
+
+        sheets_service.spreadsheets().values().batchUpdate(
+            spreadsheetId=MEMOS_SHEET_ID, 
+            body={"valueInputOption": "USER_ENTERED", "data": updates2}
+        ).execute()
+
+        # ==========================================
+        # تحديث شيت الطلاب (STUDENTS)
+        # ==========================================
         students_cols = df_students.columns.tolist()
+        
+        # تحديث الطالب الأول
         student1_row_idx = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == student1['اسم المستخدم'].strip()].index[0] + 2
-        sheets_service.spreadsheets().values().update(spreadsheetId=STUDENTS_SHEET_ID, range=f"Feuille 1!{col_letter(students_cols.index('رقم المذكرة')+1)}{student1_row_idx}", valueInputOption="USER_ENTERED", body={"values": [[note_number]]}).execute()
+        sheets_service.spreadsheets().values().update(
+            spreadsheetId=STUDENTS_SHEET_ID, 
+            range=f"Feuille 1!{col_letter(students_cols.index('رقم المذكرة')+1)}{student1_row_idx}", 
+            valueInputOption="USER_ENTERED", 
+            body={"values": [[note_number]]}
+        ).execute()
+        
+        # تحديث الطالب الثاني (إذا وجد)
         if student2 is not None:
             student2_row_idx = df_students[df_students["اسم المستخدم"].astype(str).str.strip() == student2['اسم المستخدم'].strip()].index[0] + 2
-            sheets_service.spreadsheets().values().update(spreadsheetId=STUDENTS_SHEET_ID, range=f"Feuille 1!{col_letter(students_cols.index('رقم المذكرة')+1)}{student2_row_idx}", valueInputOption="USER_ENTERED", body={"values": [[note_number]]}).execute()
-        time.sleep(2); clear_cache_and_reload(); time.sleep(1)
+            sheets_service.spreadsheets().values().update(
+                spreadsheetId=STUDENTS_SHEET_ID, 
+                range=f"Feuille 1!{col_letter(students_cols.index('رقم المذكرة')+1)}{student2_row_idx}", 
+                valueInputOption="USER_ENTERED", 
+                body={"values": [[note_number]]}
+            ).execute()
+
+        # ==========================================
+        # إنهاء العملية
+        # ==========================================
+        time.sleep(2)
+        clear_cache_and_reload()
+        time.sleep(1)
+        
+        # تحديث البيانات في Session State
         df_students_updated = load_students()
         st.session_state.student1 = df_students_updated[df_students_updated["اسم المستخدم"].astype(str).str.strip() == student1['اسم المستخدم'].strip()].iloc[0].to_dict()
-        if student2 is not None: st.session_state.student2 = df_students_updated[df_students_updated["اسم المستخدم"].astype(str).str.strip() == student2['اسم المستخدم'].strip()].iloc[0].to_dict()
+        if student2 is not None: 
+            st.session_state.student2 = df_students_updated[df_students_updated["اسم المستخدم"].astype(str).str.strip() == student2['اسم المستخدم'].strip()].iloc[0].to_dict()
+        
+        # إرسال الإيميل
         memo_data = df_memos[df_memos["رقم المذكرة"].astype(str).str.strip() == str(note_number).strip()].iloc[0]
         email_sent, email_msg = send_email_to_professor(prof_name, memo_data, st.session_state.student1, st.session_state.student2 if student2 else None)
+        
         if not email_sent:
             st.error(f"⚠️ {email_msg}")
             st.warning("تم تسجيل المذكرة في النظام، ولكن لم يتم إرسال الإيميل للأستاذ.")
-        else: st.success("📧 تم إرسال إشعار بالبريد الإلكتروني للأستاذ.")
+        else: 
+            st.success("📧 تم إرسال إشعار بالبريد الإلكتروني للأستاذ.")
+            
         return True, "✅ تم تسجيل المذكرة بنجاح!"
+
     except Exception as e:
         logger.error(f"خطأ في تحديث التسجيل: {str(e)}")
         return False, f"❌ حدث خطأ أثناء التسجيل: {str(e)}"
+
 
 # ============================================================
 # جلب البيانات
@@ -1472,15 +1413,12 @@ elif st.session_state.user_type == "admin":
                 else: st.dataframe(df_memos[df_memos["الأستاذ"].astype(str).str.strip() == sel_p.strip()], use_container_width=True, height=400)
             else:
                 if "الأستاذ" in df_memos.columns and "رقم المذكرة" in df_memos.columns and "تم التسجيل" in df_memos.columns:
-                    # --- تم التصحيح هنا ---
                     s_df = df_memos.groupby("الأستاذ").agg(
                         total=("رقم المذكرة", "count"), 
                         registered=("تم التسجيل", lambda x: (x.astype(str).str.strip() == "نعم").sum())
                     ).reset_index()
                     s_df["المتاحة"] = s_df["total"] - s_df["registered"]
-                    # إعادة التسمية للعرض فقط
                     s_df = s_df.rename(columns={"total": "الإجمالي", "registered": "المسجلة"})
-                    # -----------------------
                     st.dataframe(s_df, use_container_width=True)
                 else: st.error("بعض الأعمدة المطلوبة مفقودة في شيت المذكرات")
         with tab4:
@@ -1538,14 +1476,11 @@ elif st.session_state.user_type == "admin":
                 
                 # إعداد قائمة الأسماء للقائمة المنسدلة
                 prof_list = df_prof_memos["الأستاذ"].astype(str).dropna().unique().tolist()
-                
-                # إذا كان العمود "الأستاذة" غير موجود، جرب "الأستاذ" (تعامل مع اختلافات التسمية)
-                if not prof_list:
-                    if "الأستاذة" in df_prof_memos.columns:
-                        prof_list = df_prof_memos["الأستاذة"].astype(str).dropna().unique().tolist()
+                if "الأستاذة" in df_prof_memos.columns:
+                     prof_list.extend(df_prof_memos["الأستاذة"].astype(str).dropna().unique().tolist())
                 
                 # تصفية الأسماء الفارغة
-                prof_list = [p for p in prof_list if p.strip() and p.strip().lower() != "nan"]
+                prof_list = list(set([p for p in prof_list if p.strip() and p.strip().lower() != "nan"]))
                 prof_list.sort() # ترتيب أبجدي
 
                 selected_prof = st.selectbox("اختر الأستاذ من القائمة:", prof_list, index=None)
