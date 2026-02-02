@@ -147,19 +147,13 @@ ADMIN_CREDENTIALS = {
 }
 
 # --------- Email configuration ----------
-ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD")
-if not ADMIN_PASSWORD:
-    st.error("❌ ADMIN_PASSWORD غير موجود! تحقق من ملف secrets أو واجهة Streamlit Cloud")
-    st.stop()
+ADMIN_CREDENTIALS = {"admin": "admin2026", "dsp": "dsp@2026"}
 
-EMAIL_SENDER = st.secrets.get("EMAIL_SENDER")
-EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD")
-SMTP_SERVER = st.secrets.get("SMTP_SERVER")
-SMTP_PORT = st.secrets.get("SMTP_PORT")
-
-ADMIN_EMAIL = EMAIL_SENDER
-
-st.success("✅ تم تحميل جميع القيم من secrets بنجاح!")
+EMAIL_SENDER = "domaine.dsp@univ-bba.dz"
+EMAIL_PASSWORD = "oevruyiztgikwzah"
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+ADMIN_EMAIL = "domaine.dsp@univ-bba.dz"
 
 # ---------------- دوال مساعدة ----------------
 def col_letter(n):
