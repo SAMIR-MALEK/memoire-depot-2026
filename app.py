@@ -151,6 +151,38 @@ SMTP_PORT = 587
 ADMIN_EMAIL = "domaine.dsp@univ-bba.dz"
 
 # ---------------- دوال مساعدة ----------------
+
+# ---------------- دالة تنسيق التاريخ بالعربية ----------------
+def format_arabic_date(date_input):
+    """
+    تحويل التاريخ إلى الصيغة العربية: DD MMMM YYYY
+    مثال: 05 فيفري 2026
+    """
+    try:
+        # تحويل المدخل إلى datetime إذا كان نصاً
+        if isinstance(date_input, str):
+            date_obj = datetime.strptime(date_input, '%Y-%m-%d %H:%M:%S')
+        elif isinstance(date_input, datetime):
+            date_obj = date_input
+        else:
+            return str(date_input)
+
+        day = date_obj.day
+        year = date_obj.year
+        
+        months_map = {
+            1: "جانفي", 2: "فيفري", 3: "مارس", 4: "أفريل",
+            5: "ماي", 6: "جوان", 7: "جويلية", 8: "أوت",
+            9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
+        }
+        month_name = months_map.get(date_obj.month, date_obj.strftime('%B'))
+        
+        return f"{day:02d} {month_name} {year}"
+    except Exception as e:
+        logger.error(f"Error formatting date: {e}")
+        return str(date_input)
+
+
 def col_letter(n):
     result = ""
     while n > 0:
@@ -1092,8 +1124,7 @@ elif st.session_state.user_type == "student":
                                     else: st.error(msg); st.session_state.show_confirmation = False
                         with col2:
                             if st.button("إلغاء"): st.session_state.show_confirmation = False; st.rerun()
-        
-        
+
         with tab_notify:
             st.subheader("تنبيهات خاصة بك")
             my_memo_id = str(s1.get('رقم المذكرة', '')).strip()
@@ -1112,29 +1143,54 @@ elif st.session_state.user_type == "student":
                         last_session = prof_sessions.iloc[-1]
                         
                         # ==========================================
-                        # == استخراج التفاصيل من العمود I مباشرة ==
+                        # == استخراج وتنسيق تفاصيل الجلسة ===
                         # ==========================================
                         details_display = ""
+                        date_to_show = ""
+                        
                         try:
-                            # العمود I هو التاسع في الترتيب (Index 8)
+                            # جلب النص الأصلي من العمود I (Index 8)
                             if len(last_session) > 8: 
-                                raw_val = last_session.iloc[8] # جلب البيانات من العمود I
+                                raw_val = last_session.iloc[8]
                                 if pd.notna(raw_val) and str(raw_val).strip() not in ['nan', '']:
-                                    details_display = str(raw_val)
+                                    details_text = str(raw_val)
+                                    
+                                    # محاولة استخراج التاريخ من النص لتصميمه بشكل جميل
+                                    # نص التاريخ غالباً يبدأ بـ "موعد الجلسة: YYYY-MM-DD HH:MM"
+                                    # سنبحث عن النمط
+                                    import re
+                                    date_match = re.search(r'(\d{4}-\d{2}-\d{2})', details_text)
+                                    
+                                    if date_match:
+                                        # تحويل التاريخ المستخرج للصيغة العربية
+                                        raw_date_str = date_match.group(0) # YYYY-MM-DD
+                                        try:
+                                            # تحويل التاريخ من string إلى datetime ثم تنسيقه
+                                            dt_obj = datetime.strptime(raw_date_str, '%Y-%m-%d')
+                                            formatted_arabic_date = format_arabic_date(dt_obj)
+                                            
+                                            # استبدال التاريخ الإنجليزي في النص الأصلي بالعربي
+                                            details_display = details_text.replace(raw_date_str, formatted_arabic_date)
+                                            
+                                            # إضافة عرض منفصل للتاريخ ليكون واضحاً جداً
+                                            date_to_show = f"<p style='font-size:1.2rem; color:#FFD700; font-weight:bold; margin-top:10px;'>📅 {formatted_arabic_date}</p>"
+                                        except:
+                                            details_display = details_text
+                                    else:
+                                        details_display = details_text
                                 else:
                                     details_display = "لم يتم العثور على تفاصيل الموعد."
-                            else:
-                                details_display = "البيانات غير مكتملة."
                         except Exception as e:
                             details_display = "خطأ في قراءة البيانات."
-                            logger.error(f"Error reading session details from Col I: {e}")
+                            logger.error(f"Error reading session details: {e}")
                         # ==========================================
                         
                         st.markdown(f"""
                         <div class='card' style='border-right: 4px solid #3B82F6; background: rgba(59, 130, 246, 0.1);'>
                             <h4>🔔 جلسة إشراف</h4>
+                            {date_to_show}
                             <p>{details_display}</p>
-                            <small style='color: #666;'>{last_session['الوقت']}</small>
+                            <small style='color: #666;'>تمت الجدولة: {last_session['الوقت']}</small>
                         </div>
                         """, unsafe_allow_html=True)
                 
@@ -1144,9 +1200,8 @@ elif st.session_state.user_type == "student":
                     for _, r in my_reqs.iterrows():
                         req_type = r['النوع']
                         
-                        # منطق عرض التفاصيل للطلبات الأخرى
+                        # جلب التفاصيل من العمود I
                         details = ""
-                        # نحاول جلب التفاصيل من العمود I أيضاً لأنه مخصص للمحتوى
                         if len(r) > 8:
                             val = str(r.iloc[8]).strip()
                             if val and val.lower() not in ['nan', 'none']:
@@ -1155,8 +1210,6 @@ elif st.session_state.user_type == "student":
                         show_details = True
                         if req_type in ["حذف طالب", "تنازل"]: 
                             show_details = False
-                            # لطلبات التنازل نعرض تفاصيل الأستاذ (إن وجدت) بدلاً من تفاصيل الطالب المخفية
-                            # ولكن هنا سنعتمد على المتغير details المأخوذ من العمود I
                         
                         st.markdown(f"""<div class="card" style="border-right: 4px solid #F59E0B; padding: 20px;"><h4>{req_type}</h4><p>التاريخ: {r['الوقت']}</p><p>الحالة: <b>{r.get('الحالة', 'غير محدد')}</b></p>{'<p>التفاصيل: ' + details + '</p>' if show_details and details else '<p><i>التفاصيل مخفية</i></p>'}</div>""", unsafe_allow_html=True)
                 
