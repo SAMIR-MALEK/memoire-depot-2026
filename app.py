@@ -142,9 +142,6 @@ MEMOS_RANGE = "Feuille 1!A1:U1000"
 PROF_MEMOS_RANGE = "Feuille 1!A1:P1000"
 REQUESTS_RANGE = "Feuille 1!A1:K1000"
 
-ADMIN_CREDENTIALS = {
-    "admin": st.secrets["ADMIN_PASSWORD"]
-}
 
 # --------- Email configuration ----------
 ADMIN_CREDENTIALS = {"admin": "admin2026", "dsp": "dsp@2026"}
