@@ -1017,7 +1017,7 @@ elif st.session_state.user_type == "student":
                     if not username1 or not password1 or not username2 or not password2: st.error("⚠️ يرجى إدخال بيانات الطالبين كاملة"); st.stop()
                 if username2 and username1.strip().lower() == username2.strip().lower():
                     st.error("❌ لا يمكن أن يكون الطالب الأول والثاني نفس الشخص!")
-                    st.stop()
+                
                 students_data = [(username1, password1)]
                 if st.session_state.memo_type == "ثنائية" and username2: students_data.append((username2, password2))
                 valid, result = verify_students_batch(students_data, df_students)
