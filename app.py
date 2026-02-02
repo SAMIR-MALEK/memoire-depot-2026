@@ -1093,6 +1093,7 @@ elif st.session_state.user_type == "student":
                         with col2:
                             if st.button("إلغاء"): st.session_state.show_confirmation = False; st.rerun()
         
+        
         with tab_notify:
             st.subheader("تنبيهات خاصة بك")
             my_memo_id = str(s1.get('رقم المذكرة', '')).strip()
@@ -1101,26 +1102,64 @@ elif st.session_state.user_type == "student":
                 my_memo_row = df_memos_fresh[df_memos_fresh["رقم المذكرة"] == my_memo_id]
                 if not my_memo_row.empty:
                     my_prof = str(my_memo_row.iloc[0]["الأستاذ"]).strip()
+                    
+                    # تصفية الطلبات: النوع = جلسة إشراف + نفس الأستاذ
                     base_filter = df_requests["النوع"] == "جلسة إشراف"
                     prof_filter = df_requests["الأستاذ"].astype(str).str.strip() == my_prof
                     prof_sessions = df_requests[base_filter & prof_filter]
+                    
                     if not prof_sessions.empty:
                         last_session = prof_sessions.iloc[-1]
+                        
+                        # ==========================================
+                        # == استخراج التفاصيل من العمود I مباشرة ==
+                        # ==========================================
+                        details_display = ""
+                        try:
+                            # العمود I هو التاسع في الترتيب (Index 8)
+                            if len(last_session) > 8: 
+                                raw_val = last_session.iloc[8] # جلب البيانات من العمود I
+                                if pd.notna(raw_val) and str(raw_val).strip() not in ['nan', '']:
+                                    details_display = str(raw_val)
+                                else:
+                                    details_display = "لم يتم العثور على تفاصيل الموعد."
+                            else:
+                                details_display = "البيانات غير مكتملة."
+                        except Exception as e:
+                            details_display = "خطأ في قراءة البيانات."
+                            logger.error(f"Error reading session details from Col I: {e}")
+                        # ==========================================
+                        
                         st.markdown(f"""
                         <div class='card' style='border-right: 4px solid #3B82F6; background: rgba(59, 130, 246, 0.1);'>
                             <h4>🔔 جلسة إشراف</h4>
-                            <p>{last_session['المبررات']}</p>
+                            <p>{details_display}</p>
                             <small style='color: #666;'>{last_session['الوقت']}</small>
                         </div>
                         """, unsafe_allow_html=True)
+                
+                # عرض باقي الطلبات الخاصة بالمذكرة
                 my_reqs = df_requests[df_requests["رقم المذكرة"].astype(str).str.strip() == my_memo_id]
                 if not my_reqs.empty:
                     for _, r in my_reqs.iterrows():
                         req_type = r['النوع']
-                        details = str(r.get('العنوان الجديد', r.get('المبررات', ''))).strip()
+                        
+                        # منطق عرض التفاصيل للطلبات الأخرى
+                        details = ""
+                        # نحاول جلب التفاصيل من العمود I أيضاً لأنه مخصص للمحتوى
+                        if len(r) > 8:
+                            val = str(r.iloc[8]).strip()
+                            if val and val.lower() not in ['nan', 'none']:
+                                details = val
+                        
                         show_details = True
-                        if req_type in ["حذف طالب", "تنازل"]: show_details = False
-                        st.markdown(f"""<div class="card" style="border-right: 4px solid #F59E0B; padding: 20px;"><h4>{req_type}</h4><p>التاريخ: {r['الوقت']}</p><p>الحالة: <b>{r.get('الحالة', 'غير محدد')}</b></p>{'<p>التفاصيل: ' + details + '</p>' if show_details else '<p><i>التفاصيل مخفية</i></p>'}</div>""", unsafe_allow_html=True)
+                        if req_type in ["حذف طالب", "تنازل"]: 
+                            show_details = False
+                            # لطلبات التنازل نعرض تفاصيل الأستاذ (إن وجدت) بدلاً من تفاصيل الطالب المخفية
+                            # ولكن هنا سنعتمد على المتغير details المأخوذ من العمود I
+                        
+                        st.markdown(f"""<div class="card" style="border-right: 4px solid #F59E0B; padding: 20px;"><h4>{req_type}</h4><p>التاريخ: {r['الوقت']}</p><p>الحالة: <b>{r.get('الحالة', 'غير محدد')}</b></p>{'<p>التفاصيل: ' + details + '</p>' if show_details and details else '<p><i>التفاصيل مخفية</i></p>'}</div>""", unsafe_allow_html=True)
+                
                 if prof_sessions.empty and my_reqs.empty: st.info("لا توجد إشعارات جديدة.")
             else: st.info("يجب تسجيل مذكرة أولاً لتلقي الإشعارات.")
 
