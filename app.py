@@ -1399,7 +1399,7 @@ elif st.session_state.user_type == "professor":
                     submitted = st.form_submit_button("📤 نشر الجلسة وإرسال الإشعارات")
                     if submitted:
                         weekday = selected_date.weekday()
-                        if weekday >= 4: st.error("❌ لا يمكن جدولة جلسات في يومي الجمعة والسبت.")
+                        if weekday in [4, 5]: st.error("❌ لا يمكن جدولة جلسات في يومي الجمعة والسبت.")
                         else:
                             session_datetime_str = format_datetime_ar(selected_date, selected_time)
                             details_text = f"موعد الجلسة: {session_datetime_str}"
