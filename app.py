@@ -124,11 +124,33 @@ label, p, span { color: #E2E8F0; }
 # ---------------- Google Sheets ----------------
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 try:
+    # محاولة قراءة بيانات حساب الخدمة
+    if "service_account" not in st.secrets:
+        st.error("❌ خطأ: لم يتم العثور على 'service_account' في ملف secrets.toml")
+        st.info("""
+        **لإصلاح هذا الخطأ:**
+        1. أنشئ ملف `.streamlit/secrets.toml` في مجلد المشروع
+        2. أضف بيانات حساب الخدمة من Google Cloud Console
+        3. تأكد من تفعيل Google Sheets API
+        """)
+        st.stop()
+    
     info = st.secrets["service_account"]
     credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
     sheets_service = build('sheets', 'v4', credentials=credentials)
+    logger.info("✅ تم الاتصال بـ Google Sheets بنجاح")
+except KeyError as e:
+    st.error(f"❌ خطأ في مفتاح secrets: {str(e)}")
+    st.info("تأكد من أن جميع المفاتيح المطلوبة موجودة في ملف secrets.toml")
+    st.stop()
 except Exception as e:
-    st.error("⚠️ خطأ في الاتصال بـ Google Sheets: تأكد من ملف Secrets.")
+    st.error(f"⚠️ خطأ في الاتصال بـ Google Sheets: {str(e)}")
+    st.info("""
+    **خطوات استكشاف الأخطاء:**
+    1. تحقق من صحة ملف secrets.toml
+    2. تأكد من تفعيل Google Sheets API في Google Cloud Console
+    3. تحقق من صلاحيات حساب الخدمة للوصول إلى الجداول
+    """)
     st.stop()
 
 STUDENTS_SHEET_ID = "1gvNkOVVKo6AO07dRKMnSQw6vZ3KdUnW7I4HBk61Sqns"
@@ -258,12 +280,26 @@ def load_students():
     try:
         result = sheets_service.spreadsheets().values().get(spreadsheetId=STUDENTS_SHEET_ID, range=STUDENTS_RANGE).execute()
         values = result.get('values', [])
-        if not values: return pd.DataFrame()
+        if not values: 
+            logger.warning("⚠️ جدول الطلاب فارغ")
+            return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0])
         df.columns = df.columns.str.strip()
+        logger.info(f"✅ تم تحميل {len(df)} طالب بنجاح")
         return df
     except Exception as e:
-        logger.error(f"خطأ في تحميل بيانات الطلاب: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"❌ خطأ في تحميل بيانات الطلاب: {error_msg}")
+        
+        # رسائل خطأ مفصلة
+        if "PERMISSION_DENIED" in error_msg:
+            st.error(f"❌ خطأ في الصلاحيات: حساب الخدمة لا يملك صلاحية الوصول لجدول الطلاب (ID: {STUDENTS_SHEET_ID})")
+            st.info("💡 الحل: شارك الجدول مع البريد الإلكتروني لحساب الخدمة")
+        elif "NOT_FOUND" in error_msg:
+            st.error(f"❌ الجدول غير موجود: تحقق من معرّف الجدول (ID: {STUDENTS_SHEET_ID})")
+        else:
+            st.error(f"❌ خطأ في تحميل بيانات الطلاب: {error_msg}")
+        
         return pd.DataFrame()
      
 @st.cache_data(ttl=60)
@@ -271,11 +307,24 @@ def load_memos():
     try:
         result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range=MEMOS_RANGE).execute()
         values = result.get('values', [])
-        if not values: return pd.DataFrame()
+        if not values:
+            logger.warning("⚠️ جدول المذكرات فارغ")
+            return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0])
+        logger.info(f"✅ تم تحميل {len(df)} مذكرة بنجاح")
         return df
     except Exception as e:
-        logger.error(f"خطأ في تحميل بيانات المذكرات: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"❌ خطأ في تحميل بيانات المذكرات: {error_msg}")
+        
+        if "PERMISSION_DENIED" in error_msg:
+            st.error(f"❌ خطأ في الصلاحيات: حساب الخدمة لا يملك صلاحية الوصول لجدول المذكرات (ID: {MEMOS_SHEET_ID})")
+            st.info("💡 الحل: شارك الجدول مع البريد الإلكتروني لحساب الخدمة")
+        elif "NOT_FOUND" in error_msg:
+            st.error(f"❌ الجدول غير موجود: تحقق من معرّف الجدول (ID: {MEMOS_SHEET_ID})")
+        else:
+            st.error(f"❌ خطأ في تحميل بيانات المذكرات: {error_msg}")
+        
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
@@ -283,11 +332,24 @@ def load_prof_memos():
     try:
         result = sheets_service.spreadsheets().values().get(spreadsheetId=PROF_MEMOS_SHEET_ID, range=PROF_MEMOS_RANGE).execute()
         values = result.get('values', [])
-        if not values: return pd.DataFrame()
+        if not values:
+            logger.warning("⚠️ جدول مذكرات الأساتذة فارغ")
+            return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0])
+        logger.info(f"✅ تم تحميل {len(df)} سجل للأساتذة بنجاح")
         return df
     except Exception as e:
-        logger.error(f"خطأ في تحميل بيانات مذكرات الأساتذة: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"❌ خطأ في تحميل بيانات مذكرات الأساتذة: {error_msg}")
+        
+        if "PERMISSION_DENIED" in error_msg:
+            st.error(f"❌ خطأ في الصلاحيات: حساب الخدمة لا يملك صلاحية الوصول لجدول الأساتذة (ID: {PROF_MEMOS_SHEET_ID})")
+            st.info("💡 الحل: شارك الجدول مع البريد الإلكتروني لحساب الخدمة")
+        elif "NOT_FOUND" in error_msg:
+            st.error(f"❌ الجدول غير موجود: تحقق من معرّف الجدول (ID: {PROF_MEMOS_SHEET_ID})")
+        else:
+            st.error(f"❌ خطأ في تحميل بيانات مذكرات الأساتذة: {error_msg}")
+        
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)
@@ -793,8 +855,61 @@ def update_registration(note_number, student1, student2=None):
 # ============================================================
 # جلب البيانات
 # ============================================================
-df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
-if df_students.empty or df_memos.empty or df_prof_memos.empty: st.error("❌ خطأ في تحميل البيانات. يرجى المحاولة لاحقاً."); st.stop()
+try:
+    st.info("🔄 جاري تحميل البيانات...")
+    df_students = load_students()
+    df_memos = load_memos()
+    df_prof_memos = load_prof_memos()
+    df_requests = load_requests()
+    
+    # التحقق من كل جدول على حدة وإعطاء معلومات تفصيلية
+    errors = []
+    if df_students.empty:
+        errors.append("❌ جدول الطلاب فارغ أو لم يتم تحميله")
+    else:
+        st.success(f"✅ تم تحميل {len(df_students)} طالب")
+    
+    if df_memos.empty:
+        errors.append("❌ جدول المذكرات فارغ أو لم يتم تحميله")
+    else:
+        st.success(f"✅ تم تحميل {len(df_memos)} مذكرة")
+    
+    if df_prof_memos.empty:
+        errors.append("❌ جدول مذكرات الأساتذة فارغ أو لم يتم تحميله")
+    else:
+        st.success(f"✅ تم تحميل {len(df_prof_memos)} سجل للأساتذة")
+    
+    if df_requests.empty:
+        st.warning("⚠️ جدول الطلبات فارغ (هذا طبيعي في البداية)")
+    else:
+        st.success(f"✅ تم تحميل {len(df_requests)} طلب")
+    
+    if errors:
+        st.error("### ❌ فشل تحميل البيانات:")
+        for error in errors:
+            st.error(error)
+        
+        st.info("""
+        ### 💡 الحلول المقترحة:
+        1. **تحقق من الصلاحيات**: تأكد أن حساب الخدمة لديه صلاحية الوصول لجميع الجداول
+        2. **تحقق من الجداول**: افتح كل جدول وتأكد أنه يحتوي على بيانات (على الأقل سطر العناوين)
+        3. **أعد تحميل الصفحة**: أحياناً تكون المشكلة مؤقتة
+        4. **تحقق من API Quota**: ربما تجاوزت حد الاستخدام اليومي
+        
+        **معرّفات الجداول المستخدمة:**
+        - الطلاب: `{STUDENTS_SHEET_ID}`
+        - المذكرات: `{MEMOS_SHEET_ID}`
+        - مذكرات الأساتذة: `{PROF_MEMOS_SHEET_ID}`
+        - الطلبات: `{REQUESTS_SHEET_ID}`
+        """)
+        st.stop()
+    
+    st.success("✅ تم تحميل جميع البيانات بنجاح!")
+    
+except Exception as e:
+    st.error(f"❌ خطأ غير متوقع أثناء تحميل البيانات: {str(e)}")
+    st.info("يرجى مراجعة ملف secrets.toml والتأكد من صحة الإعدادات")
+    st.stop()
 
 # ============================================================
 # دوال استعادة الجلسة (Persistence Logic) - مع Base64
