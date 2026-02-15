@@ -151,6 +151,38 @@ SMTP_PORT = 587
 ADMIN_EMAIL = "domaine.dsp@univ-bba.dz"
 
 # ---------------- دوال مساعدة ----------------
+
+# ---------------- دالة تنسيق التاريخ بالعربية ----------------
+def format_arabic_date(date_input):
+    """
+    تحويل التاريخ إلى الصيغة العربية: DD MMMM YYYY
+    مثال: 05 فيفري 2026
+    """
+    try:
+        # تحويل المدخل إلى datetime إذا كان نصاً
+        if isinstance(date_input, str):
+            date_obj = datetime.strptime(date_input, '%Y-%m-%d %H:%M:%S')
+        elif isinstance(date_input, datetime):
+            date_obj = date_input
+        else:
+            return str(date_input)
+
+        day = date_obj.day
+        year = date_obj.year
+        
+        months_map = {
+            1: "جانفي", 2: "فيفري", 3: "مارس", 4: "أفريل",
+            5: "ماي", 6: "جوان", 7: "جويلية", 8: "أوت",
+            9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر"
+        }
+        month_name = months_map.get(date_obj.month, date_obj.strftime('%B'))
+        
+        return f"{day:02d} {month_name} {year}"
+    except Exception as e:
+        logger.error(f"Error formatting date: {e}")
+        return str(date_input)
+
+
 def col_letter(n):
     result = ""
     while n > 0:
@@ -396,7 +428,7 @@ def _send_email_to_professor_row(row):
             if val != "nan" and val != "": password = val; break
     if not email or not username or not password: return False, "⚠️ بيانات ناقصة"
     email_body = f"""
-    <html dir="rtl"><head><meta charset="UTF-8"><style>body {{ font-family: 'Cairo', Arial, sans-serif; direction: rtl; text-align: right; line-height: 1.6; background-color: #f4f4f4; margin: 0; padding: 0; }} .container {{ max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border: 1px solid #dddddd; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }} .header {{ text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 20px; }} .header h2 {{ color: #003366; margin: 0; font-size: 24px; }} .header h3 {{ color: #005580; margin: 5px 0 0 0; font-size: 20px; }} .content {{ margin-bottom: 30px; color: #333; }} .content ul {{ padding-right: 20px; }} .info-box {{ background-color: #eef7fb; border-right: 5px solid #005580; padding: 20px; margin: 20px 0; border-radius: 4px; }} .info-box p {{ margin: 10px 0; font-weight: bold; font-size: 1.1em; }} .footer {{ text-align: center; margin-top: 40px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 20px; }} .link {{ color: #005580; text-decoration: none; font-weight: bold; }} .link:hover {{ text-decoration: underline; }}</style></head><body><div class="container"><div class="header"><h2>جامعة محمد البشير الإبراهيمي – برج بوعريريج</h2><h3>كلية الحقوق والعلوم السياسية</h3><h4 style="color:#666; margin-top:5px;">فضاء الأساتذة</h4></div><div class="content"><p>تحية طيبة وبعد،</p><p>الأستاذ (ة) الفاضل (ة) : <strong>{prof_name}</strong></p><br><p>في إطار رقمنة متابعة مذكّرات الماستر، يشرفنا إعلامكم بأنه تم تفعيل فضاء الأساتذة على منصة متابعة مذكرات الماستر الخاصة بكلية الحقوق والعلوم السياسية، وذلك قصد تسهيل عملية المتابعة البيداغوجية وتنظيم الإشراف.</p><p>يُمكِّنكم فضاء الأستاذ من القيام بالمهام التالية:</p><ul><li>متابعة حالة تسجيل كل مذكرة (مسجلة / غير مسجلة).</li><li>الاطلاع على أسماء الطلبة المسجلين وأرقام هواتفهم وبريدهم المهني.</li><li>تحديث نسبة التقدم في إنجاز المذكرات.</li><li>تحديد موعد جلسة إشراف واحدة يتم تعميمها آليًا على جميع الطلبة المعنيين.</li><li>إرسال طلبات إدارية رقمية للإدارة.</li></ul><div class="info-box"><p>الدخول إلى حسابكم يكون عبر الرابط:</p><a href="https://memoires2026.streamlit.app" class="link">https://memoires2026.streamlit.app</a><p style="margin-top: 15px;">إسم المستخدم: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{username}</span></p><p>كلمة المرور: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{password}</span></p></div></div><div class="footer"><p>تقبلوا تحياتنا الطيبة.</p><p>مسؤول الميدان: الدكتور لخضر رفاف</p></div></div></body></html>
+    <html dir="rtl"><head><meta charset="UTF-8"><style>body {{ font-family: 'Cairo', Arial, sans-serif; direction: rtl; text-align: right; line-height: 1.6; background-color: #f4f4f4; margin: 0; padding: 0; }} .container {{ max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border: 1px solid #dddddd; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }} .header {{ text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 20px; }} .header h2 {{ color: #003366; margin: 0; font-size: 24px; }} .header h3 {{ color: #005580; margin: 5px 0 0 0; font-size: 20px; }} .content {{ margin-bottom: 30px; color: #333; }} .content ul {{ padding-right: 20px; }} .info-box {{ background-color: #eef7fb; border-right: 5px solid #005580; padding: 20px; margin: 20px 0; border-radius: 4px; }} .info-box p {{ margin: 10px 0; font-weight: bold; font-size: 1.1em; }} .footer {{ text-align: center; margin-top: 40px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 20px; }} .link {{ color: #005580; text-decoration: none; font-weight: bold; }} .link:hover {{ text-decoration: underline; }}</style></head><body><div class="container"><div class="header"><h2>جامعة محمد البشير الإبراهيمي – برج بوعريريج</h2><h3>كلية الحقوق والعلوم السياسية</h3><h4 style="color:#666; margin-top:5px;">فضاء الأساتذة</h4></div><div class="content"><p>تحية طيبة وبعد،</p><p>الأستاذ (ة) الفاضل (ة) : <strong>{prof_name}</strong></p><br><p>في إطار رقمنة متابعة مذكّرات الماستر، يشرفنا إعلامكم بأنه تم تفعيل فضاء الأساتذة على منصة متابعة مذكرات الماستر الخاصة بكلية الحقوق والعلوم السياسية، وذلك قصد تسهيل عملية المتابعة البيداغوجية وتنظيم الإشراف.</p><p>يُمكِّنكم فضاء الأستاذ من القيام بالمهام التالية:</p><ul><li>متابعة حالة تسجيل كل مذكرة (مسجلة / غير مسجلة).</li><li>الاطلاع على أسماء الطلبة المسجلين وأرقام هواتفهم وبريدهم المهني.</li><li>تحديث نسبة التقدم في إنجاز المذكرات.</li><li>تحديد موعد جلسة إشراف واحدة يتم تعميمها آليًا على جميع الطلبة المعنيين.</li><li>إرسال طلبات إدارية رقمية للإدارة.</li></ul><div class="info-box"><p>الدخول إلى حسابكم يكون عبر الرابط:</p><a href="https://memoires2026.streamlit.app" class="link">https://memoires2026.streamlit.app</a><p style="margin-top: 15px;">إسم المستخدم: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{username}</span></p><p>كلمة المرور: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{password}</span></p></div></div><div class="footer"><p>تقبلوا تحياتنا الطيبة.</p><p>مسؤول الميدان: البروفيسور لخضر رفاف</p></div></div></body></html>
     """
     try:
         msg = MIMEMultipart('alternative')
@@ -543,7 +575,7 @@ def send_email_to_professor(prof_name, memo_info, student1, student2=None):
             student2_info = f"\n👤 **الطالب الثاني:** {s2_lname} {s2_fname}"
         email_body = f"""
 <html dir="rtl"><head><style>body {{ font-family: 'Arial', sans-serif; background-color: #f4f4f4; padding: 20px; }} .container {{ background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }} .header {{ background-color: #256D85; color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }} .header h2 {{ margin: 0; }} .content {{ line-height:1.8; color: #333; }} .info-box {{ background-color: #f8f9fa; padding: 15px; border-right: 4px solid #256D85; margin: 15px 0; }} .stats-box {{ background-color: #e8f4f8; padding: 15px; border-radius: 8px; margin: 15px 0; }} .footer {{ text-align: center; color: #888; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }} .highlight {{ color: #256D85; font-weight: bold; }} ul {{ list-style: none; padding: 0; }} li {{ padding: 5px 0; }}</style></head>
-<body><div class="container"><div class="header"><h2>✅ تسجيل مذكرة جديدة</h2></div><div class="content"><p>تحية طيبة، الأستاذ(ة) <span class="highlight">{prof_name}</span>،</p><p>نحيطكم علماً بأنه تم تسجيل مذكرة جديدة تحت إشرافكم:</p><div class="info-box"><p>📄 <strong>رقم المذكرة:</strong> {memo_info['رقم المذكرة']}</p><p>📑 <strong>عنوان المذكرة:</strong> {memo_info['عنوان المذكرة']}</p><p>🎓 <strong>التخصص:</strong> {memo_info['التخصص']}</p><p>👤 <strong>الطالب الأول:</strong> {s1_lname} {s1_fname}{student2_info}</p><p>🕒 <strong>تاريخ التسجيل:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p></div><div class="stats-box"><h3 style="color: #256D85; margin-top: 0;">📊 إحصائيات مذكراتك:</h3><ul><li>📝 <strong>إجمالي المذكرات:</strong> {total_memos}</li><li>✅ <strong>المذكرات المسجلة:</strong> {registered_memos}</li><li>⏳ <strong>المذكرات المتبقية:</strong> {total_memos - registered_memos}</li></ul></div><p style="margin-top: 20px; color: #666;">للاستفسار، يرجى التواصل مع الإدارة.</p></div><div class="footer"><p>© 2026 جامعة محمد البشير الإبراهيمي</p></div></div></body></html>
+<body><div class="container"><div class="header"><h2>✅ تسجيل مذكرة جديدة</h2></div><div class="content"><p>تحية طيبة، الأستاذ(ة) <span class="highlight">{prof_name}</span>،</p><p>نحيطكم علماً بأنه تم تسجيل مذكرة جديدة تحت إشرافكم:</p><div class="info-box"><p>📄 <strong>رقم المذكرة:</strong> {memo_info['رقم المذكرة']}</p><p>📑 <strong>عنوان المذكرة:</strong> {memo_info['عنوان المذكرة']}</p><p>🎓 <strong>التخصص:</strong> {memo_info['التخصص']}</p><p>👤 <strong>الطالب الأول:</strong> {s1_lname} {s1_fname}{student2_info}</p><p>🕒 <strong>تاريخ التسجيل:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p></div><div class="stats-box"><h3 style="color: #256D85; margin-top: 0;">📊 إحصائيات مذكراتك:</h3><ul><li>📝 <strong>إجمالي المذكرات:</strong> {total_memos}</li><li>✅ <strong>المذكرات المسجلة:</strong> {registered_memos}</li><li>⏳ <strong>المذكرات المتبقية:</strong> {total_memos - registered_memos}</li></ul></div><p style="margin-top: 20px; color: #666;">للاستفسار والدعم، يرجى التواصل مع مسؤول الميدان البروفيسور رفاف لخضر.</p></div><div class="footer"><p>© 2026 جامعة محمد البشير الإبراهيمي</p></div></div></body></html>
 """
         msg = MIMEMultipart('alternative')
         msg['From'] = EMAIL_SENDER; msg['To'] = prof_email
@@ -1079,7 +1111,7 @@ elif st.session_state.user_type == "student":
 
                                 if s1_reg_perm != '1' and s2_reg_perm != '1':
                                     st.error("⛔ عذراً، لم يتم السماح لك بتسجيل المذكرة في الوقت الحالي.")
-                                    st.info("يرجى التواصل مع مسؤول الميدان: **الدكتور لخضر رفاف**", icon="ℹ️")
+                                    st.info("يرجى التواصل مع مسؤول الميدان: **البروفيسور لخضر رفاف**", icon="ℹ️")
                                     st.stop()
                                 # =============================================================
 
@@ -1092,8 +1124,7 @@ elif st.session_state.user_type == "student":
                                     else: st.error(msg); st.session_state.show_confirmation = False
                         with col2:
                             if st.button("إلغاء"): st.session_state.show_confirmation = False; st.rerun()
-        
-        
+
         with tab_notify:
             st.subheader("تنبيهات خاصة بك")
             my_memo_id = str(s1.get('رقم المذكرة', '')).strip()
@@ -1112,29 +1143,54 @@ elif st.session_state.user_type == "student":
                         last_session = prof_sessions.iloc[-1]
                         
                         # ==========================================
-                        # == استخراج التفاصيل من العمود I مباشرة ==
+                        # == استخراج وتنسيق تفاصيل الجلسة ===
                         # ==========================================
                         details_display = ""
+                        date_to_show = ""
+                        
                         try:
-                            # العمود I هو التاسع في الترتيب (Index 8)
+                            # جلب النص الأصلي من العمود I (Index 8)
                             if len(last_session) > 8: 
-                                raw_val = last_session.iloc[8] # جلب البيانات من العمود I
+                                raw_val = last_session.iloc[8]
                                 if pd.notna(raw_val) and str(raw_val).strip() not in ['nan', '']:
-                                    details_display = str(raw_val)
+                                    details_text = str(raw_val)
+                                    
+                                    # محاولة استخراج التاريخ من النص لتصميمه بشكل جميل
+                                    # نص التاريخ غالباً يبدأ بـ "موعد الجلسة: YYYY-MM-DD HH:MM"
+                                    # سنبحث عن النمط
+                                    import re
+                                    date_match = re.search(r'(\d{4}-\d{2}-\d{2})', details_text)
+                                    
+                                    if date_match:
+                                        # تحويل التاريخ المستخرج للصيغة العربية
+                                        raw_date_str = date_match.group(0) # YYYY-MM-DD
+                                        try:
+                                            # تحويل التاريخ من string إلى datetime ثم تنسيقه
+                                            dt_obj = datetime.strptime(raw_date_str, '%Y-%m-%d')
+                                            formatted_arabic_date = format_arabic_date(dt_obj)
+                                            
+                                            # استبدال التاريخ الإنجليزي في النص الأصلي بالعربي
+                                            details_display = details_text.replace(raw_date_str, formatted_arabic_date)
+                                            
+                                            # إضافة عرض منفصل للتاريخ ليكون واضحاً جداً
+                                            date_to_show = f"<p style='font-size:1.2rem; color:#FFD700; font-weight:bold; margin-top:10px;'>📅 {formatted_arabic_date}</p>"
+                                        except:
+                                            details_display = details_text
+                                    else:
+                                        details_display = details_text
                                 else:
                                     details_display = "لم يتم العثور على تفاصيل الموعد."
-                            else:
-                                details_display = "البيانات غير مكتملة."
                         except Exception as e:
                             details_display = "خطأ في قراءة البيانات."
-                            logger.error(f"Error reading session details from Col I: {e}")
+                            logger.error(f"Error reading session details: {e}")
                         # ==========================================
                         
                         st.markdown(f"""
                         <div class='card' style='border-right: 4px solid #3B82F6; background: rgba(59, 130, 246, 0.1);'>
                             <h4>🔔 جلسة إشراف</h4>
+                            {date_to_show}
                             <p>{details_display}</p>
-                            <small style='color: #666;'>{last_session['الوقت']}</small>
+                            <small style='color: #666;'>تمت الجدولة: {last_session['الوقت']}</small>
                         </div>
                         """, unsafe_allow_html=True)
                 
@@ -1144,9 +1200,8 @@ elif st.session_state.user_type == "student":
                     for _, r in my_reqs.iterrows():
                         req_type = r['النوع']
                         
-                        # منطق عرض التفاصيل للطلبات الأخرى
+                        # جلب التفاصيل من العمود I
                         details = ""
-                        # نحاول جلب التفاصيل من العمود I أيضاً لأنه مخصص للمحتوى
                         if len(r) > 8:
                             val = str(r.iloc[8]).strip()
                             if val and val.lower() not in ['nan', 'none']:
@@ -1155,8 +1210,6 @@ elif st.session_state.user_type == "student":
                         show_details = True
                         if req_type in ["حذف طالب", "تنازل"]: 
                             show_details = False
-                            # لطلبات التنازل نعرض تفاصيل الأستاذ (إن وجدت) بدلاً من تفاصيل الطالب المخفية
-                            # ولكن هنا سنعتمد على المتغير details المأخوذ من العمود I
                         
                         st.markdown(f"""<div class="card" style="border-right: 4px solid #F59E0B; padding: 20px;"><h4>{req_type}</h4><p>التاريخ: {r['الوقت']}</p><p>الحالة: <b>{r.get('الحالة', 'غير محدد')}</b></p>{'<p>التفاصيل: ' + details + '</p>' if show_details and details else '<p><i>التفاصيل مخفية</i></p>'}</div>""", unsafe_allow_html=True)
                 
@@ -1346,7 +1399,7 @@ elif st.session_state.user_type == "professor":
                     submitted = st.form_submit_button("📤 نشر الجلسة وإرسال الإشعارات")
                     if submitted:
                         weekday = selected_date.weekday()
-                        if weekday >= 4: st.error("❌ لا يمكن جدولة جلسات في يومي الجمعة والسبت.")
+                        if weekday in [4, 5]: st.error("❌ لا يمكن جدولة جلسات في يومي الجمعة والسبت.")
                         else:
                             session_datetime_str = format_datetime_ar(selected_date, selected_time)
                             details_text = f"موعد الجلسة: {session_datetime_str}"
@@ -1566,4 +1619,4 @@ elif st.session_state.user_type == "admin":
                                 st.text(log)
 
 st.markdown("---")
-st.markdown('<div style="text-align:center; color:#64748B; font-size:12px; padding:20px;">  إشراف مسؤول الميدان الدكتور لخضر رفاف © </div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center; color:#64748B; font-size:12px; padding:20px;">  إشراف مسؤول الميدان البروفيسور لخضر رفاف © </div>', unsafe_allow_html=True)
