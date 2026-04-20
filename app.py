@@ -426,18 +426,6 @@ def sync_student_registration_numbers():
         return False, f"❌ حدث خطأ: {str(e)}"
 
 def save_and_send_request(req_type, prof_name, memo_id, memo_title, details_text, status="قيد المراجعة"):
-    
-    # تعطيل طلب تغيير العنوان
-    if req_type == "تغيير عنوان المذكرة":
-        from datetime import datetime
-        
-        today = datetime.now()
-        deadline = datetime(2026, 5, 16)
-        
-        remaining_days = max(0, (deadline.date() - today.date()).days)
-
-        st.warning(f"⚠️ لا يمكن طلب تغيير العنوان، لم يبق للإيداع النهائي سوى {remaining_days} يوم")
-        return False, "تم إيقاف هذه الخدمة"
     try:
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         new_row = ["", timestamp, req_type, status, prof_name, memo_id, "", "", details_text, "", ""]
