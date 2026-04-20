@@ -24,6 +24,7 @@ st.set_page_config(page_title="تسجيل مذكرات الماستر", page_ico
 # إعداد الموعد النهائي
 # ========================
 REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
+FINAL_DEPOSIT_DATE = datetime(2026, 5, 16)
 
 # ---------------- CSS ----------------
 st.markdown("""
@@ -190,7 +191,6 @@ def sanitize_input(text):
     for char in dangerous_chars: cleaned = cleaned.replace(char, '')
     return cleaned
 
-# دالة جديدة لتوحيد النصوص (إزالة .0 والمسافات)
 def normalize_text(val):
     v = str(val).strip()
     if v.endswith('.0'): v = v[:-2]
@@ -274,13 +274,12 @@ def get_student_info_from_memo(memo_row, df_students):
         memo_list = memo_row.tolist()
         raw_reg1 = str(memo_list[18]).strip() if len(memo_list) > 18 else ""
         raw_reg2 = str(memo_list[19]).strip() if len(memo_list) > 19 else ""
-        reg1 = normalize_text(raw_reg1) # استخدام normalize_text
-        reg2 = normalize_text(raw_reg2) # استخدام normalize_text
+        reg1 = normalize_text(raw_reg1)
+        reg2 = normalize_text(raw_reg2)
     except:
         reg1 = normalize_text(memo_row.get("رقم تسجيل الطالب 1", ""))
         reg2 = normalize_text(memo_row.get("رقم تسجيل الطالب 2", ""))
         
-    # Normalize registration numbers in the dataframe for matching
     df_students['رقم التسجيل_norm'] = df_students['رقم التسجيل'].astype(str).apply(normalize_text)
 
     if reg1:
@@ -354,14 +353,12 @@ def clear_cache_and_reload():
 def update_student_profile(username, phone, nin):
     try:
         df_students = load_students()
-        # Use normalized matching for username lookup as well
         df_students['username_norm'] = df_students["اسم المستخدم"].astype(str).apply(normalize_text)
         username_norm = normalize_text(username)
         
         student_row = df_students[df_students["username_norm"] == username_norm]
         if student_row.empty: return False, "❌ لم يتم العثور على الطالب"
         
-        # Original index for sheet update
         row_idx = student_row.index[0] + 2
         updates = [
             {"range": f"Feuille 1!M{row_idx}", "values": [[phone]]},
@@ -387,7 +384,6 @@ def sync_student_registration_numbers():
         df_m = load_memos()
         updates = []
         
-        # Normalize for matching
         df_s['رقم المذكرة_norm'] = df_s['رقم المذكرة'].astype(str).apply(normalize_text)
         
         students_with_memo = df_s[df_s['رقم المذكرة_norm'].notna() & (df_s['رقم المذكرة_norm'] != "")]
@@ -459,7 +455,6 @@ def save_and_send_request(req_type, prof_name, memo_id, memo_title, details_text
 def update_progress(memo_number, progress_value):
     try:
         df_memos = load_memos()
-        # Normalize for matching
         memo_row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text) == normalize_text(memo_number)]
         if memo_row.empty: return False, "❌ لم يتم العثور على المذكرة"
         
@@ -504,7 +499,7 @@ def _send_email_to_professor_row(row):
     if not email or not username or not password: return False, "⚠️ بيانات ناقصة"
     
     email_body = f"""
-    <html dir="rtl"><head><meta charset="UTF-8"><style>body {{ font-family: 'Cairo', Arial, sans-serif; direction: rtl; text-align: right; line-height: 1.6; background-color: #f4f4f4; margin: 0; padding: 0; }} .container {{ max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border: 1px solid #dddddd; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }} .header {{ text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 20px; }} .header h2 {{ color: #003366; margin: 0; font-size: 24px; }} .header h3 {{ color: #005580; margin: 5px 0 0 0; font-size: 20px; }} .content {{ margin-bottom: 30px; color: #333; }} .content ul {{ padding-right: 20px; }} .info-box {{ background-color: #eef7fb; border-right: 5px solid #005580; padding: 20px; margin: 20px 0; border-radius: 4px; }} .info-box p {{ margin: 10px 0; font-weight: bold; font-size: 1.1em; }} .footer {{ text-align: center; margin-top: 40px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 20px; }} .link {{ color: #005580; text-decoration: none; font-weight: bold; }} .link:hover {{ text-decoration: underline; }}</style></head><body><div class="container"><div class="header"><h2>جامعة محمد البشير الإبراهيمي – برج بوعريريج</h2><h3>كلية الحقوق والعلوم السياسية</h3><h4 style="color:#666; margin-top:5px;">فضاء الأساتذة</h4></div><div class="content"><p>تحية طيبة وبعد،</p><p>الأستاذ (ة) الفاضل (ة) : <strong>{prof_name}</strong></p><br><p>في إطار رقمنة متابعة مذكّرات الماستر، يشرفنا إعلامكم بأنه تم تفعيل فضاء الأساتذة على منصة متابعة مذكرات الماستر الخاصة بكلية الحقوق والعلوم السياسية، وذلك قصد تسهيل عملية المتابعة البيداغوجية وتنظيم الإشراف.</p><p>يُمكِّنكم فضاء الأستاذ من القيام بالمهام التالية:</p><ul><li>متابعة حالة تسجيل كل مذكرة (مسجلة / غير مسجلة).</li><li>الاطلاع على أسماء الطلبة المسجلين وأرقام هواتفهم وبريدهم المهني.</li><li>تحديث نسبة التقدم في إنجاز المذكرات.</li><li>تحديد موعد جلسة إشراف واحدة يتم تعميمها آليًا على جميع الطلبة المعنيين.</li><li>إرسال طلبات إدارية رقمية للإدارة.</li></ul><div class="info-box"><p>الدخول إلى حسابكم يكون عبر الرابط:</p><a href="https://memoires2026.streamlit.app" class="link">https://memoires2026.streamlit.app</a><p style="margin-top: 15px;">إسم المستخدم: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{username}</span></p><p>كلمة المرور: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{password}</span></p></div></div><div class="footer"><p>تقبلوا تحياتنا الطيبة.</p><p>مسؤول الميدان: البروفيسور لخضر رفاف</p></div></div></body></html>
+    <html dir="rtl"><head><meta charset="UTF-8"><style>body {{ font-family: 'Cairo', Arial, sans-serif; direction: rtl; text-align: right; line-height: 1.6; background-color: #f4f4f4; margin: 0; padding: 0; }} .container {{ max-width: 600px; margin: 20px auto; background-color: #ffffff; padding: 30px; border: 1px solid #dddddd; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }} .header {{ text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0056b3; padding-bottom: 20px; }} .header h2 {{ color: #003366; margin: 0; font-size: 24px; }} .header h3 {{ color: #005580; margin: 5px 0 0 0; font-size: 20px; }} .content {{ margin-bottom: 30px; color: #333; }} .content ul {{ padding-right: 20px; }} .info-box {{ background-color: #eef7fb; border-right: 5px solid #005580; padding: 20px; margin: 20px 0; border-radius: 4px; }} .info-box p {{ margin: 10px 0; font-weight: bold; font-size: 1.1em; }} .footer {{ text-align: center; margin-top: 40px; font-size: 14px; color: #666; border-top: 1px solid #eee; padding-top: 20px; }} .link {{ color: #005580; text-decoration: none; font-weight: bold; }} .link:hover {{ text-decoration: underline; }}</style></head><body><div class="container"><div class="header"><h2>جامعة محمد البشير الإبراهيمي – برج بوعريريج</h2><h3>كلية الحقوق والعلوم السياسية</h3><h4 style="color:#666; margin-top:5px;">فضاء الأساتذة</h4></div><div class="content"><p>تحية طيبة وبعد،</p><p>الأستاذ (ة) الفاضل (ة) : <strong>{prof_name}</strong></p><br><p>في إطار رقمنة متابعة مذكّرات الماستر، يشرفنا إعلامكم بأنه تم تفعيل فضاء الأساتذة على منصة متابعة مذكرات الماستر الخاصة بكلية الحقوق والعلوم السياسية، وذلك قصد تسهيل عملية المتابعة البيداغوجية وتنظيم الإشراف.</p><p>يُمكِّنكم فضاء الأستاذ من القيام بالمهام التالية:</p><ul><li>متابعة حالة تسجيل كل مذكرة (مسجلة / غير مسجلة).</li><li>الاطلاع على أسماء الطلبة المسجلين وأرقام هواتفهم وبريدهم المهني.</li><li>تحديث نسبة التقدم في إنجاز المذكرات.</li><li>تحديد موعد جلسة إشراف واحدة يتم تعميمها آليًا على جميع الطلبة المعنيين.</li><li>إرسال طلبات إدارية رقمية للإدارة.</li></ul><div class="info-box"><p>الدخول إلى حسابكم يكون عبر الرابط:</p><a href="https://memoires2026.streamlit.app" class="link">https://memoires2026.streamlit.app</a><p style="margin-top: 15px;">إسم المستخدم: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{username}</span></p><p>كلمة المرور: <span style="background:#fff; padding:2px 8px; border:1px solid #ccc; border-radius:4px;">{password}</span></p></div></div><div class="footer"><p>تقبلوا تحياتنا الطيبة.</p><p>مسؤول الميدان: البروفيسور لخضر رفاف</p></div></div></body></html>
     """
     try:
         msg = MIMEMultipart('alternative')
@@ -594,7 +589,6 @@ def send_session_emails(students_data, session_info, prof_name):
     try:
         df_students = load_students(); student_emails = []
         
-        # Create normalized column for matching
         df_students['رقم التسجيل_norm'] = df_students['رقم التسجيل'].astype(str).apply(normalize_text)
         
         for s in students_data:
@@ -683,7 +677,7 @@ def send_email_to_professor(prof_name, memo_info, student1, student2=None):
         logger.error(f"❌ Error sending email: {str(e)}")
         return False, f"خطأ تقني أثناء الإرسال: {str(e)}"
 
-# ---------------- دوال التحقق (محدثة) ----------------
+# ---------------- دوال التحقق ----------------
 def verify_student(username, password, df_students):
     valid, result = validate_username(username)
     if not valid: return False, result
@@ -691,22 +685,15 @@ def verify_student(username, password, df_students):
     password = sanitize_input(password)
     if df_students.empty: return False, "❌ خطأ في تحميل بيانات الطلاب"
     
-    # التحقق من وجود العمود أولاً
     if "اسم المستخدم" not in df_students.columns:
         return False, "❌ خطأ في بنية البيانات: عمود اسم المستخدم غير موجود"
 
-    # التصحيح: تطبيق normalize_text على العمود بأكمله قبل المقارنة
-    # هذا يضمن إزالة .0 والمسافات الزائدة من القيم الرقمية
     db_usernames = df_students["اسم المستخدم"].astype(str).apply(normalize_text)
-    
-    # إنشاء قناع (mask) للمطابقة
     student_mask = db_usernames == username
-    
     student = df_students[student_mask]
     
     if student.empty: return False, "❌ اسم المستخدم غير موجود"
     
-    # التحقق من كلمة السر
     db_password = str(student.iloc[0]["كلمة السر"]).strip()
     if db_password != password: return False, "❌ كلمة السر غير صحيحة"
     
@@ -729,7 +716,6 @@ def verify_professor(username, password, df_prof_memos):
     if any(col not in df_prof_memos.columns for col in required_cols): 
         return False, f"❌ الأعمدة التالية غير موجودة: {', '.join([col for col in required_cols if col not in df_prof_memos.columns])}"
     
-    # التصحيح: تطبيق normalize_text هنا أيضاً
     db_prof_usernames = df_prof_memos["إسم المستخدم"].astype(str).apply(normalize_text)
     
     prof_mask = (db_prof_usernames == username) & (df_prof_memos["كلمة المرور"].astype(str).str.strip() == password)
@@ -750,7 +736,6 @@ def verify_professor_password(note_number, prof_password, df_memos, df_prof_memo
     prof_password = sanitize_input(prof_password)
     if df_memos.empty or df_prof_memos.empty: return False, None, "❌ خطأ في تحميل البيانات"
     
-    # التصحيح: normalize memo number
     memo_row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text) == note_number]
     if memo_row.empty: return False, None, "❌ رقم المذكرة غير موجود"
     
@@ -783,10 +768,8 @@ def update_registration(note_number, student1, student2=None, s2_new_phone=None,
         ]
         if potential_rows.empty: return False, "❌ بيانات الأستاذ أو كلمة السر غير متطابقة في شيت المتابعة"
         
-        # Check if memo already registered in prof sheet to avoid duplicates
         target_row = potential_rows[potential_rows["رقم المذكرة"].astype(str).apply(normalize_text) == str(note_number).strip()]
         if target_row.empty:
-            # If memo number not in prof sheet yet, find an empty slot (unregistered row)
             target_row = potential_rows[potential_rows["تم التسجيل"].astype(str).str.strip() != "نعم"]
             if target_row.empty: return False, "❌ خطأ: جميع المذكرات المخصصة لهذا الأستاذ مسجلة بالفعل."
             
@@ -808,7 +791,6 @@ def update_registration(note_number, student1, student2=None, s2_new_phone=None,
             
         sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=PROF_MEMOS_SHEET_ID, body={"valueInputOption": "USER_ENTERED", "data": updates}).execute()
         
-        # Update Main Memos Sheet
         memo_row_idx = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text) == str(note_number).strip()].index[0] + 2
         memo_cols = df_memos.columns.tolist()
         
@@ -829,10 +811,8 @@ def update_registration(note_number, student1, student2=None, s2_new_phone=None,
             
         sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption": "USER_ENTERED", "data": updates2}).execute()
         
-        # Update Students Sheet
         students_cols = df_students.columns.tolist()
         
-        # Find student row using normalized username
         s1_user = normalize_text(student1.get('اسم المستخدم', ''))
         student1_row_idx = df_students[df_students["اسم المستخدم"].astype(str).apply(normalize_text) == s1_user].index[0] + 2
         sheets_service.spreadsheets().values().update(spreadsheetId=STUDENTS_SHEET_ID, range=f"Feuille 1!{col_letter(students_cols.index('رقم المذكرة')+1)}{student1_row_idx}", valueInputOption="USER_ENTERED", body={"values": [[note_number]]}).execute()
@@ -919,7 +899,6 @@ def decode_str(s):
 
 def lookup_student(username):
     if df_students.empty: return None
-    # Use normalized matching
     s = df_students[df_students["اسم المستخدم"].astype(str).apply(normalize_text) == normalize_text(username)]
     if not s.empty: return s.iloc[0].to_dict()
     return None
@@ -966,7 +945,6 @@ def restore_session_from_url():
                      st.session_state.profile_user_temp = s_data
                      
         elif user_type == 'professor':
-            # Normalize prof username check
             p_data = df_prof_memos[df_prof_memos["إسم المستخدم"].astype(str).apply(normalize_text) == normalize_text(username)]
             if not p_data.empty: st.session_state.professor = p_data.iloc[0].to_dict(); st.session_state.logged_in = True
         elif user_type == 'admin':
@@ -994,6 +972,13 @@ def logout():
     for key, value in required_state.items():
         st.session_state[key] = value
     st.rerun()
+
+# ============================================================
+# دالة مساعدة: حساب الأيام المتبقية للإيداع النهائي
+# ============================================================
+def get_days_until_deposit():
+    delta = FINAL_DEPOSIT_DATE - datetime.now()
+    return delta.days
 
 # ============================================================
 # الصفحة الرئيسية
@@ -1377,7 +1362,6 @@ elif st.session_state.user_type == "student":
                             except Exception: pass
                             st.markdown(f"""<div class='card' style='border-right: 4px solid #3B82F6; background: rgba(59, 130, 246, 0.1);'><h4>🔔 جلسة إشراف</h4>{date_to_show}<p>{details_display}</p></div>""", unsafe_allow_html=True)
                     
-                    # Filter requests by memo number (normalized)
                     reqs_mask = df_reqs["رقم المذكرة"].astype(str).apply(normalize_text) == my_memo_id
                     my_reqs = df_reqs[reqs_mask]
                     if not my_reqs.empty:
@@ -1483,11 +1467,28 @@ elif st.session_state.user_type == "professor":
                 st.subheader("📨 إرسال طلب للإدارة")
                 req_op = st.selectbox("نوع الطلب:", ["", "تغيير عنوان المذكرة", "حذف طالب (ثنائية)", "إضافة طالب (فردية)", "تنازل عن الإشراف"], key=f"req_full_{memo_id}")
                 details_to_save = ""; validation_error = None
+
+                # ============================================================
+                # تغيير عنوان المذكرة - محجوب بسبب قرب موعد الإيداع النهائي
+                # ============================================================
                 if req_op == "تغيير عنوان المذكرة":
-                    new_title = st.text_input("العنوان الجديد:", key=f"nt_full_{memo_id}")
-                    if st.button("إرسال طلب تغيير العنوان", key=f"btn_ch_full_{memo_id}", use_container_width=True):
-                        if new_title: details_to_save = f"العنوان الجديد المقترح: {new_title}"
-                        else: validation_error = "الرجاء إدخال العنوان"
+                    days_left = get_days_until_deposit()
+                    if days_left > 0:
+                        msg_days = f"لم يتبق على الإيداع النهائي سوى <b>{days_left} يوماً</b> (الموعد النهائي: 16 ماي 2026)."
+                    else:
+                        msg_days = f"لقد انتهى أجل الإيداع النهائي منذ <b>{abs(days_left)} يوماً</b> (كان الموعد: 16 ماي 2026)."
+                    st.markdown(f"""
+                    <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4);
+                                border-right: 4px solid #EF4444; border-radius: 10px; padding: 20px; margin-top: 10px;">
+                        <p style="color: #EF4444; font-size: 1.1rem; font-weight: bold; margin: 0;">
+                            ⛔ لا يمكن طلب تغيير العنوان
+                        </p>
+                        <p style="color: #FCA5A5; margin: 8px 0 0 0; font-size: 0.95rem;">
+                            {msg_days}
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                 elif req_op == "حذف طالب (ثنائية)":
                     if not student_info['s2_name']: st.warning("هذه مذكرة فردية!")
                     else:
@@ -1675,7 +1676,7 @@ elif st.session_state.user_type == "admin":
                         with c1:
                             new_o = st.selectbox("شهادة الميلاد", ["متوفر", "غير متوفر"], index=0 if o_curr=="متوفر" else 1)
                             new_p = st.selectbox("كشف1 (M1)", ["متوفر", "مدين", "محول", "خطأ في الكشف"], index=["متوفر", "مدين", "محول", "خطأ في الكشف"].index(p_curr) if p_curr in ["متوفر", "مدين", "محول", "خطأ في الكشف"] else 0)
-                            new_q = st.selectbox("كشف2 (M2)", ["غير متوفر", "متوفر"], index=0 if q_curr=="غير متوفر" else 1)
+                            new_q = st.selectbox("كشف2 (M2)", ["غير متوفر", "متوفر"], index=0 if new_q=="غير متوفر" else 1) if False else st.selectbox("كشف2 (M2)", ["غير متوفر", "متوفر"], index=0 if q_curr=="غير متوفر" else 1)
                         with c2:
                             new_r = st.selectbox("محضر المناقشة", ["غير متوفر", "متوفر"], index=0 if r_curr=="غير متوفر" else 1)
                             new_s = st.selectbox("حالة الملف", ["ناقص", "كامل", "كامل لحد الآن"], index=["ناقص", "كامل", "كامل لحد الآن"].index(s_curr) if s_curr in ["ناقص", "كامل", "كامل لحد الآن"] else 0)
