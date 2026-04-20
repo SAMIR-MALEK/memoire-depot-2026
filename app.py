@@ -1474,14 +1474,14 @@ elif st.session_state.user_type == "professor":
                 if req_op == "تغيير عنوان المذكرة":
                     days_left = get_days_until_deposit()
                     if days_left > 0:
-                        msg_days = f"لم يتبق على الإيداع النهائي سوى <b>{days_left} يوماً</b> (الموعد النهائي: 16 ماي 2026)."
+                        msg_days = f"لم يتبق على الإيداع النهائي للمذكرات سوى <b>{days_left} يوماً</b> (الموعد النهائي: 16 ماي 2026)."
                     else:
                         msg_days = f"لقد انتهى أجل الإيداع النهائي منذ <b>{abs(days_left)} يوماً</b> (كان الموعد: 16 ماي 2026)."
                     st.markdown(f"""
                     <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4);
                                 border-right: 4px solid #EF4444; border-radius: 10px; padding: 20px; margin-top: 10px;">
                         <p style="color: #EF4444; font-size: 1.1rem; font-weight: bold; margin: 0;">
-                            ⛔ لا يمكن طلب تغيير العنوان
+                            ⛔  لا يمكن طلب تغيير العنوان، للاستفسار يرجى للاتصال بمسؤول الميدان البروفيسور رفاف لخضر
                         </p>
                         <p style="color: #FCA5A5; margin: 8px 0 0 0; font-size: 0.95rem;">
                             {msg_days}
