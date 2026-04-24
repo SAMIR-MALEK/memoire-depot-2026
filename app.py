@@ -1368,11 +1368,11 @@ elif st.session_state.user_type == "professor":
                     s2_name_ap=str(current_memo.get("الطالب الثاني","")).strip()
                     students_str_ap=s1_name_ap
                     if s2_name_ap and s2_name_ap not in ["","nan","--"]: students_str_ap+=f" و {s2_name_ap}"
-                    declaration_text_base = f"للطالب(ين) {students_str_ap} بإيداع المذكرة رقم {memo_id} عدد الصفحات: {pages_saved} بعنوان «{current_memo.get('عنوان المذكرة','')}»، وأصرح بأن النسخة المودعة هي التي ستُعرض على لجنة المناقشة."
+                    # declaration_text_base يُبنى ديناميكياً بعد إدخال عدد الصفحات
                     st.markdown("""<div class="declaration-card"><div class="declaration-card-header"><div class="declaration-card-title">📋 التصريح الرسمي بالموافقة</div><div class="declaration-card-sub">يُرجى إدخال عدد الصفحات ثم الضغط على تأكيد الموافقة.</div></div><div class="declaration-card-body">""", unsafe_allow_html=True)
                     st.markdown('<div class="declaration-step-label">① عدد صفحات المذكرة (دليل على اطلاعك الكامل)</div>', unsafe_allow_html=True)
                     page_count = st.number_input("عدد الصفحات",min_value=0,max_value=999,value=0,step=1,key=f"pages_{memo_id}")
-                    st.markdown(f"""<div class="declaration-step-label" style="margin-top:14px;">② نص التصريح الذي سيُحفظ</div><div class="declaration-preview">أنا الأستاذ <strong>{prof_name}</strong>، أصرّح {declaration_text_base}</div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="declaration-step-label" style="margin-top:14px;">② نص التصريح الذي سيُحفظ</div><div class="declaration-preview">أنا الأستاذ <strong>{prof_name}</strong>، أصرّح للطالب(ين) {students_str_ap} بإيداع المذكرة رقم {memo_id} عدد الصفحات: <strong>{page_count}</strong> بعنوان «{current_memo.get('عنوان المذكرة','')}»، وأصرح بأن النسخة المودعة هي التي ستُعرض على لجنة المناقشة.</div>""", unsafe_allow_html=True)
                     st.markdown('<div class="declaration-step-label" style="margin-top:14px;">③ الإقرار والتوقيع الإلكتروني</div>', unsafe_allow_html=True)
                     agree_check = True  # الموافقة تتم بإدخال عدد الصفحات والضغط على زر التأكيد
                     st.markdown(f"""<div style="background:rgba(47,111,126,0.07);border-radius:8px;padding:8px 13px;margin:7px 0 5px;"><p style="color:#E2E8F0!important;font-size:0.78rem;margin:0;">سيتم توثيق موافقتك باسم: <strong style="color:#FFD700;">{prof_name}</strong></p></div>""", unsafe_allow_html=True)
@@ -1400,7 +1400,7 @@ elif st.session_state.user_type == "professor":
                                 pages_saved=st.session_state.get(f"pages_value_{memo_id}",page_count)
                                 with st.spinner("⏳ جاري حفظ التصريح..."):
                                     timestamp_ap=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                    full_declaration=f"تصريح: {prof_name} | {timestamp_ap} | أنا الأستاذ {prof_name}، أصرّح {declaration_text_base}"
+                                    full_declaration=f"تصريح: {prof_name} | {timestamp_ap} | أنا الأستاذ {prof_name}، أصرّح للطالب(ين) {students_str_ap} بإيداع المذكرة رقم {memo_id} عدد الصفحات: {pages_saved} بعنوان «{current_memo.get('عنوان المذكرة','')}»، وأصرح بأن النسخة المودعة هي التي ستُعرض على لجنة المناقشة."
                                     save_approval_declaration(memo_id, prof_name, sig_saved, full_declaration)
                                     ok,msg=approve_memo_for_defense(memo_id)
                                     if ok:
