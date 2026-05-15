@@ -1275,7 +1275,7 @@ elif st.session_state.user_type == "student":
                             <strong style="color:#FFD700;">14 ماي 2026 الساعة 23:59</strong>
                             <br>لم يعد بإمكانك إيداع أي ملف عبر المنصة.
                             <br><br>
-                            <span style="color:#F59E0B;">للاستفسار أو في حالة الضرورة القصوى، راجع الإدارة مباشرة.</span>
+                            <span style="color:#F59E0B;">للاستفسار؛ اتصل بمكتب فريق التكون - الطابق الأرضي بالكلية  .</span>
                         </div>
                     </div>""", unsafe_allow_html=True)
                 else:
