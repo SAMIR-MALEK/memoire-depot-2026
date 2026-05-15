@@ -337,7 +337,7 @@ def load_students():
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0]); df.columns = df.columns.str.strip(); return df
-    except Exception as e: logger.error(f"خطأ الطلاب: {e}"); return pd.DataFrame()
+    except Exception as e: logger.error(f"خطأ الطلبة: {e}"); return pd.DataFrame()
 
 @st.cache_data(ttl=60)
 def load_memos():
@@ -1991,9 +1991,9 @@ elif st.session_state.user_type == "admin":
         memo_col=df_students["رقم المذكرة"].astype(str).str.strip()
         reg_st=(memo_col!="").sum(); unreg_st=(memo_col=="").sum()
         st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
-        st.markdown(f'<div class="kpi-card"><div class="kpi-value">{st_s}</div><div class="kpi-label">الطلاب</div></div><div class="kpi-card"><div class="kpi-value">{t_p}</div><div class="kpi-label">الأساتذة</div></div><div class="kpi-card"><div class="kpi-value">{t_m}</div><div class="kpi-label">المذكرات</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{r_m}</div><div class="kpi-label">مسجلة</div></div><div class="kpi-card" style="border-top:3px solid #F59E0B;"><div class="kpi-value" style="color:#F59E0B;">{a_m}</div><div class="kpi-label">متاحة</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{reg_st}</div><div class="kpi-label">طلاب مسجلون</div></div><div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{unreg_st}</div><div class="kpi-label">غير مسجلين</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card"><div class="kpi-value">{st_s}</div><div class="kpi-label">الطلبة</div></div><div class="kpi-card"><div class="kpi-value">{t_p}</div><div class="kpi-label">الأساتذة</div></div><div class="kpi-card"><div class="kpi-value">{t_m}</div><div class="kpi-label">المذكرات</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{r_m}</div><div class="kpi-label">مسجلة</div></div><div class="kpi-card" style="border-top:3px solid #F59E0B;"><div class="kpi-value" style="color:#F59E0B;">{a_m}</div><div class="kpi-label">متاحة</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{reg_st}</div><div class="kpi-label">طلاب مسجلون</div></div><div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{unreg_st}</div><div class="kpi-label">غير مسجلين</div></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9=st.tabs(["المذكرات","الطلاب","الأساتذة","تقارير","تحديث","الطلبات","📧 إيميلات","🎓 لجان","📅 جدولة ذكية"])
+        tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9=st.tabs(["المذكرات","الطلبة","الأساتذة","تقارير","تحديث","الطلبات","📧 إيميلات","🎓 لجان","📅 جدولة ذكية"])
         with tab1:
             st.subheader("جدول المذكرات")
             f_status=st.selectbox("تصفية:",["الكل","مسجلة","متاحة"])
@@ -2002,7 +2002,7 @@ elif st.session_state.user_type == "admin":
             else: dm=df_memos
             st.dataframe(dm,use_container_width=True,height=400)
         with tab2:
-            st.subheader("الطلاب")
+            st.subheader("الطلبة")
             q=st.text_input("بحث:")
             if st.session_state.get('admin_edit_student_user'):
                 tu=st.session_state.admin_edit_student_user
