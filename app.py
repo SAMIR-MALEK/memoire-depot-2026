@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="منصة مذكرات الماستر", page_icon="📘", layout="wide")
 
-DEPOSIT_DEADLINE = datetime(2026, 5, 23, 23, 59)
+DEPOSIT_DEADLINE = datetime(2026, 5, 14, 23, 59)
 REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
 
 def get_days_remaining():
@@ -337,7 +337,7 @@ def load_students():
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         df = pd.DataFrame(values[1:], columns=values[0]); df.columns = df.columns.str.strip(); return df
-    except Exception as e: logger.error(f"خطأ الطلبة: {e}"); return pd.DataFrame()
+    except Exception as e: logger.error(f"خطأ الطلاب: {e}"); return pd.DataFrame()
 
 @st.cache_data(ttl=60)
 def load_memos():
@@ -1006,17 +1006,17 @@ def build_conflict_matrix(df_memos):
     for i in range(len(rows_list)):
         _, row_i = rows_list[i]
         m_i = str(row_i["رقم المذكرة"])
-        profs_i = set(filter(None, [str(row_i.get("الأستاذ","")).strip(),str(row_i.get("AC","")).strip(),str(row_i.get("AD","")).strip(),str(row_i.get("AE","")).strip()])) - {"","nan","—"}
+        profs_i = set(filter(None, [str(row_i.get("الأستاذ","")).strip(),str(row_i.get("الرئيس","")).strip(),str(row_i.get("المناقش1","")).strip(),str(row_i.get("المناقش2","")).strip()])) - {"","nan","—"}
         for j in range(i+1, len(rows_list)):
             _, row_j = rows_list[j]
             m_j = str(row_j["رقم المذكرة"])
-            profs_j = set(filter(None,[str(row_j.get("الأستاذ","")).strip(),str(row_j.get("AC","")).strip(),str(row_j.get("AD","")).strip(),str(row_j.get("AE","")).strip()])) - {"","nan","—"}
+            profs_j = set(filter(None,[str(row_j.get("الأستاذ","")).strip(),str(row_j.get("الرئيس","")).strip(),str(row_j.get("المناقش1","")).strip(),str(row_j.get("المناقش2","")).strip()])) - {"","nan","—"}
             if profs_i & profs_j:
                 conflicts[m_i].add(m_j); conflicts[m_j].add(m_i)
     return memo_list, conflicts
 
 def get_memo_profs(row):
-    return set(filter(None,[str(row.get("الأستاذ","")).strip(),str(row.get("AC","")).strip(),str(row.get("AD","")).strip(),str(row.get("AE","")).strip()])) - {"","nan","—"}
+    return set(filter(None,[str(row.get("الأستاذ","")).strip(),str(row.get("الرئيس","")).strip(),str(row.get("المناقش1","")).strip(),str(row.get("المناقش2","")).strip()])) - {"","nan","—"}
 
 def greedy_schedule(memo_list, conflicts, days, slots, rooms):
     import random
@@ -1096,7 +1096,7 @@ def schedule_to_rows(schedule, df_memos):
         r = {"رقم المذكرة": memo, "العنوان": str(row.get("عنوان المذكرة",""))[:40] if hasattr(row,"get") else ""}
         if slot: r.update({"اليوم":slot[0],"التوقيت":slot[1],"القاعة":slot[2]})
         else: r.update({"اليوم":"غير مجدول","التوقيت":"","القاعة":""})
-        for k,c in [("المشرف","الأستاذ"),("الرئيس","AC"),("المناقش1","AD"),("المناقش2","AE")]:
+        for k,c in [("المشرف","الأستاذ"),("الرئيس","الرئيس"),("المناقش1","المناقش1"),("المناقش2","المناقش2")]:
             r[k] = str(row.get(c,"")).strip() if hasattr(row,"get") else ""
         r["رابط الملف"] = str(row.get("رابط الملف","")).strip() if hasattr(row,"get") else ""
         rows.append(r)
@@ -1991,9 +1991,9 @@ elif st.session_state.user_type == "admin":
         memo_col=df_students["رقم المذكرة"].astype(str).str.strip()
         reg_st=(memo_col!="").sum(); unreg_st=(memo_col=="").sum()
         st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
-        st.markdown(f'<div class="kpi-card"><div class="kpi-value">{st_s}</div><div class="kpi-label">الطلبة</div></div><div class="kpi-card"><div class="kpi-value">{t_p}</div><div class="kpi-label">الأساتذة</div></div><div class="kpi-card"><div class="kpi-value">{t_m}</div><div class="kpi-label">المذكرات</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{r_m}</div><div class="kpi-label">مسجلة</div></div><div class="kpi-card" style="border-top:3px solid #F59E0B;"><div class="kpi-value" style="color:#F59E0B;">{a_m}</div><div class="kpi-label">متاحة</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{reg_st}</div><div class="kpi-label">طلاب مسجلون</div></div><div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{unreg_st}</div><div class="kpi-label">غير مسجلين</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-card"><div class="kpi-value">{st_s}</div><div class="kpi-label">الطلاب</div></div><div class="kpi-card"><div class="kpi-value">{t_p}</div><div class="kpi-label">الأساتذة</div></div><div class="kpi-card"><div class="kpi-value">{t_m}</div><div class="kpi-label">المذكرات</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{r_m}</div><div class="kpi-label">مسجلة</div></div><div class="kpi-card" style="border-top:3px solid #F59E0B;"><div class="kpi-value" style="color:#F59E0B;">{a_m}</div><div class="kpi-label">متاحة</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{reg_st}</div><div class="kpi-label">طلاب مسجلون</div></div><div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{unreg_st}</div><div class="kpi-label">غير مسجلين</div></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9=st.tabs(["المذكرات","الطلبة","الأساتذة","تقارير","تحديث","الطلبات","📧 إيميلات","🎓 لجان","📅 جدولة ذكية"])
+        tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9=st.tabs(["المذكرات","الطلاب","الأساتذة","تقارير","تحديث","الطلبات","📧 إيميلات","🎓 لجان","📅 جدولة ذكية"])
         with tab1:
             st.subheader("جدول المذكرات")
             f_status=st.selectbox("تصفية:",["الكل","مسجلة","متاحة"])
@@ -2002,7 +2002,7 @@ elif st.session_state.user_type == "admin":
             else: dm=df_memos
             st.dataframe(dm,use_container_width=True,height=400)
         with tab2:
-            st.subheader("الطلبة")
+            st.subheader("الطلاب")
             q=st.text_input("بحث:")
             if st.session_state.get('admin_edit_student_user'):
                 tu=st.session_state.admin_edit_student_user
@@ -2278,11 +2278,23 @@ elif st.session_state.user_type == "admin":
             df_memos_j = load_memos()
             
             # المذكرات التي اكتملت لجانها
-            has_jury = (df_memos_j.get("AC", pd.Series(dtype=str)).astype(str).str.strip().apply(lambda x: x not in ["","nan"])) if "AC" in df_memos_j.columns else pd.Series([False]*len(df_memos_j))
-            is_registered = df_memos_j["تم التسجيل"].astype(str).str.strip()=="نعم"
-            ready_memos_j = df_memos_j[is_registered & has_jury].copy()
+            # مذكرة جاهزة للجدولة:
+            # 1. معتمدة = حالة الإيداع = "قابلة للمناقشة"
+            # 2. لها لجنة كاملة: F=الأستاذ، AA=الرئيس، AB=المناقش1، AC=المناقش2
+            def _is_ready(row):
+                approved = str(row.get("حالة الإيداع","")).strip() == "قابلة للمناقشة"
+                def filled(val):
+                    v = str(val).strip()
+                    return v not in ["","nan","None","—"]
+                has_sup  = filled(row.get("الأستاذ",""))
+                has_pres = filled(row.get("الرئيس",""))
+                has_ex1  = filled(row.get("المناقش1",""))
+                has_ex2  = filled(row.get("المناقش2",""))
+                return approved and has_sup and has_pres and has_ex1 and has_ex2
+            ready_mask = df_memos_j.apply(_is_ready, axis=1)
+            ready_memos_j = df_memos_j[ready_mask].copy()
             total_ready_j = len(ready_memos_j)
-            already_sched_j = len(ready_memos_j[ready_memos_j.get("تاريخ المناقشة",pd.Series(dtype=str)).astype(str).str.strip().apply(lambda x: x not in ["","nan"])]) if "تاريخ المناقشة" in ready_memos_j.columns else 0
+            already_sched_j = len(ready_memos_j[ready_memos_j["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"])]) if "تاريخ المناقشة" in ready_memos_j.columns else 0
 
             c1j,c2j,c3j = st.columns(3)
             with c1j: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#FFD700;">{total_ready_j}</div><div class="kpi-label">🎓 جاهزة للجدولة</div></div>''', unsafe_allow_html=True)
@@ -2299,12 +2311,12 @@ elif st.session_state.user_type == "admin":
                     st.markdown("**📆 الأيام**")
                     num_days_j = st.number_input("عدد أيام المناقشات",min_value=3,max_value=15,value=7,key="j_ndays")
                     base_date_j = st.date_input("تاريخ البداية",value=date.today(),key="j_basedate")
-                    import datetime as _dt
+                    from datetime import timedelta as _td
                     gen_days_j = []
                     d_j = base_date_j
                     while len(gen_days_j) < num_days_j:
                         if d_j.weekday() not in [4,5]: gen_days_j.append(d_j.strftime("%Y-%m-%d"))
-                        d_j += _dt.timedelta(days=1)
+                        d_j += _td(days=1)
                     st.info(f"الأيام: {' | '.join(gen_days_j)}")
 
                 with col_p2:
@@ -2340,9 +2352,9 @@ elif st.session_state.user_type == "admin":
                                 st.session_state["j_schedule"] = named_sched
                                 st.session_state["j_score"] = score_j
                                 st.session_state["j_unplaced"] = unpl_j
-                                st.session_state["j_slots"] = gen_slots_j
-                                st.session_state["j_days"] = gen_days_j
-                                st.session_state["j_rooms"] = gen_rooms_j
+                                st.session_state["j_slots_list"] = gen_slots_j
+                                st.session_state["j_days_list"] = gen_days_j
+                                st.session_state["j_rooms_list"] = gen_rooms_j
                             st.success(f"✅ جدول أولي جاهز! الجودة: {score_j}%")
                             st.rerun()
                 with c_g2:
@@ -2350,9 +2362,9 @@ elif st.session_state.user_type == "admin":
                     if st.button("⚡ تحسين (Simulated Annealing)",use_container_width=True,key="j_improve",disabled=disabled_improve):
                         with st.spinner("⚡ جاري التحسين المتقدم... (قد يستغرق 20 ثانية)"):
                             cur_sched = st.session_state["j_schedule"]
-                            sl_j = st.session_state.get("j_slots",gen_slots_j)
-                            dy_j = st.session_state.get("j_days",gen_days_j)
-                            rm_j = st.session_state.get("j_rooms",gen_rooms_j)
+                            sl_j = st.session_state.get("j_slots_list",gen_slots_j)
+                            dy_j = st.session_state.get("j_days_list",gen_days_j)
+                            rm_j = st.session_state.get("j_rooms_list",gen_rooms_j)
                             s2i = {s:i for i,s in enumerate(sl_j)}
                             idx_sched = {m:(s[0],s2i.get(s[1],0),s[2]) if s else None for m,s in cur_sched.items()}
                             memo_list_j2,conflicts_j2 = build_conflict_matrix(ready_memos_j)
@@ -2375,9 +2387,9 @@ elif st.session_state.user_type == "admin":
                     j_sched = st.session_state["j_schedule"]
                     j_score = st.session_state.get("j_score",0)
                     j_unpl = st.session_state.get("j_unplaced",0)
-                    j_sl = st.session_state.get("j_slots",gen_slots_j)
-                    j_dy = st.session_state.get("j_days",gen_days_j)
-                    j_rm = st.session_state.get("j_rooms",gen_rooms_j)
+                    j_sl = st.session_state.get("j_slots_list",gen_slots_j)
+                    j_dy = st.session_state.get("j_days_list",gen_days_j)
+                    j_rm = st.session_state.get("j_rooms_list",gen_rooms_j)
 
                     sc_color = "#10B981" if j_score>=90 else "#F59E0B" if j_score>=70 else "#EF4444"
                     st.markdown(f'''<div style="background:linear-gradient(135deg,#0F2942,#1A3A5C);border-radius:16px;padding:16px 24px;margin:16px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border:1px solid rgba(47,111,126,0.3);">
@@ -2483,8 +2495,17 @@ elif st.session_state.user_type == "admin":
                             <div style="font-size:1.1rem;font-weight:800;color:#10B981;margin-bottom:8px;">🎯 تأكيد واعتماد البرنامج النهائي</div>
                             <div style="color:#E2E8F0;font-size:0.85rem;">عند الضغط: ✅ حفظ في قاعدة البيانات + 📧 إيميل لكل أستاذ ببرنامجه + 📱 إشعار للطلبة بمواعيدهم</div>
                         </div>''', unsafe_allow_html=True)
+                        test_mode = st.checkbox(
+                            "🧪 وضع التجربة — عرض النتائج فقط دون حفظ أو إرسال إيميلات",
+                            value=True,
+                            key="j_test_mode",
+                            help="فعّله أثناء الاختبار. أوقفه عند الاعتماد الرسمي."
+                        )
+                        if test_mode:
+                            st.info("🧪 أنت في وضع التجربة — لن يُحفظ شيء ولن يُرسل أي إيميل عند الضغط على التأكيد.")
                         if not st.session_state.get("j_confirm_step",False):
-                            if st.button("✅ تأكيد واعتماد البرنامج النهائي",type="primary",use_container_width=True,key="j_confirm_btn"):
+                            btn_label = "🧪 معاينة النتائج (وضع التجربة)" if test_mode else "✅ تأكيد واعتماد البرنامج النهائي"
+                            if st.button(btn_label,type="primary",use_container_width=True,key="j_confirm_btn"):
                                 st.session_state["j_confirm_step"]=True; st.rerun()
                         else:
                             st.warning("⚠️ هذا الإجراء نهائي ولا يمكن التراجع عنه. هل أنت متأكد؟")
@@ -2493,46 +2514,68 @@ elif st.session_state.user_type == "admin":
                                 if st.button("✅ نعم، اعتمد البرنامج",type="primary",use_container_width=True,key="j_final_confirm"):
                                     with st.spinner("⏳ جاري الحفظ وإرسال الإيميلات..."):
                                         final_j=st.session_state["j_schedule"]
-                                        ok_j,msg_j=save_full_schedule_to_sheets(final_j,ready_memos_j)
-                                        if ok_j:
-                                            df_profs_j=load_prof_memos()
-                                            df_st_j=load_students()
-                                            df_st_j["رقم التسجيل_norm"]=df_st_j["رقم التسجيل"].astype(str).apply(normalize_text)
-                                            memo_map_fin={str(r["رقم المذكرة"]):r for _,r in ready_memos_j.iterrows()}
-                                            prof_prog={}
+                                        test_mode_final = st.session_state.get("j_test_mode", True)
+                                        if test_mode_final:
+                                            # ── وضع التجربة: عرض فقط ──
+                                            memo_map_prev = {str(r["رقم المذكرة"]):r for _,r in ready_memos_j.iterrows()}
+                                            prof_prog_prev = {}
                                             for mf,sf in final_j.items():
                                                 if not sf: continue
-                                                rf=memo_map_fin.get(mf,{})
-                                                lnk_f=str(rf.get("رابط الملف","")).strip() if hasattr(rf,"get") else ""
-                                                for ck,rk in [("الأستاذ","مشرف"),("AC","رئيس لجنة"),("AD","مناقش 1"),("AE","مناقش 2")]:
-                                                    pf=str(rf.get(ck,"")).strip() if hasattr(rf,"get") else ""
+                                                rf = memo_map_prev.get(mf,{})
+                                                for ck,rk in [("الأستاذ","مشرف"),("الرئيس","رئيس لجنة"),("المناقش1","مناقش 1"),("المناقش2","مناقش 2")]:
+                                                    pf = str(rf.get(ck,"")).strip() if hasattr(rf,"get") else ""
                                                     if not pf or pf in ["","nan","—"]: continue
-                                                    prof_prog.setdefault(pf,[]).append({"رقم المذكرة":mf,"اليوم":sf[0],"التوقيت":sf[1],"القاعة":sf[2],"الصفة":rk,"رابط الملف":lnk_f})
-                                            sent_p=0
-                                            for pf,prog_f in prof_prog.items():
-                                                ok_p,_=send_prof_schedule_email(pf,prog_f,df_profs_j)
-                                                if ok_p: sent_p+=1
-                                                time_module.sleep(0.3)
-                                            sent_s=0
-                                            for mf,sf in final_j.items():
-                                                if not sf: continue
-                                                rf=memo_map_fin.get(mf,{})
-                                                if not hasattr(rf,"get"): continue
-                                                rv=rf.tolist() if hasattr(rf,"tolist") else []
-                                                r1f=normalize_text(rf.get("رقم تسجيل الطالب 1",rv[18] if len(rv)>18 else ""))
-                                                r2f=normalize_text(rf.get("رقم تسجيل الطالب 2",rv[19] if len(rv)>19 else ""))
-                                                for reg_f in [r1f,r2f]:
-                                                    if not reg_f or reg_f in ["","nan"]: continue
-                                                    sr=df_st_j[df_st_j["رقم التسجيل_norm"]==reg_f]
-                                                    if sr.empty: continue
-                                                    ok_s,_=send_student_schedule_email(sr.iloc[0].to_dict(),mf,sf[0],sf[1],sf[2])
-                                                    if ok_s: sent_s+=1
-                                                    time_module.sleep(0.2)
-                                            for k in ["j_schedule","j_score","j_unplaced","j_confirm_step"]:
-                                                st.session_state.pop(k,None)
-                                            st.success(f"🎉 تم اعتماد البرنامج! حُفظ في قاعدة البيانات | أُرسل لـ {sent_p} أستاذ | أُشعر {sent_s} طالب")
-                                            st.balloons(); clear_cache_and_reload(); time_module.sleep(2); st.rerun()
-                                        else: st.error(msg_j)
+                                                    prof_prog_prev.setdefault(pf,[]).append({"المذكرة":mf,"اليوم":sf[0],"التوقيت":sf[1],"القاعة":sf[2],"الصفة":rk})
+                                            st.success(f"🧪 معاينة: سيُرسل إيميل لـ {len(prof_prog_prev)} أستاذ | سيُشعر {len([s for s in final_j.values() if s])*2} طالب (تقريباً)")
+                                            with st.expander("👨‍🏫 معاينة برامج الأساتذة"):
+                                                for pf,prog in sorted(prof_prog_prev.items()):
+                                                    st.markdown(f"**{pf}** — {len(prog)} مناقشة")
+                                                    for it in sorted(prog,key=lambda x:(x['اليوم'],x['التوقيت'])):
+                                                        st.markdown(f"&nbsp;&nbsp;📅 {it['اليوم']} | 🕐 {it['التوقيت']} | 🏛️ {it['القاعة']} | {it['المذكرة']} | *{it['الصفة']}*")
+                                            st.info("✅ الجدول صحيح. أوقف وضع التجربة ثم اضغط تأكيد للاعتماد الرسمي.")
+                                            st.session_state["j_confirm_step"] = False
+                                        else:
+                                            # ── الاعتماد الرسمي ──
+                                            ok_j,msg_j=save_full_schedule_to_sheets(final_j,ready_memos_j)
+                                            if ok_j:
+                                                df_profs_j=load_prof_memos()
+                                                df_st_j=load_students()
+                                                df_st_j["رقم التسجيل_norm"]=df_st_j["رقم التسجيل"].astype(str).apply(normalize_text)
+                                                memo_map_fin={str(r["رقم المذكرة"]):r for _,r in ready_memos_j.iterrows()}
+                                                prof_prog={}
+                                                for mf,sf in final_j.items():
+                                                    if not sf: continue
+                                                    rf=memo_map_fin.get(mf,{})
+                                                    lnk_f=str(rf.get("رابط الملف","")).strip() if hasattr(rf,"get") else ""
+                                                    for ck,rk in [("الأستاذ","مشرف"),("الرئيس","رئيس لجنة"),("المناقش1","مناقش 1"),("المناقش2","مناقش 2")]:
+                                                        pf=str(rf.get(ck,"")).strip() if hasattr(rf,"get") else ""
+                                                        if not pf or pf in ["","nan","—"]: continue
+                                                        prof_prog.setdefault(pf,[]).append({"رقم المذكرة":mf,"اليوم":sf[0],"التوقيت":sf[1],"القاعة":sf[2],"الصفة":rk,"رابط الملف":lnk_f})
+                                                sent_p=0
+                                                for pf,prog_f in prof_prog.items():
+                                                    ok_p,_=send_prof_schedule_email(pf,prog_f,df_profs_j)
+                                                    if ok_p: sent_p+=1
+                                                    time_module.sleep(0.3)
+                                                sent_s=0
+                                                for mf,sf in final_j.items():
+                                                    if not sf: continue
+                                                    rf=memo_map_fin.get(mf,{})
+                                                    if not hasattr(rf,"get"): continue
+                                                    rv=rf.tolist() if hasattr(rf,"tolist") else []
+                                                    r1f=normalize_text(rf.get("رقم تسجيل الطالب 1",rv[18] if len(rv)>18 else ""))
+                                                    r2f=normalize_text(rf.get("رقم تسجيل الطالب 2",rv[19] if len(rv)>19 else ""))
+                                                    for reg_f in [r1f,r2f]:
+                                                        if not reg_f or reg_f in ["","nan"]: continue
+                                                        sr=df_st_j[df_st_j["رقم التسجيل_norm"]==reg_f]
+                                                        if sr.empty: continue
+                                                        ok_s,_=send_student_schedule_email(sr.iloc[0].to_dict(),mf,sf[0],sf[1],sf[2])
+                                                        if ok_s: sent_s+=1
+                                                        time_module.sleep(0.2)
+                                                for k in ["j_schedule","j_score","j_unplaced","j_confirm_step"]:
+                                                    st.session_state.pop(k,None)
+                                                st.success(f"🎉 تم اعتماد البرنامج! حُفظ في قاعدة البيانات | أُرسل لـ {sent_p} أستاذ | أُشعر {sent_s} طالب")
+                                                st.balloons(); clear_cache_and_reload(); time_module.sleep(2); st.rerun()
+                                            else: st.error(msg_j)
                             with cb_j:
                                 if st.button("إلغاء",use_container_width=True,key="j_cancel_confirm"):
                                     st.session_state["j_confirm_step"]=False; st.rerun()
