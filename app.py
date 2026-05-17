@@ -201,7 +201,7 @@ MEMOS_SHEET_ID      = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"
 PROF_MEMOS_SHEET_ID = "1OnZi1o-oPMUI_W_Ew-op0a1uOhSj006hw_2jrMD6FSE"
 REQUESTS_SHEET_ID   = "1sTJ6BZRM4Qgt0w2xUkpFZqquL-hfriMYTSN3x1_12_o"
 STUDENTS_RANGE  = "Feuille 1!A1:U1000"
-MEMOS_RANGE     = "Feuille 1!A1:AI1000"
+MEMOS_RANGE     = "Feuille 1!A1:AG1000"
 PROF_MEMOS_RANGE= "Feuille 1!A1:S1000"
 REQUESTS_RANGE  = "Feuille 1!A1:K1000"
 ADMIN_CREDENTIALS = {"admin": "admin2026", "dsp": "dsp@2026"}
@@ -342,7 +342,7 @@ def load_students():
 @st.cache_data(ttl=60)
 def load_memos():
     try:
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AI1000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AG1000").execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         headers = values[0]; rows = values[1:]
@@ -689,7 +689,7 @@ def save_memo_deposit(memo_number, file_link):
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!V{row_idx}","values":[["مودعة"]]},{"range":f"Feuille 1!W{row_idx}","values":[[file_link]]},{"range":f"Feuille 1!X{row_idx}","values":[[timestamp]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!T{row_idx}","values":[["مودعة"]]},{"range":f"Feuille 1!U{row_idx}","values":[[file_link]]},{"range":f"Feuille 1!V{row_idx}","values":[[timestamp]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ الإيداع"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -699,7 +699,7 @@ def save_approval_declaration(memo_number, prof_name, signature, declaration_tex
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!AB{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[declaration_text]]}).execute()
+        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!Z{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[declaration_text]]}).execute()
         return True, "✅ تم حفظ التصريح"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -709,7 +709,7 @@ def approve_memo_for_defense(memo_number):
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!V{row_idx}", valueInputOption="USER_ENTERED", body={"values":[["قابلة للمناقشة"]]}).execute()
+        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!T{row_idx}", valueInputOption="USER_ENTERED", body={"values":[["قابلة للمناقشة"]]}).execute()
         clear_cache_and_reload(); return True, "✅ تمت الموافقة"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -721,7 +721,7 @@ def reject_memo_and_reopen(memo_number, prof_name, rejection_reason):
         row_idx = row.index[0]+2
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         rejection_full = f"مرفوضة بتاريخ {timestamp} | المشرف: {prof_name} | السبب: {rejection_reason}"
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!V{row_idx}","values":[["مرفوضة"]]},{"range":f"Feuille 1!W{row_idx}","values":[[""]]},{"range":f"Feuille 1!X{row_idx}","values":[[""]]},{"range":f"Feuille 1!AB{row_idx}","values":[[rejection_full]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!T{row_idx}","values":[["مرفوضة"]]},{"range":f"Feuille 1!U{row_idx}","values":[[""]]},{"range":f"Feuille 1!V{row_idx}","values":[[""]]},{"range":f"Feuille 1!Z{row_idx}","values":[[rejection_full]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم تسجيل الإعادة وفتح الإيداع"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -733,7 +733,7 @@ def save_prof_notes(memo_number, prof_name, notes_text):
         row_idx = row.index[0]+2
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         note_full = f"ملاحظات المشرف {prof_name} [{timestamp}]: {notes_text}"
-        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!AB{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[note_full]]}).execute()
+        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!Z{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[note_full]]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ الملاحظات"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -743,7 +743,7 @@ def save_defense_schedule(memo_number, defense_date, defense_time, defense_room)
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!Y{row_idx}","values":[[str(defense_date)]]},{"range":f"Feuille 1!Z{row_idx}","values":[[str(defense_time)]]},{"range":f"Feuille 1!AA{row_idx}","values":[[defense_room]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!W{row_idx}","values":[[str(defense_date)]]},{"range":f"Feuille 1!X{row_idx}","values":[[str(defense_time)]]},{"range":f"Feuille 1!Y{row_idx}","values":[[defense_room]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ الموعد"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -753,12 +753,12 @@ def save_jury(memo_number, president, exam1, exam2):
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!AC{row_idx}","values":[[president]]},{"range":f"Feuille 1!AD{row_idx}","values":[[exam1]]},{"range":f"Feuille 1!AE{row_idx}","values":[[exam2]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!AA{row_idx}","values":[[president]]},{"range":f"Feuille 1!AB{row_idx}","values":[[exam1]]},{"range":f"Feuille 1!AC{row_idx}","values":[[exam2]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ اللجنة"
     except Exception as e: return False, f"❌ {str(e)}"
 
 def save_notes_by_member(memo_number, member_role, notes_text):
-    col_map = {"رئيس":"AG","مناقش1":"AH","مناقش2":"AI"}
+    col_map = {"رئيس":"AE","مناقش1":"AD","مناقش2":"AG"}
     col = col_map.get(member_role)
     if not col: return False, "دور غير معروف"
     try:
@@ -779,7 +779,7 @@ def publish_memos(memo_numbers=None):
             col = "حالة الإيداع"
             targets = df_memos[df_memos[col].astype(str).str.strip()=="قابلة للمناقشة"] if col in df_memos.columns else pd.DataFrame()
         if targets.empty: return False, "لا توجد مذكرات"
-        updates = [{"range":f"Feuille 1!AF{idx+2}","values":[["نعم"]]} for idx in targets.index]
+        updates = [{"range":f"Feuille 1!AD{idx+2}","values":[["نعم"]]} for idx in targets.index]
         sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":updates}).execute()
         clear_cache_and_reload(); return True, f"✅ تم نشر {len(updates)} مذكرة"
     except Exception as e: return False, f"❌ {str(e)}"
@@ -1111,10 +1111,10 @@ def save_full_schedule_to_sheets(schedule, df_memos):
             if not slot: continue
             row_idx = i+2
             updates += [
-                {"range":f"Feuille 1!Y{row_idx}","values":[[slot[0]]]},
-                {"range":f"Feuille 1!Z{row_idx}","values":[[slot[1]]]},
-                {"range":f"Feuille 1!AA{row_idx}","values":[[slot[2]]]},
-                {"range":f"Feuille 1!AF{row_idx}","values":[["نعم"]]},
+                {"range":f"Feuille 1!W{row_idx}","values":[[slot[0]]]},
+                {"range":f"Feuille 1!X{row_idx}","values":[[slot[1]]]},
+                {"range":f"Feuille 1!Y{row_idx}","values":[[slot[2]]]},
+                {"range":f"Feuille 1!AD{row_idx}","values":[["نعم"]]},
             ]
         if updates:
             sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID,body={"valueInputOption":"USER_ENTERED","data":updates}).execute()
@@ -1160,7 +1160,7 @@ def send_student_schedule_email(student_data, memo_num, defense_date, defense_ti
     except Exception as e: return False, f"❌ {str(e)}"
 
 def save_member_observations(memo_number, prof_name, role, observations):
-    col_map={"مشرف":"AB","رئيس":"AG","مناقش1":"AH","مناقش2":"AI"}
+    col_map={"مشرف":"Z","رئيس":"AE","مناقش1":"AD","مناقش2":"AG"}
     col=col_map.get(role,"AG")
     try:
         df_m=load_memos()
@@ -1432,7 +1432,7 @@ elif st.session_state.user_type == "student":
             def_date_m     = str(memo_info.get("تاريخ المناقشة","")).strip()
             def_time_m     = str(memo_info.get("توقيت المناقشة","")).strip()
             def_room_m     = str(memo_info.get("القاعة","")).strip()
-            is_published   = str(memo_info.get("AF","")).strip()=="نعم" if "AF" in memo_info.index else False
+            is_published   = str(memo_info.get("AD","")).strip()=="نعم" if "AD" in memo_info.index else False
             prof_name_m    = str(memo_info.get("الأستاذ","")).strip()
 
             if deposit_status == "مرفوضة":
@@ -1901,8 +1901,8 @@ elif st.session_state.user_type == "professor":
                             if not mm.empty: mm=mm.copy(); mm['صفتي']=rj; masks.append(mm)
                     if masks:
                         jury_memos=pd.concat(masks).drop_duplicates(subset=["رقم المذكرة"])
-                        if "AF" in jury_memos.columns:
-                            jury_memos=jury_memos[jury_memos["AF"].astype(str).str.strip()=="نعم"]
+                        if "AD" in jury_memos.columns:
+                            jury_memos=jury_memos[jury_memos["AD"].astype(str).str.strip()=="نعم"]
                 if jury_memos.empty:
                     st.info("⏳ لا توجد مذكرات منشورة تخصك كعضو لجنة.")
                 else:
@@ -1945,7 +1945,7 @@ elif st.session_state.user_type == "professor":
                                 </div>''', unsafe_allow_html=True)
                             st.markdown("---")
                             st.markdown("**📝 ملاحظاتك على المذكرة** *(للإدارة فقط)*")
-                            notes_col_map={"مشرف":"AB","رئيس":"AG","مناقش1":"AH","مناقش2":"AI"}
+                            notes_col_map={"مشرف":"Z","رئيس":"AE","مناقش1":"AD","مناقش2":"AG"}
                             notes_col=notes_col_map.get(role,"AG")
                             curr_notes=str(jm.get(notes_col,"")).strip() if notes_col in jm.index else ""
                             if curr_notes in ["nan",""]: curr_notes=""
