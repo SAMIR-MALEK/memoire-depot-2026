@@ -689,7 +689,7 @@ def save_memo_deposit(memo_number, file_link):
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!V{row_idx}","values":[["مودعة"]]},{"range":f"Feuille 1!W{row_idx}","values":[[file_link]]},{"range":f"Feuille 1!X{row_idx}","values":[[timestamp]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!T{row_idx}","values":[["مودعة"]]},{"range":f"Feuille 1!U{row_idx}","values":[[file_link]]},{"range":f"Feuille 1!V{row_idx}","values":[[timestamp]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ الإيداع"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -699,7 +699,7 @@ def save_approval_declaration(memo_number, prof_name, signature, declaration_tex
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!AB{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[declaration_text]]}).execute()
+        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!Z{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[declaration_text]]}).execute()
         return True, "✅ تم حفظ التصريح"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -709,7 +709,7 @@ def approve_memo_for_defense(memo_number):
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!V{row_idx}", valueInputOption="USER_ENTERED", body={"values":[["قابلة للمناقشة"]]}).execute()
+        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!T{row_idx}", valueInputOption="USER_ENTERED", body={"values":[["قابلة للمناقشة"]]}).execute()
         clear_cache_and_reload(); return True, "✅ تمت الموافقة"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -721,7 +721,7 @@ def reject_memo_and_reopen(memo_number, prof_name, rejection_reason):
         row_idx = row.index[0]+2
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         rejection_full = f"مرفوضة بتاريخ {timestamp} | المشرف: {prof_name} | السبب: {rejection_reason}"
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!V{row_idx}","values":[["مرفوضة"]]},{"range":f"Feuille 1!W{row_idx}","values":[[""]]},{"range":f"Feuille 1!X{row_idx}","values":[[""]]},{"range":f"Feuille 1!AB{row_idx}","values":[[rejection_full]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!T{row_idx}","values":[["مرفوضة"]]},{"range":f"Feuille 1!U{row_idx}","values":[[""]]},{"range":f"Feuille 1!V{row_idx}","values":[[""]]},{"range":f"Feuille 1!Z{row_idx}","values":[[rejection_full]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم تسجيل الإعادة وفتح الإيداع"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -733,7 +733,7 @@ def save_prof_notes(memo_number, prof_name, notes_text):
         row_idx = row.index[0]+2
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         note_full = f"ملاحظات المشرف {prof_name} [{timestamp}]: {notes_text}"
-        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!AB{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[note_full]]}).execute()
+        sheets_service.spreadsheets().values().update(spreadsheetId=MEMOS_SHEET_ID, range=f"Feuille 1!Z{row_idx}", valueInputOption="USER_ENTERED", body={"values":[[note_full]]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ الملاحظات"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -743,7 +743,7 @@ def save_defense_schedule(memo_number, defense_date, defense_time, defense_room)
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!Y{row_idx}","values":[[str(defense_date)]]},{"range":f"Feuille 1!Z{row_idx}","values":[[str(defense_time)]]},{"range":f"Feuille 1!AA{row_idx}","values":[[defense_room]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!W{row_idx}","values":[[str(defense_date)]]},{"range":f"Feuille 1!X{row_idx}","values":[[str(defense_time)]]},{"range":f"Feuille 1!Y{row_idx}","values":[[defense_room]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ الموعد"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -779,7 +779,7 @@ def publish_memos(memo_numbers=None):
             col = "حالة الإيداع"
             targets = df_memos[df_memos[col].astype(str).str.strip()=="قابلة للمناقشة"] if col in df_memos.columns else pd.DataFrame()
         if targets.empty: return False, "لا توجد مذكرات"
-        updates = [{"range":f"Feuille 1!AF{idx+2}","values":[["نعم"]]} for idx in targets.index]
+        updates = [{"range":f"Feuille 1!AD{idx+2}","values":[["نعم"]]} for idx in targets.index]
         sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":updates}).execute()
         clear_cache_and_reload(); return True, f"✅ تم نشر {len(updates)} مذكرة"
     except Exception as e: return False, f"❌ {str(e)}"
@@ -1111,10 +1111,10 @@ def save_full_schedule_to_sheets(schedule, df_memos):
             if not slot: continue
             row_idx = i+2
             updates += [
-                {"range":f"Feuille 1!Y{row_idx}","values":[[slot[0]]]},
-                {"range":f"Feuille 1!Z{row_idx}","values":[[slot[1]]]},
-                {"range":f"Feuille 1!AA{row_idx}","values":[[slot[2]]]},
-                {"range":f"Feuille 1!AF{row_idx}","values":[["نعم"]]},
+                {"range":f"Feuille 1!W{row_idx}","values":[[slot[0]]]},
+                {"range":f"Feuille 1!X{row_idx}","values":[[slot[1]]]},
+                {"range":f"Feuille 1!Y{row_idx}","values":[[slot[2]]]},
+                {"range":f"Feuille 1!AD{row_idx}","values":[["نعم"]]},
             ]
         if updates:
             sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID,body={"valueInputOption":"USER_ENTERED","data":updates}).execute()
@@ -1499,7 +1499,7 @@ elif st.session_state.user_type == "student":
                 st.markdown(f"""<div class="defense-schedule-card"><h4 style="color:#818CF8!important;margin:0 0 6px;">📅 موعد مناقشتك</h4><div class="defense-info-grid"><div class="defense-info-item"><div class="defense-info-label">📆 التاريخ</div><div class="defense-info-value">{def_date_m}</div></div><div class="defense-info-item"><div class="defense-info-label">🕐 التوقيت</div><div class="defense-info-value">{def_time_m if def_time_m and def_time_m!='nan' else '—'}</div></div><div class="defense-info-item"><div class="defense-info-label">🏛️ القاعة</div><div class="defense-info-value">{def_room_m if def_room_m and def_room_m!='nan' else '—'}</div></div></div></div>""", unsafe_allow_html=True)
                 president_s = str(memo_info.get("AA","")).strip() if "AA" in memo_info.index else ""
                 exam1_s     = str(memo_info.get("AB","")).strip() if "AB" in memo_info.index else ""
-                exam2_s     = str(memo_info.get("AC","")).strip() if "AC" in memo_info.index else ""
+                exam2_s     = str(memo_info.get("AA","")).strip() if "AA" in memo_info.index else ""
                 if president_s and president_s not in ["","nan"]:
                     members_html = f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-president">🏛️</div><div class="jury-member-role role-president">رئيس اللجنة</div><div class="jury-member-name">{president_s}</div></div><div class="jury-member-card"><div class="jury-member-avatar avatar-supervisor">👨‍🏫</div><div class="jury-member-role role-supervisor">المشرف</div><div class="jury-member-name">{prof_name_m}</div></div>"""
                     if exam1_s and exam1_s!='nan': members_html += f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-examiner">📋</div><div class="jury-member-role role-examiner">مناقش 1</div><div class="jury-member-name">{exam1_s}</div></div>"""
@@ -1927,7 +1927,7 @@ elif st.session_state.user_type == "professor":
                         with st.expander(exp_label, expanded=False):
                             president_j=str(jm.get("AA","")).strip() if "AA" in jm.index else ""
                             exam1_j=str(jm.get("AB","")).strip() if "AB" in jm.index else ""
-                            exam2_j=str(jm.get("AC","")).strip() if "AC" in jm.index else ""
+                            exam2_j=str(jm.get("AA","")).strip() if "AA" in jm.index else ""
                             sup_j=str(jm.get("الأستاذ","")).strip()
                             mem_html=f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-supervisor">👨‍🏫</div><div class="jury-member-role role-supervisor">المشرف</div><div class="jury-member-name">{sup_j}</div></div>"""
                             if president_j and president_j!='nan': mem_html=f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-president">🏛️</div><div class="jury-member-role role-president">رئيس اللجنة</div><div class="jury-member-name">{president_j}</div></div>"""+mem_html
@@ -2230,7 +2230,7 @@ elif st.session_state.user_type == "admin":
                                     updates_jury+=[
                                         {"range":f"Feuille 1!AA{row_idx_j}","values":[[str(row_j["الرئيس"])]]},
                                         {"range":f"Feuille 1!AB{row_idx_j}","values":[[str(row_j["المناقش 1"])]]},
-                                        {"range":f"Feuille 1!AC{row_idx_j}","values":[[str(row_j["المناقش 2"])]]},
+                                        {"range":f"Feuille 1!AA{row_idx_j}","values":[[str(row_j["المناقش 2"])]]},
                                     ]
                                     saved_count+=1
                                 if updates_jury:
