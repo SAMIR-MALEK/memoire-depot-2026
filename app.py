@@ -2294,7 +2294,7 @@ elif st.session_state.user_type == "admin":
             ready_mask = df_memos_j.apply(_is_ready, axis=1)
             ready_memos_j = df_memos_j[ready_mask].copy()
             total_ready_j = len(ready_memos_j)
-            already_sched_j = len(ready_memos_j[ready_memos_j["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"])]) if "تاريخ المناقشة" in ready_memos_j.columns else 0
+            already_sched_j = len(ready_memos_j[ready_memos_j.get("تاريخ المناقشة",pd.Series(dtype=str)).astype(str).str.strip().apply(lambda x: x not in ["","nan"])]) if "تاريخ المناقشة" in ready_memos_j.columns else 0
 
             c1j,c2j,c3j = st.columns(3)
             with c1j: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#FFD700;">{total_ready_j}</div><div class="kpi-label">🎓 جاهزة للجدولة</div></div>''', unsafe_allow_html=True)
@@ -2311,12 +2311,12 @@ elif st.session_state.user_type == "admin":
                     st.markdown("**📆 الأيام**")
                     num_days_j = st.number_input("عدد أيام المناقشات",min_value=3,max_value=15,value=7,key="j_ndays")
                     base_date_j = st.date_input("تاريخ البداية",value=date.today(),key="j_basedate")
-                    from datetime import timedelta as _td
+                    import datetime as _dt
                     gen_days_j = []
                     d_j = base_date_j
                     while len(gen_days_j) < num_days_j:
                         if d_j.weekday() not in [4,5]: gen_days_j.append(d_j.strftime("%Y-%m-%d"))
-                        d_j += _td(days=1)
+                        d_j += _dt.timedelta(days=1)
                     st.info(f"الأيام: {' | '.join(gen_days_j)}")
 
                 with col_p2:
@@ -2352,9 +2352,9 @@ elif st.session_state.user_type == "admin":
                                 st.session_state["j_schedule"] = named_sched
                                 st.session_state["j_score"] = score_j
                                 st.session_state["j_unplaced"] = unpl_j
-                                st.session_state["j_slots_list"] = gen_slots_j
-                                st.session_state["j_days_list"] = gen_days_j
-                                st.session_state["j_rooms_list"] = gen_rooms_j
+                                st.session_state["j_slots"] = gen_slots_j
+                                st.session_state["j_days"] = gen_days_j
+                                st.session_state["j_rooms"] = gen_rooms_j
                             st.success(f"✅ جدول أولي جاهز! الجودة: {score_j}%")
                             st.rerun()
                 with c_g2:
@@ -2362,9 +2362,9 @@ elif st.session_state.user_type == "admin":
                     if st.button("⚡ تحسين (Simulated Annealing)",use_container_width=True,key="j_improve",disabled=disabled_improve):
                         with st.spinner("⚡ جاري التحسين المتقدم... (قد يستغرق 20 ثانية)"):
                             cur_sched = st.session_state["j_schedule"]
-                            sl_j = st.session_state.get("j_slots_list",gen_slots_j)
-                            dy_j = st.session_state.get("j_days_list",gen_days_j)
-                            rm_j = st.session_state.get("j_rooms_list",gen_rooms_j)
+                            sl_j = st.session_state.get("j_slots",gen_slots_j)
+                            dy_j = st.session_state.get("j_days",gen_days_j)
+                            rm_j = st.session_state.get("j_rooms",gen_rooms_j)
                             s2i = {s:i for i,s in enumerate(sl_j)}
                             idx_sched = {m:(s[0],s2i.get(s[1],0),s[2]) if s else None for m,s in cur_sched.items()}
                             memo_list_j2,conflicts_j2 = build_conflict_matrix(ready_memos_j)
@@ -2387,9 +2387,9 @@ elif st.session_state.user_type == "admin":
                     j_sched = st.session_state["j_schedule"]
                     j_score = st.session_state.get("j_score",0)
                     j_unpl = st.session_state.get("j_unplaced",0)
-                    j_sl = st.session_state.get("j_slots_list",gen_slots_j)
-                    j_dy = st.session_state.get("j_days_list",gen_days_j)
-                    j_rm = st.session_state.get("j_rooms_list",gen_rooms_j)
+                    j_sl = st.session_state.get("j_slots",gen_slots_j)
+                    j_dy = st.session_state.get("j_days",gen_days_j)
+                    j_rm = st.session_state.get("j_rooms",gen_rooms_j)
 
                     sc_color = "#10B981" if j_score>=90 else "#F59E0B" if j_score>=70 else "#EF4444"
                     st.markdown(f'''<div style="background:linear-gradient(135deg,#0F2942,#1A3A5C);border-radius:16px;padding:16px 24px;margin:16px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border:1px solid rgba(47,111,126,0.3);">
