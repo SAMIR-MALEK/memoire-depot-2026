@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 st.set_page_config(page_title="منصة مذكرات الماستر", page_icon="📘", layout="wide")
 
 DEPOSIT_DEADLINE = datetime(2026, 5, 23, 23, 59)
-REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
+REGISTRATION_DEADLINE = datetime(2026, 1, 28, 23, 59)
 
 def get_days_remaining():
     delta = DEPOSIT_DEADLINE - datetime.now()
