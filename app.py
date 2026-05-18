@@ -87,6 +87,14 @@ div[data-testid="stFormSubmitButton"] button p { color: #ffffff !important; }
 .stTabs [data-baseweb="tab"] { background: transparent; color: #94A3B8; font-weight: 600; padding: 10px 20px; border-radius: 10px; border: 1px solid transparent; }
 .stTabs [data-baseweb="tab"]:hover { background: rgba(255,255,255,0.08); color: white; }
 .stTabs [aria-selected="true"] { background: rgba(47,111,126,0.2); color: #FFD700; border: 1px solid #2F6F7E; font-weight: bold; }
+.streamlit-expanderHeader { color: #ffffff !important; background-color: #1E293B !important; }
+.streamlit-expanderHeader:hover { background-color: #263548 !important; color: #FFD700 !important; }
+.streamlit-expanderContent { background-color: #1A2A3D !important; }
+[data-testid="stExpander"] { background-color: #1E293B !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 10px !important; }
+[data-testid="stExpander"] summary { color: #ffffff !important; }
+[data-testid="stExpander"] summary:hover { color: #FFD700 !important; background-color: #263548 !important; }
+[data-testid="stExpander"] summary p { color: #ffffff !important; }
+[data-testid="stExpander"]:hover summary p { color: #FFD700 !important; }
 .students-grid { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin: 20px 0; }
 .student-card { flex:1; max-width:400px; min-width:260px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:22px; text-align:center; transition:all 0.3s; }
 .student-card:hover { background:rgba(255,255,255,0.06); border-color:#2F6F7E; }
