@@ -1914,11 +1914,12 @@ elif st.session_state.user_type == "professor":
 
                     if masks:
                         jury_memos = pd.concat(masks).drop_duplicates(subset=["رقم المذكرة"])
-                        # شرط العرض: AD = "نعم"
-                        if "منشور" in jury_memos.columns:
-                            jury_memos = jury_memos[jury_memos["منشور"].astype(str).str.strip() == "نعم"]
-                        elif "AD" in jury_memos.columns:
-                            jury_memos = jury_memos[jury_memos["AD"].astype(str).str.strip() == "نعم"]
+                        # المشرف يرى مذكراته دائماً، بقية الأعضاء يحتاجون AD="نعم"
+                        col_pub = "منشور" if "منشور" in jury_memos.columns else ("AD" if "AD" in jury_memos.columns else None)
+                        if col_pub:
+                            is_published_mask = jury_memos[col_pub].astype(str).str.strip() == "نعم"
+                            is_supervisor_mask = jury_memos["صفتي"] == "مشرف"
+                            jury_memos = jury_memos[is_published_mask | is_supervisor_mask]
 
                 if jury_memos.empty:
                     st.markdown("""
@@ -1991,7 +1992,7 @@ elif st.session_state.user_type == "professor":
                             # أعضاء اللجنة
                             members_html = ""
                             for m_role, m_name, m_avatar, m_cls in [
-                                ("المشرف", jsup, "👨‍🏫", "avatar-supervisor"),
+                                ("المشرف", jsup if jsup not in ["","nan"] else "—", "👨‍🏫", "avatar-supervisor"),
                                 ("رئيس اللجنة", jpres if jpres not in ["","nan"] else "—", "🏛️", "avatar-president"),
                                 ("مناقش 1", jex1 if jex1 not in ["","nan"] else "—", "📋", "avatar-examiner"),
                                 ("مناقش 2", jex2 if jex2 not in ["","nan"] else "—", "📋", "avatar-examiner"),
