@@ -1990,24 +1990,20 @@ elif st.session_state.user_type == "professor":
                             </div>''', unsafe_allow_html=True)
 
                             # أعضاء اللجنة
-                            members_html = ""
-                            for m_role, m_name, m_avatar, m_cls in [
-                                ("المشرف", jsup if jsup not in ["","nan"] else "—", "👨‍🏫", "avatar-supervisor"),
-                                ("رئيس اللجنة", jpres if jpres not in ["","nan"] else "—", "🏛️", "avatar-president"),
-                                ("مناقش 1", jex1 if jex1 not in ["","nan"] else "—", "📋", "avatar-examiner"),
-                                ("مناقش 2", jex2 if jex2 not in ["","nan"] else "—", "📋", "avatar-examiner"),
-                            ]:
-                                is_me = (m_name == prof_name)
-                                highlight = "border:2px solid #FFD700;" if is_me else ""
-                                me_badge = '<div style="font-size:0.65rem;color:#FFD700;margin-top:2px;">أنت</div>' if is_me else ""
-                                members_html += f'''<div class="jury-member-card" style="{highlight}">
-                                    <div class="jury-member-avatar {m_cls}">{m_avatar}</div>
-                                    <div class="jury-member-role">{m_role}</div>
-                                    <div class="jury-member-name">{m_name}</div>
-                                    {me_badge}
-                                </div>'''
+                            def _member_card(role, name, avatar, cls):
+                                name_clean = name if name not in ["","nan"] else "—"
+                                is_me = (name_clean == prof_name)
+                                border = 'border:2px solid #FFD700;' if is_me else ''
+                                badge = '<div style="font-size:0.65rem;color:#FFD700;margin-top:2px;">أنت</div>' if is_me else ''
+                                return f'<div class="jury-member-card" style="{border}"><div class="jury-member-avatar {cls}">{avatar}</div><div class="jury-member-role">{role}</div><div class="jury-member-name">{name_clean}</div>{badge}</div>'
 
-                            st.markdown(f'''<div class="jury-members-grid">{members_html}</div>''', unsafe_allow_html=True)
+                            members_html = (
+                                _member_card("المشرف", jsup, "👨‍🏫", "avatar-supervisor") +
+                                _member_card("رئيس اللجنة", jpres, "🏛️", "avatar-president") +
+                                _member_card("مناقش 1", jex1, "📋", "avatar-examiner") +
+                                _member_card("مناقش 2", jex2, "📋", "avatar-examiner")
+                            )
+                            st.markdown(f'<div class="jury-members-grid">{members_html}</div>', unsafe_allow_html=True)
 
                             # موعد المناقشة
                             if has_date:
