@@ -90,11 +90,15 @@ div[data-testid="stFormSubmitButton"] button p { color: #ffffff !important; }
 .streamlit-expanderHeader { color: #ffffff !important; background-color: #1E293B !important; }
 .streamlit-expanderHeader:hover { background-color: #263548 !important; color: #FFD700 !important; }
 .streamlit-expanderContent { background-color: #1A2A3D !important; }
-[data-testid="stExpander"] { background-color: #1E293B !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 10px !important; }
-[data-testid="stExpander"] summary { color: #ffffff !important; }
-[data-testid="stExpander"] summary:hover { color: #FFD700 !important; background-color: #263548 !important; }
-[data-testid="stExpander"] summary p { color: #ffffff !important; }
-[data-testid="stExpander"]:hover summary p { color: #FFD700 !important; }
+[data-testid="stExpander"] { background-color: #1E293B !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 10px !important; overflow: hidden !important; }
+[data-testid="stExpander"] * { background-color: transparent !important; }
+[data-testid="stExpander"] details { background-color: #1E293B !important; }
+[data-testid="stExpander"] details summary { color: #ffffff !important; background-color: #1E293B !important; }
+[data-testid="stExpander"] details summary:hover { color: #FFD700 !important; background-color: #263548 !important; }
+[data-testid="stExpander"] details summary span { color: #ffffff !important; }
+[data-testid="stExpander"] details summary:hover span { color: #FFD700 !important; }
+[data-testid="stExpander"] details[open] { background-color: #1A2A3D !important; }
+[data-testid="stExpander"] details[open] > div { background-color: #1A2A3D !important; }
 .students-grid { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin: 20px 0; }
 .student-card { flex:1; max-width:400px; min-width:260px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:22px; text-align:center; transition:all 0.3s; }
 .student-card:hover { background:rgba(255,255,255,0.06); border-color:#2F6F7E; }
