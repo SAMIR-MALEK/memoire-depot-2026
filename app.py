@@ -672,11 +672,9 @@ def upload_memo_to_drive(pdf_bytes, memo_number, memo_title):
     try:
         safe_title = re.sub(r'[\\/:*?"<>|]','',str(memo_title).strip())
         file_name = f"{memo_number}.{safe_title}.pdf"
-        existing = drive_service.files().list(q=f"'{DRIVE_UPLOAD_FOLDER_ID}' in parents and name contains '{memo_number}.' and trashed=false", fields="files(id,name)").execute()
+        existing = drive_service.files().list(q=f"'{DRIVE_UPLOAD_FOLDER_ID}' in parents and name = '{file_name}' and trashed=false", fields="files(id,name)").execute()
         for f in existing.get('files',[]):
-            # تحقق دقيق من اسم الملف لتجنب حذف ملفات أخرى
-            if str(f.get('name','')).startswith(f"{memo_number}."):
-                drive_service.files().delete(fileId=f['id']).execute()
+            drive_service.files().delete(fileId=f['id']).execute()
         media = MediaIoBaseUpload(io.BytesIO(pdf_bytes), mimetype='application/pdf', resumable=True)
         uploaded = drive_service.files().create(body={'name':file_name,'parents':[DRIVE_UPLOAD_FOLDER_ID]}, media_body=media, fields='id,webViewLink').execute()
         file_id = uploaded.get('id')
@@ -756,7 +754,7 @@ def save_jury(memo_number, president, exam1, exam2):
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
         if row.empty: return False, "❌ غير موجودة"
         row_idx = row.index[0]+2
-        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!AE{row_idx}","values":[[president]]},{"range":f"Feuille 1!AD{row_idx}","values":[[exam1]]},{"range":f"Feuille 1!AE{row_idx}","values":[[exam2]]}]}).execute()
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=MEMOS_SHEET_ID, body={"valueInputOption":"USER_ENTERED","data":[{"range":f"Feuille 1!AA{row_idx}","values":[[president]]},{"range":f"Feuille 1!AB{row_idx}","values":[[exam1]]},{"range":f"Feuille 1!AC{row_idx}","values":[[exam2]]}]}).execute()
         clear_cache_and_reload(); return True, "✅ تم حفظ اللجنة"
     except Exception as e: return False, f"❌ {str(e)}"
 
@@ -1468,7 +1466,8 @@ elif st.session_state.user_type == "student":
                     if uploaded_pdf:
                         pdf_bytes = uploaded_pdf.read(); size_mb = len(pdf_bytes)/(1024*1024); uploaded_pdf.seek(0)
                         st.info(f"📊 حجم الملف: {size_mb:.1f} MB")
-                        if size_mb > 50: st.error("❌ الحجم يتجاوز 10 MB")
+                        if size_mb > 20: st.error("❌ الحجم يتجاوز 20 MB")
+                        elif pdf_bytes[:4] != b'%PDF': st.error("❌ الملف ليس PDF حقيقياً — تأكد من الملف")
                         else:
                             if st.button("📤 إيداع المذكرة الآن", type="primary", use_container_width=True):
                                 with st.spinner("⏳ جاري رفع الملف..."):
