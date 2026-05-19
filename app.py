@@ -671,12 +671,30 @@ def upload_memo_to_drive(pdf_bytes, memo_number, memo_title):
     if drive_service is None: return False, "", "❌ Drive غير متاح"
     try:
         safe_title = re.sub(r'[\\/:*?"<>|]','',str(memo_title).strip())
-        file_name = f"{memo_number}.{safe_title}.pdf"
-        existing = drive_service.files().list(q=f"'{DRIVE_UPLOAD_FOLDER_ID}' in parents and name = '{file_name}' and trashed=false", fields="files(id,name)").execute()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # البحث عن النسخ القديمة لإعادة تسميتها كنسخ احتياطية
+        existing = drive_service.files().list(
+            q=f"'{DRIVE_UPLOAD_FOLDER_ID}' in parents and name contains '{memo_number}.' and not name contains '_v' and trashed=false",
+            fields="files(id,name)"
+        ).execute()
         for f in existing.get('files',[]):
-            drive_service.files().delete(fileId=f['id']).execute()
+            old_name = f.get('name','')
+            # إعادة تسمية الملف القديم كنسخة احتياطية فقط إذا كان نفس المذكرة
+            if old_name.startswith(f"{memo_number}."):
+                backup_name = old_name.replace('.pdf', f'_v{timestamp}.pdf')
+                drive_service.files().update(
+                    fileId=f['id'],
+                    body={'name': backup_name}
+                ).execute()
+
+        # رفع الملف الجديد
+        file_name = f"{memo_number}.{safe_title}.pdf"
         media = MediaIoBaseUpload(io.BytesIO(pdf_bytes), mimetype='application/pdf', resumable=True)
-        uploaded = drive_service.files().create(body={'name':file_name,'parents':[DRIVE_UPLOAD_FOLDER_ID]}, media_body=media, fields='id,webViewLink').execute()
+        uploaded = drive_service.files().create(
+            body={'name': file_name, 'parents': [DRIVE_UPLOAD_FOLDER_ID]},
+            media_body=media, fields='id,webViewLink'
+        ).execute()
         file_id = uploaded.get('id')
         drive_service.permissions().create(fileId=file_id, body={'type':'anyone','role':'reader'}).execute()
         link = uploaded.get('webViewLink', f"https://drive.google.com/file/d/{file_id}/view")
@@ -759,7 +777,7 @@ def save_jury(memo_number, president, exam1, exam2):
     except Exception as e: return False, f"❌ {str(e)}"
 
 def save_notes_by_member(memo_number, member_role, notes_text):
-    col_map = {"رئيس":"AG","مناقش1":"AH","مناقش2":"AI"}
+    col_map = {"رئيس لجنة":"AE","مناقش 1":"AF","مناقش 2":"AG"}
     col = col_map.get(member_role)
     if not col: return False, "دور غير معروف"
     try:
@@ -1893,73 +1911,105 @@ elif st.session_state.user_type == "professor":
                                 else: st.error("خطأ في الحفظ")
 
             with tab5:
-                st.subheader("🎓 لجان المناقشة وبرنامجك")
-                df_m_jury=load_memos(); jury_memos=pd.DataFrame()
+                st.subheader("🎓 لجان المناقشة")
+                df_m_jury = load_memos()
+                jury_memos = pd.DataFrame()
+
                 if not df_m_jury.empty:
-                    masks=[]
-                    for cj,rj in [("الأستاذ","مشرف"),("AC","رئيس"),("AD","مناقش1"),("AE","مناقش2")]:
-                        if cj in df_m_jury.columns:
-                            mm=df_m_jury[df_m_jury[cj].astype(str).str.strip()==prof_name.strip()]
-                            if not mm.empty: mm=mm.copy(); mm['صفتي']=rj; masks.append(mm)
+                    masks = []
+                    for col_j, role_j in [("الأستاذ","مشرف"),("الرئيس","رئيس لجنة"),("المناقش1","مناقش 1"),("المناقش2","مناقش 2")]:
+                        if col_j in df_m_jury.columns:
+                            mm = df_m_jury[df_m_jury[col_j].astype(str).str.strip() == prof_name.strip()].copy()
+                            if not mm.empty:
+                                mm["صفتي"] = role_j
+                                masks.append(mm)
                     if masks:
-                        jury_memos=pd.concat(masks).drop_duplicates(subset=["رقم المذكرة"])
-                        if "AD" in jury_memos.columns:
-                            jury_memos=jury_memos[jury_memos["AD"].astype(str).str.strip()=="نعم"]
+                        jury_memos = pd.concat(masks).drop_duplicates(subset=["رقم المذكرة"])
+                        col_pub = "منشور" if "منشور" in jury_memos.columns else ("AD" if "AD" in jury_memos.columns else None)
+                        if col_pub:
+                            is_pub = jury_memos[col_pub].astype(str).str.strip() == "نعم"
+                            is_sup = jury_memos["صفتي"] == "مشرف"
+                            jury_memos = jury_memos[is_pub | is_sup]
+
                 if jury_memos.empty:
-                    st.info("⏳ لا توجد مذكرات منشورة تخصك كعضو لجنة.")
+                    st.markdown('''<div style="background:rgba(47,111,126,0.08);border:1px solid rgba(47,111,126,0.3);border-radius:14px;padding:30px;text-align:center;margin-top:20px;"><div style="font-size:2.5rem;margin-bottom:12px;">⏳</div><div style="color:#E2E8F0;font-size:0.95rem;">لا توجد لجان منشورة تخصك حالياً.</div></div>''', unsafe_allow_html=True)
                 else:
-                    # ملخص برنامج الأستاذ
-                    has_date = jury_memos["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"]) if "تاريخ المناقشة" in jury_memos.columns else pd.Series([False]*len(jury_memos))
-                    scheduled_count = has_date.sum()
-                    if scheduled_count > 0:
-                        sched_memos = jury_memos[has_date]
-                        days_set = set(sched_memos["تاريخ المناقشة"].astype(str).str.strip().tolist())
-                        st.markdown(f'''<div style="background:linear-gradient(135deg,#0F2942,#1A3A5C);border-radius:14px;padding:16px 20px;margin-bottom:18px;border:1px solid rgba(99,102,241,0.4);">
-                            <div style="font-size:1rem;font-weight:800;color:#818CF8;margin-bottom:6px;">📅 برنامجك المعتمد</div>
-                            <div style="color:#E2E8F0;font-size:0.88rem;">{scheduled_count} مناقشة في {len(days_set)} يوم</div>
-                        </div>''', unsafe_allow_html=True)
-                    for _,jm in jury_memos.iterrows():
-                        jmid=str(jm.get("رقم المذكرة","")).strip(); role=jm.get('صفتي','')
-                        dep_link_j=str(jm.get("رابط الملف","")).strip()
-                        def_date_j=str(jm.get("تاريخ المناقشة","")).strip()
-                        def_time_j=str(jm.get("توقيت المناقشة","")).strip()
-                        def_room_j=str(jm.get("القاعة","")).strip()
-                        has_schedule = def_date_j and def_date_j not in ["","nan"]
-                        exp_label = f"{'📅' if has_schedule else '⏳'} {jmid} — {role} {'| '+def_date_j+' '+def_time_j if has_schedule else '| موعد لم يُحدد بعد'}"
+                    role_counts = jury_memos["صفتي"].value_counts().to_dict()
+                    role_icons = {"مشرف":"👨‍🏫","رئيس لجنة":"🏛️","مناقش 1":"📋","مناقش 2":"📋"}
+                    summary_html = ""
+                    for role_r,icon_r in role_icons.items():
+                        if role_r in role_counts:
+                            summary_html += f'<div style="background:rgba(47,111,126,0.12);border:1px solid rgba(47,111,126,0.3);border-radius:10px;padding:12px 20px;text-align:center;"><div style="font-size:1.5rem;">{icon_r}</div><div style="font-size:1.4rem;font-weight:900;color:#FFD700;">{role_counts[role_r]}</div><div style="font-size:0.8rem;color:#E2E8F0;">{role_r}</div></div>'
+                    st.markdown(f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px;">{summary_html}</div>', unsafe_allow_html=True)
+
+                    roles_available = ["الكل"] + [r for r in role_icons if r in role_counts]
+                    selected_role = st.selectbox("🔍 تصفية حسب الصفة:", roles_available, key="jury_role_filter")
+                    filtered = jury_memos if selected_role == "الكل" else jury_memos[jury_memos["صفتي"] == selected_role]
+                    st.markdown(f"**{len(filtered)} مذكرة**")
+                    st.markdown("---")
+
+                    for _, jm in filtered.iterrows():
+                        jmid  = str(jm.get("رقم المذكرة","")).strip()
+                        jtitle= str(jm.get("عنوان المذكرة","")).strip()
+                        jrole = str(jm.get("صفتي","")).strip()
+                        jsup  = str(jm.get("الأستاذ","")).strip()
+                        jpres = str(jm.get("الرئيس","")).strip()
+                        jex1  = str(jm.get("المناقش1","")).strip()
+                        jex2  = str(jm.get("المناقش2","")).strip()
+                        jlink = str(jm.get("رابط الملف","")).strip()
+                        jdate = str(jm.get("تاريخ المناقشة","")).strip()
+                        jtime = str(jm.get("توقيت المناقشة","")).strip()
+                        jroom = str(jm.get("القاعة","")).strip()
+                        has_date = jdate and jdate not in ["","nan"]
+                        role_color = {"مشرف":"#2F9EA0","رئيس لجنة":"#FFD700","مناقش 1":"#E2E8F0","مناقش 2":"#E2E8F0"}.get(jrole,"#E2E8F0")
+                        role_icon = role_icons.get(jrole,"📄")
+                        exp_label = f"{role_icon} {jmid} | {jrole} | {jtitle[:45]}{'...' if len(jtitle)>45 else ''}"
+
                         with st.expander(exp_label, expanded=False):
-                            president_j=str(jm.get("AE","")).strip() if "AE" in jm.index else ""
-                            exam1_j=str(jm.get("AD","")).strip() if "AD" in jm.index else ""
-                            exam2_j=str(jm.get("AE","")).strip() if "AE" in jm.index else ""
-                            sup_j=str(jm.get("الأستاذ","")).strip()
-                            mem_html=f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-supervisor">👨‍🏫</div><div class="jury-member-role role-supervisor">المشرف</div><div class="jury-member-name">{sup_j}</div></div>"""
-                            if president_j and president_j!='nan': mem_html=f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-president">🏛️</div><div class="jury-member-role role-president">رئيس اللجنة</div><div class="jury-member-name">{president_j}</div></div>"""+mem_html
-                            if exam1_j and exam1_j!='nan': mem_html+=f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-examiner">📋</div><div class="jury-member-role role-examiner">مناقش 1</div><div class="jury-member-name">{exam1_j}</div></div>"""
-                            if exam2_j and exam2_j not in ['','nan']: mem_html+=f"""<div class="jury-member-card"><div class="jury-member-avatar avatar-examiner">📋</div><div class="jury-member-role role-examiner">مناقش 2</div><div class="jury-member-name">{exam2_j}</div></div>"""
-                            defense_html=""
-                            if has_schedule:
-                                defense_html=f"""<div class="defense-schedule-card"><h4 style="color:#818CF8!important;margin:0 0 8px;">📅 موعد المناقشة</h4><div class="defense-info-grid"><div class="defense-info-item"><div class="defense-info-label">📆 التاريخ</div><div class="defense-info-value">{def_date_j}</div></div><div class="defense-info-item"><div class="defense-info-label">🕐 التوقيت</div><div class="defense-info-value">{def_time_j if def_time_j and def_time_j!='nan' else '—'}</div></div><div class="defense-info-item"><div class="defense-info-label">🏛️ القاعة</div><div class="defense-info-value">{def_room_j if def_room_j and def_room_j!='nan' else '—'}</div></div></div></div>"""
-                            st.markdown(f"""<div class="jury-card"><div class="jury-header"><div class="jury-header-icon">⚖️</div><div><div class="jury-header-title">لجنة مناقشة رقم {jmid}</div><div class="jury-header-sub" style="color:rgba(255,255,255,0.85)!important;">{str(jm.get('عنوان المذكرة',''))[:58]}</div></div></div><div class="jury-members-grid">{mem_html}</div>{defense_html}</div>""", unsafe_allow_html=True)
-                            if dep_link_j and dep_link_j!="nan":
-                                st.markdown(f'''<div style="text-align:center;margin:10px 0 16px;">
-                                    <a href="{dep_link_j}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#1E3A5F,#2F6F7E);color:#ffffff;padding:12px 28px;border-radius:11px;text-decoration:none;font-size:0.95rem;font-weight:700;box-shadow:0 6px 14px rgba(47,111,126,0.35);">
-                                        📄 معاينة المذكرة
-                                    </a>
-                                </div>''', unsafe_allow_html=True)
+                            st.markdown(f'<div style="background:linear-gradient(135deg,#0F2942,#1A3A5C);border-radius:12px;padding:16px 20px;margin-bottom:16px;border-right:4px solid {role_color};"><div style="font-size:1.3rem;font-weight:900;color:#FFD700;">{jmid} <span style="background:rgba(47,111,126,0.2);color:{role_color};padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:700;margin-right:8px;border:1px solid {role_color};">{role_icon} {jrole}</span></div><div style="color:#ffffff;font-size:0.95rem;margin-top:6px;">{jtitle}</div></div>', unsafe_allow_html=True)
+
+                            def _card(role, name, avatar, cls):
+                                n = name if name not in ["","nan"] else "—"
+                                border = "border:2px solid #FFD700;" if n == prof_name else ""
+                                badge = '<div style="font-size:0.65rem;color:#FFD700;">أنت</div>' if n == prof_name else ""
+                                return f'<div class="jury-member-card" style="{border}"><div class="jury-member-avatar {cls}">{avatar}</div><div class="jury-member-role">{role}</div><div class="jury-member-name">{n}</div>{badge}</div>'
+
+                            members = (
+                                _card("المشرف",    jsup,  "👨‍🏫","avatar-supervisor") +
+                                _card("رئيس اللجنة", jpres, "🏛️","avatar-president") +
+                                _card("مناقش 1",   jex1,  "📋","avatar-examiner") +
+                                _card("مناقش 2",   jex2,  "📋","avatar-examiner")
+                            )
+                            st.markdown(f'<div class="jury-members-grid">{members}</div>', unsafe_allow_html=True)
+
+                            if has_date:
+                                st.markdown(f'<div class="defense-schedule-card" style="margin-top:14px;"><h4 style="color:#818CF8!important;margin:0 0 10px;">📅 موعد المناقشة</h4><div class="defense-info-grid"><div class="defense-info-item"><div class="defense-info-label">📆 التاريخ</div><div class="defense-info-value">{jdate}</div></div><div class="defense-info-item"><div class="defense-info-label">🕐 التوقيت</div><div class="defense-info-value">{jtime if jtime not in ["","nan"] else "—"}</div></div><div class="defense-info-item"><div class="defense-info-label">🏛️ القاعة</div><div class="defense-info-value">{jroom if jroom not in ["","nan"] else "—"}</div></div></div></div>', unsafe_allow_html=True)
+                            else:
+                                st.markdown('<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:12px 16px;margin-top:14px;text-align:center;"><span style="color:#F59E0B;font-size:0.88rem;">⏳ لم يُحدد موعد المناقشة بعد</span></div>', unsafe_allow_html=True)
+
+                            if jlink and jlink not in ["","nan"]:
+                                st.markdown("---")
+                                cp,cd = st.columns(2)
+                                with cp:
+                                    st.markdown(f'<div style="text-align:center;"><a href="{jlink}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#1E3A5F,#2F6F7E);color:#fff;padding:10px 24px;border-radius:10px;text-decoration:none;font-weight:700;">👁️ معاينة المذكرة</a></div>', unsafe_allow_html=True)
+                                with cd:
+                                    dl = jlink.replace("/view?usp=drivesdk","").replace("/view","") + "/export?format=pdf"
+                                    st.markdown(f'<div style="text-align:center;"><a href="{dl}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#fff;padding:10px 24px;border-radius:10px;text-decoration:none;font-weight:700;">⬇️ تحميل المذكرة</a></div>', unsafe_allow_html=True)
+
                             st.markdown("---")
-                            st.markdown("**📝 ملاحظاتك على المذكرة** *(للإدارة فقط)*")
-                            notes_col_map={"مشرف":"AB","رئيس":"AG","مناقش1":"AH","مناقش2":"AI"}
-                            notes_col=notes_col_map.get(role,"AG")
-                            curr_notes=str(jm.get(notes_col,"")).strip() if notes_col in jm.index else ""
-                            if curr_notes in ["nan",""]: curr_notes=""
-                            disp_notes=curr_notes.split("]:")[1].strip() if "]:" in curr_notes else curr_notes
-                            new_notes=st.text_area("",value=disp_notes,height=100,
+                            st.markdown("**📝 ملاحظاتك** *(للإدارة فقط)*")
+                            notes_col_map = {"مشرف":"Z","رئيس لجنة":"AE","مناقش 1":"AF","مناقش 2":"AG"}
+                            notes_col = notes_col_map.get(jrole,"AE")
+                            curr = str(jm.get(notes_col,"")).strip() if notes_col in jm.index else ""
+                            if curr in ["nan",""]: curr = ""
+                            if "]:" in curr: curr = curr.split("]:")[1].strip()
+                            new_notes = st.text_area("", value=curr, height=90,
                                 placeholder="ملاحظاتك لن تظهر إلا للإدارة...",
-                                key=f"jury_notes_{jmid}_{role}")
-                            if st.button("💾 حفظ الملاحظات",key=f"save_obs_{jmid}_{role}",use_container_width=True):
-                                ok,msg=save_member_observations(jmid,prof_name,role,new_notes)
+                                key=f"notes_{jmid}_{jrole.replace(' ','_')}")
+                            if st.button("💾 حفظ الملاحظات", key=f"save_{jmid}_{jrole.replace(' ','_')}", use_container_width=True):
+                                ok,msg = save_member_observations(jmid, prof_name, jrole, new_notes)
                                 if ok: st.success(msg); clear_cache_and_reload()
                                 else: st.error(msg)
-
 
 # ================================================================
 # فضاء الإدارة
