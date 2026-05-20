@@ -2005,7 +2005,7 @@ elif st.session_state.user_type == "professor":
             st.markdown('</div>', unsafe_allow_html=True)
             if is_exhausted: st.markdown('<div class="alert-card">لقد استنفذت العناوين الأربعة المخصصة لك.</div>', unsafe_allow_html=True)
 
-            tab1,tab2,tab5=st.tabs(["المذكرات المسجلة","📅 جلسة إشراف","🎓 لجان المناقشة"])
+            tab1,tab5=st.tabs(["📄 المذكرات المسجلة","🎓 لجان المناقشة"])
             with tab1:
                 st.subheader("المذكرات المسجلة")
                 reg_memos=prof_memos[prof_memos["تم التسجيل"].astype(str).str.strip()=="نعم"]
@@ -2025,27 +2025,6 @@ elif st.session_state.user_type == "professor":
                                 st.session_state.selected_memo_id=memo['رقم المذكرة']; st.session_state.prof_action=None; st.rerun()
                 else: st.info("لا توجد مذكرات مسجلة.")
 
-            with tab2:
-                st.subheader("📅 جدولة جلسة إشراف")
-                with st.form("session_form"):
-                    c1,c2=st.columns(2)
-                    with c1: sel_date=st.date_input("تاريخ الجلسة",min_value=datetime.now().date())
-                    with c2:
-                        slots=[f"{h:02d}:{m:02d}" for h in range(8,16) for m in [0,30] if not (h==15 and m==30)]
-                        sel_time=st.selectbox("التوقيت",slots)
-                    if st.form_submit_button("📤 نشر الجلسة"):
-                        if sel_date.weekday() in [4,5]: st.error("❌ لا يمكن الجمعة أو السبت")
-                        else:
-                            session_str=format_datetime_ar(sel_date,sel_time); details=f"موعد الجلسة: {session_str}"
-                            students=get_students_of_professor(prof_name,df_m_fresh)
-                            if not students: st.warning("لا يوجد طلاب مسجلون")
-                            else:
-                                ok1,_=save_and_send_request("جلسة إشراف",prof_name,"جماعي","جلسة إشراف",details,status="منجز")
-                                update_session_date_in_sheets(prof_name,details)
-                                ok3,_=send_session_emails(students,details,prof_name)
-                                if ok1: st.success(f"✅ تم نشر الجلسة وإشعار {len(students)} طالب")
-                                else: st.error("خطأ في الحفظ")
-
             with tab5:
                 st.subheader("🎓 لجان المناقشة")
                 df_m_jury = load_memos()
@@ -2057,207 +2036,103 @@ elif st.session_state.user_type == "professor":
                         if col_j in df_m_jury.columns:
                             mm = df_m_jury[df_m_jury[col_j].astype(str).str.strip() == prof_name.strip()].copy()
                             if not mm.empty:
-                                mm["صفتي"] = role_j
+                                mm["الصفة"] = role_j
                                 masks.append(mm)
                     if masks:
                         jury_memos = pd.concat(masks).drop_duplicates(subset=["رقم المذكرة"])
                         col_pub = "منشور" if "منشور" in jury_memos.columns else ("AD" if "AD" in jury_memos.columns else None)
                         if col_pub:
                             is_pub = jury_memos[col_pub].astype(str).str.strip() == "نعم"
-                            is_sup = jury_memos["صفتي"] == "مشرف"
+                            is_sup = jury_memos["الصفة"] == "مشرف"
                             jury_memos = jury_memos[is_pub | is_sup]
 
                 if jury_memos.empty:
-                    st.markdown('<div style="background:rgba(47,111,126,0.08);border:1px solid rgba(47,111,126,0.3);border-radius:14px;padding:30px;text-align:center;margin-top:20px;"><div style="font-size:2.5rem;margin-bottom:12px;">⏳</div><div style="color:#E2E8F0;">لا توجد لجان منشورة تخصك حالياً.</div></div>', unsafe_allow_html=True)
+                    st.info("⏳ لا توجد لجان منشورة تخصك حالياً.")
                 else:
+                    # ملخص سريع
+                    role_counts = jury_memos["الصفة"].value_counts().to_dict()
                     role_icons = {"مشرف":"👨‍🏫","رئيس لجنة":"🏛️","مناقش 1":"📋","مناقش 2":"📋"}
-                    role_counts = jury_memos["صفتي"].value_counts().to_dict()
+                    summary_parts = [f"{role_icons.get(r,'')} {r}: **{n}**" for r,n in role_counts.items()]
+                    st.markdown("   |   ".join(summary_parts))
+                    st.markdown("---")
 
-                    # ملخص الأدوار
-                    summary_html = ""
-                    for role_r, icon_r in role_icons.items():
-                        if role_r in role_counts:
-                            summary_html += f'<div style="background:rgba(47,111,126,0.15);border:1px solid rgba(47,111,126,0.4);border-radius:12px;padding:14px;text-align:center;"><div style="font-size:1.6rem;">{icon_r}</div><div style="font-size:1.5rem;font-weight:900;color:#FFD700;">{role_counts[role_r]}</div><div style="font-size:0.78rem;color:#CBD5E1;">{role_r}</div></div>'
-                    st.markdown(f'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:20px;">{summary_html}</div>', unsafe_allow_html=True)
+                    # فلتر الصفة
+                    roles_list = ["الكل"] + [r for r in role_icons if r in role_counts]
+                    selected_role = st.selectbox("🔍 تصفية حسب الصفة:", roles_list, key="jury_role_filter")
+                    filtered = jury_memos if selected_role == "الكل" else jury_memos[jury_memos["الصفة"] == selected_role]
 
-                    # فلتر
-                    roles_available = ["الكل"] + [r for r in role_icons if r in role_counts]
-                    selected_role = st.selectbox("🔍 تصفية:", roles_available, key="jury_role_filter")
-                    filtered = jury_memos if selected_role == "الكل" else jury_memos[jury_memos["صفتي"] == selected_role]
+                    # ترتيب: المناقشات المحددة أولاً ثم غير المحددة
+                    def sort_key(row):
+                        d = str(row.get("تاريخ المناقشة","")).strip()
+                        return (0, d) if d and d not in ["","nan"] else (1, "")
+                    filtered = filtered.copy()
+                    filtered["_sort"] = filtered.apply(sort_key, axis=1)
+                    filtered = filtered.sort_values("_sort").drop(columns=["_sort"])
                     filtered = filtered.reset_index(drop=True)
 
-                    # بناء Accordion HTML
-                    accordion_items = ""
-                    for idx_j, jm in filtered.iterrows():
+                    st.markdown(f"**{len(filtered)} مذكرة**")
+
+                    # رأس الجدول
+                    h1,h2,h3,h4,h5,h6,h7 = st.columns([1,3,1.5,1.5,1,1,1])
+                    with h1: st.markdown("**#**")
+                    with h2: st.markdown("**العنوان**")
+                    with h3: st.markdown("**الصفة**")
+                    with h4: st.markdown("**تاريخ المناقشة**")
+                    with h5: st.markdown("**التوقيت**")
+                    with h6: st.markdown("**القاعة**")
+                    with h7: st.markdown("**إجراء**")
+                    st.markdown('<hr style="margin:4px 0;border-color:rgba(255,255,255,0.15);">', unsafe_allow_html=True)
+
+                    for _, jm in filtered.iterrows():
                         jmid  = str(jm.get("رقم المذكرة","")).strip()
                         jtitle= str(jm.get("عنوان المذكرة","")).strip()
-                        jrole = str(jm.get("صفتي","")).strip()
-                        jsup  = str(jm.get("الأستاذ","")).strip()
-                        jpres = str(jm.get("الرئيس","")).strip()
-                        jex1  = str(jm.get("المناقش1","")).strip()
-                        jex2  = str(jm.get("المناقش2","")).strip()
+                        jrole = str(jm.get("الصفة","")).strip()
                         jlink = str(jm.get("رابط الملف","")).strip()
                         jdate = str(jm.get("تاريخ المناقشة","")).strip()
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
-                        has_date = jdate and jdate not in ["","nan"]
-                        role_color = {"مشرف":"#2F9EA0","رئيس لجنة":"#FFD700","مناقش 1":"#94A3B8","مناقش 2":"#94A3B8"}.get(jrole,"#94A3B8")
+                        jdate_display = jdate if jdate and jdate not in ["","nan"] else "⏳ لم يُحدد"
+                        jtime_display = jtime if jtime and jtime not in ["","nan"] else "—"
+                        jroom_display = jroom if jroom and jroom not in ["","nan"] else "—"
                         role_icon = role_icons.get(jrole,"📄")
 
-                        # بطاقات الأعضاء
-                        def member_card(role, name, avatar, highlight=False):
-                            n = name if name not in ["","nan","—",""] else "—"
-                            border = "border:2px solid #FFD700;box-shadow:0 0 12px rgba(255,215,0,0.3);" if highlight else "border:1px solid rgba(255,255,255,0.1);"
-                            badge = '<div style="font-size:0.6rem;color:#FFD700;font-weight:700;margin-top:2px;">★ أنت</div>' if highlight else ""
-                            return f'''<div style="background:rgba(255,255,255,0.05);{border}border-radius:10px;padding:12px 8px;text-align:center;min-width:100px;">
-                                <div style="font-size:1.6rem;margin-bottom:4px;">{avatar}</div>
-                                <div style="font-size:0.7rem;color:#94A3B8;margin-bottom:4px;">{role}</div>
-                                <div style="font-size:0.82rem;color:#E2E8F0;font-weight:600;line-height:1.3;">{n}</div>
-                                {badge}
-                            </div>'''
+                        c1,c2,c3,c4,c5,c6,c7 = st.columns([1,3,1.5,1.5,1,1,1])
+                        with c1:
+                            st.markdown(f"**{jmid}**")
+                        with c2:
+                            st.markdown(f"{jtitle[:40]}{'...' if len(jtitle)>40 else ''}")
+                        with c3:
+                            st.markdown(f"{role_icon} {jrole}")
+                        with c4:
+                            color = "#10B981" if jdate and jdate not in ["","nan"] else "#F59E0B"
+                            st.markdown(f'<span style="color:{color};font-weight:600;">{jdate_display}</span>', unsafe_allow_html=True)
+                        with c5:
+                            st.markdown(jtime_display)
+                        with c6:
+                            st.markdown(jroom_display)
+                        with c7:
+                            if jlink and jlink not in ["","nan"]:
+                                st.markdown(f'<a href="{jlink}" target="_blank" style="background:#2F6F7E;color:#fff;padding:4px 10px;border-radius:6px;text-decoration:none;font-size:0.8rem;">👁️ معاينة</a>', unsafe_allow_html=True)
+                            else:
+                                st.markdown('<span style="color:#64748B;font-size:0.8rem;">لا ملف</span>', unsafe_allow_html=True)
 
-                        members_html = (
-                            member_card("المشرف", jsup, "👨‍🏫", jsup==prof_name) +
-                            member_card("رئيس اللجنة", jpres, "🏛️", jpres==prof_name) +
-                            member_card("مناقش 1", jex1, "📋", jex1==prof_name) +
-                            member_card("مناقش 2", jex2, "📋", jex2==prof_name)
-                        )
+                        st.markdown('<hr style="margin:2px 0;border-color:rgba(255,255,255,0.06);">', unsafe_allow_html=True)
 
-                        # موعد المناقشة
-                        if has_date:
-                            schedule_html = f'''<div style="background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.3);border-radius:10px;padding:14px;margin-top:14px;">
-                                <div style="color:#818CF8;font-weight:700;margin-bottom:10px;">📅 موعد المناقشة</div>
-                                <div style="display:flex;gap:16px;flex-wrap:wrap;">
-                                    <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 14px;text-align:center;">
-                                        <div style="font-size:0.7rem;color:#94A3B8;">📆 التاريخ</div>
-                                        <div style="color:#E2E8F0;font-weight:700;">{jdate}</div>
-                                    </div>
-                                    <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 14px;text-align:center;">
-                                        <div style="font-size:0.7rem;color:#94A3B8;">🕐 التوقيت</div>
-                                        <div style="color:#E2E8F0;font-weight:700;">{jtime if jtime not in ["","nan"] else "—"}</div>
-                                    </div>
-                                    <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:8px 14px;text-align:center;">
-                                        <div style="font-size:0.7rem;color:#94A3B8;">🏛️ القاعة</div>
-                                        <div style="color:#E2E8F0;font-weight:700;">{jroom if jroom not in ["","nan"] else "—"}</div>
-                                    </div>
-                                </div>
-                            </div>'''
-                        else:
-                            schedule_html = '<div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;padding:10px 14px;margin-top:14px;text-align:center;"><span style="color:#F59E0B;font-size:0.85rem;">⏳ لم يُحدد موعد المناقشة بعد</span></div>'
-
-                        # روابط المذكرة
-                        if jlink and jlink not in ["","nan"]:
-                            dl = jlink.replace("/view?usp=drivesdk","").replace("/view","") + "/export?format=pdf"
-                            links_html = f'''<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
-                                <a href="{jlink}" target="_blank" style="flex:1;min-width:120px;background:linear-gradient(135deg,#1E3A5F,#2F6F7E);color:#fff;padding:10px;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.85rem;text-align:center;display:block;">👁️ معاينة</a>
-                                <a href="{dl}" target="_blank" style="flex:1;min-width:120px;background:linear-gradient(135deg,#1a472a,#2d6a4f);color:#fff;padding:10px;border-radius:10px;text-decoration:none;font-weight:700;font-size:0.85rem;text-align:center;display:block;">⬇️ تحميل</a>
-                            </div>'''
-                        else:
-                            links_html = '<div style="color:#64748B;font-size:0.8rem;margin-top:10px;text-align:center;">⚠️ لا يوجد ملف مرفوع</div>'
-
-                        short_title = jtitle[:50] + ("..." if len(jtitle)>50 else "")
-
-                        accordion_items += f'''
-                        <div class="acc-item" id="acc-{idx_j}">
-                            <div class="acc-header" onclick="toggleAcc({idx_j})">
-                                <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-                                    <span style="background:rgba(47,111,126,0.2);color:{role_color};padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;border:1px solid {role_color};white-space:nowrap;">{role_icon} {jrole}</span>
-                                    <span style="color:#FFD700;font-weight:900;font-size:1rem;white-space:nowrap;">{jmid}</span>
-                                    <span style="color:#CBD5E1;font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{short_title}</span>
-                                </div>
-                                <span class="acc-arrow" id="arrow-{idx_j}" style="color:#94A3B8;font-size:1rem;transition:transform 0.3s;">▼</span>
-                            </div>
-                            <div class="acc-body" id="body-{idx_j}">
-                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:4px;">
-                                    {members_html}
-                                </div>
-                                {schedule_html}
-                                {links_html}
-                                <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08);">
-                                    <div style="color:#94A3B8;font-size:0.8rem;margin-bottom:6px;">📝 لإضافة ملاحظات — استخدم القسم أدناه</div>
-                                </div>
-                            </div>
-                        </div>'''
-
-                    # CSS + JS للـ Accordion
-                    accordion_css_js = '''<style>
-                    .acc-item {
-                        background: #1E293B;
-                        border: 1px solid rgba(255,255,255,0.08);
-                        border-radius: 12px;
-                        margin-bottom: 8px;
-                        overflow: hidden;
-                        transition: box-shadow 0.3s;
-                    }
-                    .acc-item:hover { box-shadow: 0 4px 20px rgba(47,111,126,0.2); }
-                    .acc-header {
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                        padding: 14px 18px;
-                        cursor: pointer;
-                        background: #1E293B;
-                        transition: background 0.2s;
-                        user-select: none;
-                    }
-                    .acc-header:hover { background: #263548; }
-                    .acc-item.active .acc-header { background: #1A3A5C; border-bottom: 1px solid rgba(47,111,126,0.3); }
-                    .acc-body {
-                        max-height: 0;
-                        overflow: hidden;
-                        transition: max-height 0.4s ease, padding 0.3s;
-                        padding: 0 18px;
-                        background: #162032;
-                    }
-                    .acc-item.active .acc-body {
-                        max-height: 800px;
-                        padding: 16px 18px;
-                    }
-                    .acc-item.active .acc-arrow { transform: rotate(180deg); color: #FFD700 !important; }
-                    </style>
-                    <script>
-                    function toggleAcc(idx) {
-                        var items = document.querySelectorAll(".acc-item");
-                        items.forEach(function(item, i) {
-                            if (i === idx) {
-                                item.classList.toggle("active");
-                            } else {
-                                item.classList.remove("active");
-                            }
-                        });
-                    }
-                    </script>'''
-
-                    import streamlit.components.v1 as _components
-                    _components.html(
-                        accordion_css_js + f'<div style="margin-top:8px;">{accordion_items}</div>',
-                        height=min(800, 120 + len(filtered) * 70),
-                        scrolling=True
-                    )
-
-                    # قسم الملاحظات (Streamlit)
-                    st.markdown("---")
-                    st.markdown("**📝 ملاحظاتك على مذكرة:**")
-                    notes_options = [(str(jm.get("رقم المذكرة","")), str(jm.get("صفتي",""))) for _,jm in filtered.iterrows()]
-                    notes_labels = [f"{r[0]} | {r[1]}" for r in notes_options]
-                    if notes_labels:
-                        selected_note = st.selectbox("اختر المذكرة:", notes_labels, key="notes_select")
-                        sel_idx = notes_labels.index(selected_note)
-                        sel_memo = filtered.iloc[sel_idx]
-                        sel_id = str(sel_memo.get("رقم المذكرة","")).strip()
-                        sel_role = str(sel_memo.get("صفتي","")).strip()
+                        # زر الملاحظات
                         notes_col_map = {"مشرف":"Z","رئيس لجنة":"AE","مناقش 1":"AF","مناقش 2":"AG"}
-                        notes_col = notes_col_map.get(sel_role,"AE")
-                        curr = str(sel_memo.get(notes_col,"")).strip() if notes_col in sel_memo.index else ""
+                        notes_col = notes_col_map.get(jrole,"AE")
+                        curr = str(jm.get(notes_col,"")).strip() if notes_col in jm.index else ""
                         if curr in ["nan",""]: curr = ""
                         if "]:" in curr: curr = curr.split("]:")[1].strip()
-                        new_notes = st.text_area("ملاحظاتك:", value=curr, height=90,
-                            placeholder="ملاحظاتك لن تظهر إلا للإدارة...",
-                            key=f"notes_txt_{sel_id}_{sel_role}")
-                        if st.button("💾 حفظ الملاحظات", key=f"save_notes_{sel_id}", use_container_width=True):
-                            ok,msg = save_member_observations(sel_id, prof_name, sel_role, new_notes)
-                            if ok: st.success(msg); clear_cache_and_reload()
-                            else: st.error(msg)
+
+                        with st.expander(f"📝 ملاحظاتي على المذكرة {jmid}", expanded=False):
+                            new_notes = st.text_area("", value=curr, height=80,
+                                placeholder="ملاحظاتك لن تظهر إلا للإدارة...",
+                                key=f"notes_{jmid}_{jrole.replace(' ','_')}")
+                            if st.button("💾 حفظ", key=f"save_{jmid}_{jrole.replace(' ','_')}", use_container_width=True):
+                                ok,msg = save_member_observations(jmid, prof_name, jrole, new_notes)
+                                if ok: st.success(msg); clear_cache_and_reload()
+                                else: st.error(msg)
 
 # ================================================================
 # فضاء الإدارة
