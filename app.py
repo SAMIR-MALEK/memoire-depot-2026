@@ -1532,15 +1532,24 @@ elif st.session_state.user_type == "student":
 
             if is_missing:
                 st.markdown("""
-                <div style="background:linear-gradient(135deg,#1a0a0a,#2d1010);border:2px solid rgba(239,68,68,0.5);
-                            border-radius:16px;padding:24px 28px;margin-bottom:18px;text-align:center;">
-                    <div style="font-size:2.5rem;margin-bottom:10px;">⚠️</div>
-                    <div style="font-size:1.1rem;font-weight:900;color:#EF4444;margin-bottom:8px;">
+                <div style="background:linear-gradient(135deg,#1a0a0a,#3d0f0f);border:4px solid #EF4444;
+                            border-radius:24px;padding:48px 36px;margin-bottom:28px;text-align:center;
+                            box-shadow:0 0 60px rgba(239,68,68,0.35);">
+                    <div style="font-size:5rem;margin-bottom:20px;">🚨</div>
+                    <div style="font-size:2.2rem;font-weight:900;color:#EF4444;margin-bottom:18px;line-height:1.4;">
                         تعذّر الوصول إلى ملف مذكرتك
                     </div>
-                    <div style="font-size:0.88rem;color:#E2E8F0;line-height:1.8;">
-                        نتيجة لخلل تقني، لم يعد بالإمكان الوصول إلى الملف المرفوع سابقاً.<br>
-                        <strong style="color:#FFD700;">يُرجى إعادة رفع مذكرتك في أقرب وقت.</strong>
+                    <div style="background:rgba(239,68,68,0.12);border-radius:14px;padding:22px;margin-bottom:20px;">
+                        <div style="font-size:1.25rem;color:#FCA5A5;line-height:2.2;">
+                            نتيجة لخلل تقني طرأ على المنظومة،<br>
+                            <strong style="color:#ffffff;font-size:1.35rem;">لم يعد بالإمكان الوصول إلى الملف الذي رفعته سابقاً.</strong>
+                        </div>
+                    </div>
+                    <div style="background:rgba(255,215,0,0.12);border:3px solid rgba(255,215,0,0.5);
+                                border-radius:14px;padding:22px;">
+                        <div style="font-size:1.5rem;font-weight:900;color:#FFD700;line-height:1.8;">
+                            ⬇️ يُرجى إعادة رفع مذكرتك فوراً<br>من هذه الصفحة
+                        </div>
                     </div>
                 </div>""", unsafe_allow_html=True)
 
