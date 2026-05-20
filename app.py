@@ -2070,101 +2070,108 @@ elif st.session_state.user_type == "professor":
                     st.markdown(f"**{len(filtered)} مذكرة**")
 
                     # زر تصدير PDF
-                    # توليد PDF مباشرة
-                    try:
-                        from fpdf import FPDF
-                        from fpdf.enums import XPos, YPos
-                        import urllib.request as _req
-                        import os as _os
+                    pdf_key = f"pdf_cache_{prof_name}"
+                    if pdf_key not in st.session_state:
+                        st.session_state[pdf_key] = None
 
-                        def ar(text):
-                            t = str(text) if text is not None else ""
+                    if st.button("📥 توليد برنامج المناقشات PDF", key="gen_pdf_btn", use_container_width=True):
+                        with st.spinner("⏳ جاري توليد PDF..."):
                             try:
-                                import arabic_reshaper
-                                from bidi.algorithm import get_display
-                                result = get_display(arabic_reshaper.reshape(t))
-                                return result if result else t
-                            except:
-                                return t
+                                from fpdf import FPDF
+                                from fpdf.enums import XPos, YPos
+                                import urllib.request as _req
+                                import os as _os
 
-                        font_path = "/tmp/NotoSansArabic.ttf"
-                        if not _os.path.exists(font_path):
-                            _req.urlretrieve("https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf", font_path)
-                        font_bold = "/tmp/NotoSansArabicBold.ttf"
-                        if not _os.path.exists(font_bold):
-                            _req.urlretrieve("https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Bold.ttf", font_bold)
+                                def ar(text):
+                                    t = str(text) if text is not None else ""
+                                    try:
+                                        import arabic_reshaper
+                                        from bidi.algorithm import get_display
+                                        r = get_display(arabic_reshaper.reshape(t))
+                                        return r if r else t
+                                    except:
+                                        return t
 
-                        pdf = FPDF(orientation="L", unit="mm", format="A4")
-                        pdf.add_page()
-                        pdf.set_auto_page_break(auto=True, margin=15)
-                        pdf.set_margins(15, 15, 15)
-                        pdf.add_font("Noto", "", font_path, uni=True)
-                        pdf.add_font("Noto", "B", font_bold, uni=True)
+                                font_path = "/tmp/NotoSansArabic.ttf"
+                                if not _os.path.exists(font_path):
+                                    _req.urlretrieve("https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Regular.ttf", font_path)
+                                font_bold = "/tmp/NotoSansArabicBold.ttf"
+                                if not _os.path.exists(font_bold):
+                                    _req.urlretrieve("https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansArabic/NotoSansArabic-Bold.ttf", font_bold)
 
-                        pdf.set_font("Noto", "B", 12)
-                        pdf.set_text_color(15, 41, 66)
-                        pdf.cell(0, 8, ar("جامعة محمد البشير الإبراهيمي - برج بوعريريج"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-                        pdf.set_font("Noto", "", 10)
-                        pdf.cell(0, 7, ar("كلية الحقوق والعلوم السياسية"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-                        pdf.ln(3)
-                        pdf.set_draw_color(15, 41, 66)
-                        pdf.set_line_width(0.5)
-                        pdf.line(15, pdf.get_y(), 282, pdf.get_y())
-                        pdf.ln(4)
-                        pdf.set_font("Noto", "B", 15)
-                        pdf.set_text_color(15, 41, 66)
-                        pdf.cell(0, 10, ar("برنامج مناقشة مذكرات الماستر 2025-2026"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-                        pdf.ln(2)
-                        pdf.set_font("Noto", "", 10)
-                        pdf.set_text_color(80, 80, 80)
-                        pdf.cell(0, 7, ar(f"الأستاذ(ة): {prof_name}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-                        pdf.ln(6)
+                                pdf = FPDF(orientation="L", unit="mm", format="A4")
+                                pdf.add_page()
+                                pdf.set_auto_page_break(auto=True, margin=15)
+                                pdf.set_margins(15, 15, 15)
+                                pdf.add_font("Noto", "", font_path, uni=True)
+                                pdf.add_font("Noto", "B", font_bold, uni=True)
 
-                        col_w = [15, 100, 30, 35, 22, 25]
-                        hdrs = [ar("رقم"), ar("عنوان المذكرة"), ar("الصفة"), ar("تاريخ المناقشة"), ar("التوقيت"), ar("القاعة")]
-                        pdf.set_font("Noto", "B", 9)
-                        pdf.set_fill_color(15, 41, 66)
-                        pdf.set_text_color(255, 255, 255)
-                        for i, h in enumerate(hdrs):
-                            pdf.cell(col_w[i], 9, h, border=1, align="C", fill=True)
-                        pdf.ln()
+                                pdf.set_font("Noto", "B", 12)
+                                pdf.set_text_color(15, 41, 66)
+                                pdf.cell(0, 8, ar("جامعة محمد البشير الإبراهيمي - برج بوعريريج"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+                                pdf.set_font("Noto", "", 10)
+                                pdf.cell(0, 7, ar("كلية الحقوق والعلوم السياسية"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+                                pdf.ln(3)
+                                pdf.set_draw_color(15, 41, 66)
+                                pdf.set_line_width(0.5)
+                                pdf.line(15, pdf.get_y(), 282, pdf.get_y())
+                                pdf.ln(4)
+                                pdf.set_font("Noto", "B", 15)
+                                pdf.set_text_color(15, 41, 66)
+                                pdf.cell(0, 10, ar("برنامج مناقشة مذكرات الماستر 2025-2026"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+                                pdf.ln(2)
+                                pdf.set_font("Noto", "", 10)
+                                pdf.set_text_color(80, 80, 80)
+                                pdf.cell(0, 7, ar(f"الأستاذ(ة): {prof_name}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+                                pdf.ln(6)
 
-                        pdf.set_font("Noto", "", 8)
-                        pdf.set_text_color(30, 30, 30)
-                        fill_row = False
-                        for _, jm in filtered.iterrows():
-                            jmid  = str(jm.get("رقم المذكرة","")).strip()
-                            jtitle= str(jm.get("عنوان المذكرة","")).strip()
-                            jrole = str(jm.get("الصفة","")).strip()
-                            jdate = str(jm.get("تاريخ المناقشة","")).strip()
-                            jtime = str(jm.get("توقيت المناقشة","")).strip()
-                            jroom = str(jm.get("القاعة","")).strip()
-                            vals = [jmid, ar(jtitle[:55]+("..." if len(jtitle)>55 else "")), ar(jrole),
-                                    ar(jdate if jdate not in ["","nan"] else "-"),
-                                    ar(jtime if jtime not in ["","nan"] else "-"),
-                                    ar(jroom if jroom not in ["","nan"] else "-")]
-                            pdf.set_fill_color(248,250,252) if fill_row else pdf.set_fill_color(255,255,255)
-                            for i,v in enumerate(vals):
-                                pdf.cell(col_w[i], 8, v, border=1, align="C" if i!=1 else "R", fill=True)
-                            pdf.ln()
-                            fill_row = not fill_row
+                                col_w = [15, 100, 30, 35, 22, 25]
+                                hdrs = [ar("رقم"), ar("عنوان المذكرة"), ar("الصفة"), ar("تاريخ المناقشة"), ar("التوقيت"), ar("القاعة")]
+                                pdf.set_font("Noto", "B", 9)
+                                pdf.set_fill_color(15, 41, 66)
+                                pdf.set_text_color(255, 255, 255)
+                                for i, h in enumerate(hdrs):
+                                    pdf.cell(col_w[i], 9, h, border=1, align="C", fill=True)
+                                pdf.ln()
 
-                        pdf.ln(5)
-                        pdf.set_font("Noto", "", 8)
-                        pdf.set_text_color(150,150,150)
-                        pdf.cell(0, 6, ar(f"تم التوليد بتاريخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), align="C")
-                        pdf_bytes = bytes(pdf.output())
+                                pdf.set_font("Noto", "", 8)
+                                pdf.set_text_color(30, 30, 30)
+                                fill_row = False
+                                for _, jm in filtered.iterrows():
+                                    jmid_  = str(jm.get("رقم المذكرة","")).strip()
+                                    jtitle_= str(jm.get("عنوان المذكرة","")).strip()
+                                    jrole_ = str(jm.get("الصفة","")).strip()
+                                    jdate_ = str(jm.get("تاريخ المناقشة","")).strip()
+                                    jtime_ = str(jm.get("توقيت المناقشة","")).strip()
+                                    jroom_ = str(jm.get("القاعة","")).strip()
+                                    vals = [jmid_, ar(jtitle_[:55]+("..." if len(jtitle_)>55 else "")), ar(jrole_),
+                                            ar(jdate_ if jdate_ not in ["","nan"] else "-"),
+                                            ar(jtime_ if jtime_ not in ["","nan"] else "-"),
+                                            ar(jroom_ if jroom_ not in ["","nan"] else "-")]
+                                    pdf.set_fill_color(248,250,252) if fill_row else pdf.set_fill_color(255,255,255)
+                                    for i,v in enumerate(vals):
+                                        pdf.cell(col_w[i], 8, v, border=1, align="C" if i!=1 else "R", fill=True)
+                                    pdf.ln()
+                                    fill_row = not fill_row
 
+                                pdf.ln(5)
+                                pdf.set_font("Noto", "", 8)
+                                pdf.set_text_color(150,150,150)
+                                pdf.cell(0, 6, ar(f"تم التوليد بتاريخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), align="C")
+                                st.session_state[pdf_key] = bytes(pdf.output())
+                                st.success("✅ PDF جاهز!")
+                            except Exception as _e:
+                                st.error(f"❌ {str(_e)}")
+
+                    if st.session_state.get(pdf_key):
                         st.download_button(
-                            label="📥 تحميل برنامج المناقشات PDF",
-                            data=pdf_bytes,
+                            label="⬇️ تحميل PDF",
+                            data=st.session_state[pdf_key],
                             file_name=f"programme_{prof_name.replace(' ','_')}.pdf",
                             mime="application/pdf",
                             key="dl_pdf_btn",
                             use_container_width=True
                         )
-                    except Exception as _e:
-                        st.error(f"❌ {str(_e)}")
 
                     st.markdown("---")
 
