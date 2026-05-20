@@ -8,3 +8,5 @@ google-api-python-client
 gspread
 fpdf2
 PyMuPDF
+arabic-reshaper
+python-bidi
