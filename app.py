@@ -2072,40 +2072,49 @@ elif st.session_state.user_type == "professor":
                     # زر تصدير PDF
                     if st.button("📥 تصدير البرنامج PDF", key="export_pdf_btn"):
                         try:
-                            from reportlab.lib.pagesizes import A4
-                            from reportlab.lib import colors
-                            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                            from reportlab.lib.units import cm
-                            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-                            from reportlab.pdfbase import pdfmetrics
-                            from reportlab.pdfbase.ttfonts import TTFont
+                            from fpdf import FPDF
                             import io as _io
 
-                            buf = _io.BytesIO()
-                            doc = SimpleDocTemplate(buf, pagesize=A4,
-                                rightMargin=2*cm, leftMargin=2*cm,
-                                topMargin=2*cm, bottomMargin=2*cm)
+                            class PDF(FPDF):
+                                def header(self): pass
+                                def footer(self): pass
 
-                            story = []
-                            styles = getSampleStyleSheet()
+                            pdf = PDF(orientation="L", unit="mm", format="A4")
+                            pdf.add_page()
+                            pdf.set_margins(15, 15, 15)
 
-                            # Header style
-                            header_style = ParagraphStyle("header", fontName="Helvetica",
-                                fontSize=11, alignment=1, spaceAfter=4)
-                            title_style = ParagraphStyle("title", fontName="Helvetica-Bold",
-                                fontSize=16, alignment=1, spaceAfter=12, spaceBefore=8)
-                            sub_style = ParagraphStyle("sub", fontName="Helvetica",
-                                fontSize=10, alignment=1, spaceAfter=16, textColor=colors.grey)
+                            # Header
+                            pdf.set_font("Helvetica", "B", 11)
+                            pdf.set_text_color(15, 41, 66)
+                            pdf.cell(0, 7, "Universite Mohamed El Bachir El Ibrahimi - Bordj Bou Arreridj", ln=True, align="C")
+                            pdf.set_font("Helvetica", "", 10)
+                            pdf.cell(0, 6, "Faculte de Droit et des Sciences Politiques", ln=True, align="C")
+                            pdf.ln(4)
 
-                            story.append(Paragraph("Universite Mohamed El Bachir El Ibrahimi - Bordj Bou Arreridj", header_style))
-                            story.append(Paragraph("Faculte de Droit et des Sciences Politiques", header_style))
-                            story.append(Spacer(1, 0.3*cm))
-                            story.append(Paragraph("Programme de Soutenance des Memoires de Master 2025-2026", title_style))
-                            story.append(Paragraph(f"Enseignant(e): {prof_name}", sub_style))
-                            story.append(Spacer(1, 0.3*cm))
+                            # Title
+                            pdf.set_font("Helvetica", "B", 16)
+                            pdf.set_text_color(15, 41, 66)
+                            pdf.cell(0, 10, "Programme de Soutenance des Memoires de Master 2025-2026", ln=True, align="C")
+                            pdf.ln(2)
+                            pdf.set_font("Helvetica", "I", 10)
+                            pdf.set_text_color(100, 100, 100)
+                            pdf.cell(0, 7, f"Enseignant(e): {prof_name}", ln=True, align="C")
+                            pdf.ln(5)
 
-                            # Table data
-                            table_data = [["N°", "Titre du memoire", "Qualite", "Date", "Heure", "Salle"]]
+                            # Table header
+                            col_w = [15, 105, 30, 30, 22, 25]
+                            headers = ["N.", "Titre du memoire", "Qualite", "Date", "Heure", "Salle"]
+                            pdf.set_font("Helvetica", "B", 9)
+                            pdf.set_fill_color(15, 41, 66)
+                            pdf.set_text_color(255, 255, 255)
+                            for i, h in enumerate(headers):
+                                pdf.cell(col_w[i], 9, h, border=1, align="C", fill=True)
+                            pdf.ln()
+
+                            # Table rows
+                            pdf.set_font("Helvetica", "", 8)
+                            pdf.set_text_color(30, 30, 30)
+                            fill = False
                             for _, jm in filtered.iterrows():
                                 jmid  = str(jm.get("رقم المذكرة","")).strip()
                                 jtitle= str(jm.get("عنوان المذكرة","")).strip()
@@ -2113,51 +2122,38 @@ elif st.session_state.user_type == "professor":
                                 jdate = str(jm.get("تاريخ المناقشة","")).strip()
                                 jtime = str(jm.get("توقيت المناقشة","")).strip()
                                 jroom = str(jm.get("القاعة","")).strip()
-                                table_data.append([
+
+                                vals = [
                                     jmid,
-                                    jtitle[:55] + ("..." if len(jtitle)>55 else ""),
+                                    jtitle[:60] + ("..." if len(jtitle)>60 else ""),
                                     jrole,
-                                    jdate if jdate not in ["","nan"] else "—",
-                                    jtime if jtime not in ["","nan"] else "—",
-                                    jroom if jroom not in ["","nan"] else "—",
-                                ])
+                                    jdate if jdate not in ["","nan"] else "-",
+                                    jtime if jtime not in ["","nan"] else "-",
+                                    jroom if jroom not in ["","nan"] else "-",
+                                ]
+                                pdf.set_fill_color(248, 250, 252) if fill else pdf.set_fill_color(255, 255, 255)
+                                for i, v in enumerate(vals):
+                                    pdf.cell(col_w[i], 8, v, border=1, align="C" if i != 1 else "L", fill=True)
+                                pdf.ln()
+                                fill = not fill
 
-                            col_widths = [1.2*cm, 8*cm, 2.8*cm, 2.5*cm, 1.8*cm, 1.8*cm]
-                            t = Table(table_data, colWidths=col_widths, repeatRows=1)
-                            t.setStyle(TableStyle([
-                                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#0F2942")),
-                                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-                                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-                                ("FONTSIZE", (0,0), (-1,0), 9),
-                                ("ALIGN", (0,0), (-1,-1), "CENTER"),
-                                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-                                ("FONTNAME", (0,1), (-1,-1), "Helvetica"),
-                                ("FONTSIZE", (0,1), (-1,-1), 8),
-                                ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F8FAFC")]),
-                                ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
-                                ("TOPPADDING", (0,0), (-1,-1), 6),
-                                ("BOTTOMPADDING", (0,0), (-1,-1), 6),
-                                ("LEFTPADDING", (0,0), (-1,-1), 4),
-                                ("RIGHTPADDING", (0,0), (-1,-1), 4),
-                            ]))
-                            story.append(t)
-                            story.append(Spacer(1, 0.5*cm))
-                            story.append(Paragraph(f"Document genere le {datetime.now().strftime('%Y-%m-%d %H:%M')}", 
-                                ParagraphStyle("footer", fontName="Helvetica", fontSize=8, 
-                                    alignment=1, textColor=colors.grey)))
+                            # Footer
+                            pdf.ln(4)
+                            pdf.set_font("Helvetica", "I", 8)
+                            pdf.set_text_color(150, 150, 150)
+                            pdf.cell(0, 6, f"Document genere le {datetime.now().strftime('%Y-%m-%d %H:%M')}", align="C")
 
-                            doc.build(story)
-                            buf.seek(0)
+                            pdf_bytes = pdf.output()
                             st.download_button(
                                 label="⬇️ تحميل PDF",
-                                data=buf.getvalue(),
-                                file_name=f"programme_soutenance_{prof_name.replace(' ','_')}.pdf",
+                                data=bytes(pdf_bytes),
+                                file_name=f"programme_{prof_name.replace(' ','_')}.pdf",
                                 mime="application/pdf",
                                 key="dl_pdf_btn"
                             )
                             st.success("✅ PDF جاهز للتحميل!")
                         except ImportError:
-                            st.error("❌ مكتبة reportlab غير متاحة")
+                            st.error("❌ أضف 'fpdf2' إلى requirements.txt")
                         except Exception as e:
                             st.error(f"❌ {str(e)}")
 
