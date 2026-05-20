@@ -1633,7 +1633,7 @@ elif st.session_state.user_type == "student":
                                             st.balloons(); clear_cache_and_reload(); time_module.sleep(2); st.rerun()
                                         else: st.error(m)
                                     else: st.error(msg)
-            elif deposit_status == "مودعة":
+            elif deposit_status == "مودعة" and not is_missing:
                 st.markdown("""<div class="notif-card notif-card-waiting"><div class="notif-icon">🟡</div><div><div class="notif-title notif-title-waiting">مذكرتك مودعة — في انتظار مراجعة المشرف</div><div class="notif-desc">تم استلام ملفك. سيراجعه المشرف ويوافق أو يرسل ملاحظاته. ستتلقى إشعاراً فور اتخاذ القرار.</div></div></div>""", unsafe_allow_html=True)
                 if deposit_date and deposit_date not in ["","nan"]: st.caption(f"📅 تاريخ الإيداع: {deposit_date}")
                 if deposit_link and deposit_link not in ["","nan"]: st.markdown(f"📎 [عرض الملف المودع]({deposit_link})")
