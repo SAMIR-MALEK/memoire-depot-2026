@@ -2078,12 +2078,14 @@ elif st.session_state.user_type == "professor":
                         import os as _os
 
                         def ar(text):
+                            t = str(text) if text is not None else ""
                             try:
                                 import arabic_reshaper
                                 from bidi.algorithm import get_display
-                                return get_display(arabic_reshaper.reshape(str(text)))
+                                result = get_display(arabic_reshaper.reshape(t))
+                                return result if result else t
                             except:
-                                return str(text)
+                                return t
 
                         font_path = "/tmp/NotoSansArabic.ttf"
                         if not _os.path.exists(font_path):
