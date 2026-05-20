@@ -1207,6 +1207,64 @@ def save_member_observations(memo_number, prof_name, role, observations):
         clear_cache_and_reload(); return True,"✅ تم حفظ الملاحظات"
     except Exception as e: return False,f"❌ {str(e)}"
 
+def send_recovery_email_to_admin(memo_number, memo_title, student1_name, student2_name=None):
+    """إرسال إيميل للإدارة عند استرجاع مذكرة مفقودة"""
+    try:
+        s2 = f" / {student2_name}" if student2_name else ""
+        body = f'''<html dir="rtl"><head><meta charset="UTF-8">
+        <style>body{{font-family:Arial,sans-serif;direction:rtl;background:#f4f4f4;padding:20px}}
+        .c{{background:#fff;padding:28px;border-radius:12px;max-width:600px;margin:auto}}
+        .h{{background:linear-gradient(135deg,#0F2942,#1a472a);color:#fff;padding:20px;border-radius:8px;text-align:center;margin-bottom:18px}}
+        .badge{{background:#10B981;color:#fff;padding:4px 14px;border-radius:20px;font-weight:700;font-size:0.9rem}}
+        </style></head><body><div class="c">
+        <div class="h"><h2>✅ استرجاع مذكرة مفقودة</h2><p style="opacity:.9;margin:4px 0">منصة مذكرات الماستر</p></div>
+        <p>تمت إعادة رفع المذكرة التالية التي كانت مفقودة:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr style="background:#f8fafc"><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700;width:40%">رقم المذكرة</td>
+                <td style="padding:10px;border:1px solid #e2e8f0"><span class="badge">{memo_number}</span></td></tr>
+            <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">عنوان المذكرة</td>
+                <td style="padding:10px;border:1px solid #e2e8f0">{memo_title}</td></tr>
+            <tr style="background:#f8fafc"><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">الطالب(ة)</td>
+                <td style="padding:10px;border:1px solid #e2e8f0">{student1_name}{s2}</td></tr>
+            <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">تاريخ الاسترجاع</td>
+                <td style="padding:10px;border:1px solid #e2e8f0">{datetime.now().strftime("%Y-%m-%d %H:%M")}</td></tr>
+        </table>
+        <div style="background:#f0fdf4;padding:14px;border-right:4px solid #10B981;border-radius:6px;margin-top:16px">
+            <p style="margin:0;color:#166534">✅ تم تحديث الرابط في قاعدة البيانات تلقائياً.</p>
+        </div>
+        <div style="text-align:center;margin-top:20px;color:#888;font-size:12px;border-top:1px solid #eee;padding-top:12px">
+            <p>جامعة محمد البشير الإبراهيمي — كلية الحقوق والعلوم السياسية</p>
+        </div></div></body></html>'''
+        msg = MIMEMultipart("alternative")
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = EMAIL_SENDER
+        msg["Subject"] = f"✅ استرجاع مذكرة مفقودة — رقم {memo_number}"
+        msg.attach(MIMEText(body, "html", "utf-8"))
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+        return True, "✅ تم إرسال إشعار للإدارة"
+    except Exception as e:
+        return False, f"❌ {str(e)}"
+
+def clear_missing_flag(memo_number):
+    """إزالة علامة المفقودة بعد إعادة الرفع"""
+    try:
+        df_memos = load_memos()
+        row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
+        if row.empty: return False
+        row_idx = row.index[0] + 2
+        sheets_service.spreadsheets().values().update(
+            spreadsheetId=MEMOS_SHEET_ID,
+            range=f"Feuille 1!AH{row_idx}",
+            valueInputOption="USER_ENTERED",
+            body={"values": [["0"]]}
+        ).execute()
+        clear_cache_and_reload()
+        return True
+    except: return False
+
 df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
 if df_students.empty or df_memos.empty or df_prof_memos.empty:
     st.error("❌ خطأ في تحميل البيانات."); st.stop()
@@ -1469,7 +1527,61 @@ elif st.session_state.user_type == "student":
             is_published   = str(memo_info.get("AF","")).strip()=="نعم" if "AF" in memo_info.index else False
             prof_name_m    = str(memo_info.get("الأستاذ","")).strip()
 
-            if deposit_status == "مرفوضة":
+            # ── تحقق من علامة المفقودة ──
+            is_missing = str(memo_info.get("مفقودة","")).strip() == "1" or str(memo_info.get("AH","")).strip() == "1"
+
+            if is_missing:
+                st.markdown("""
+                <div style="background:linear-gradient(135deg,#1a0a0a,#2d1010);border:2px solid rgba(239,68,68,0.5);
+                            border-radius:16px;padding:24px 28px;margin-bottom:18px;text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:10px;">⚠️</div>
+                    <div style="font-size:1.1rem;font-weight:900;color:#EF4444;margin-bottom:8px;">
+                        تعذّر الوصول إلى ملف مذكرتك
+                    </div>
+                    <div style="font-size:0.88rem;color:#E2E8F0;line-height:1.8;">
+                        نتيجة لخلل تقني، لم يعد بالإمكان الوصول إلى الملف المرفوع سابقاً.<br>
+                        <strong style="color:#FFD700;">يُرجى إعادة رفع مذكرتك في أقرب وقت.</strong>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
+                uploaded_recovery = st.file_uploader("📁 أعد رفع ملف المذكرة (PDF فقط)", type=["pdf"], key="upload_recovery_pdf")
+                if uploaded_recovery:
+                    rec_bytes = uploaded_recovery.read()
+                    size_mb = len(rec_bytes) / (1024*1024)
+                    uploaded_recovery.seek(0)
+                    st.info(f"📊 حجم الملف: {size_mb:.1f} MB")
+                    if size_mb > 20:
+                        st.error("❌ الحجم يتجاوز 20 MB")
+                    elif rec_bytes[:4] != b'%PDF':
+                        st.error("❌ الملف ليس PDF حقيقياً")
+                    else:
+                        if st.button("📤 إعادة رفع المذكرة", type="primary", use_container_width=True, key="btn_recovery_upload"):
+                            with st.spinner("⏳ جاري رفع الملف..."):
+                                ok, link, msg = upload_memo_to_drive(rec_bytes, note_num, memo_info["عنوان المذكرة"])
+                                if ok:
+                                    s, m = save_memo_deposit(note_num, link)
+                                    if s:
+                                        clear_missing_flag(note_num)
+                                        # إيميل للإدارة فقط
+                                        s1_ln, s1_fn = get_student_name_display(st.session_state.student1)
+                                        s1_display = f"{s1_ln} {s1_fn}".strip()
+                                        s2_display = ""
+                                        s2_obj = load_student2_for_memo(memo_info, normalize_text(st.session_state.student1.get("رقم التسجيل","")), load_students())
+                                        if s2_obj:
+                                            s2l, s2f = get_student_name_display(s2_obj)
+                                            s2_display = f"{s2l} {s2f}".strip()
+                                        send_recovery_email_to_admin(note_num, memo_info["عنوان المذكرة"], s1_display, s2_display)
+                                        st.success("✅ تمت إعادة رفع مذكرتك بنجاح!")
+                                        st.balloons()
+                                        clear_cache_and_reload()
+                                        time_module.sleep(2)
+                                        st.rerun()
+                                    else:
+                                        st.error(m)
+                                else:
+                                    st.error(msg)
+
+            elif deposit_status == "مرفوضة":
                 rejection_raw = str(memo_info.get("توقيع المشرف","")).strip()
                 reason_display = rejection_raw.split("السبب:")[-1].strip() if "السبب:" in rejection_raw else "يرجى مراجعة المشرف."
                 st.markdown(f"""<div class="notif-card notif-card-rejected"><div class="notif-icon">🔴</div><div><div class="notif-title notif-title-rejected">المذكرة بحاجة لمراجعة</div><div class="notif-desc"><strong>ملاحظات المشرف:</strong><br>{reason_display}</div></div></div>""", unsafe_allow_html=True)
