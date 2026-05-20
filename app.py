@@ -2005,7 +2005,7 @@ elif st.session_state.user_type == "professor":
             st.markdown('</div>', unsafe_allow_html=True)
             if is_exhausted: st.markdown('<div class="alert-card">لقد استنفذت العناوين الأربعة المخصصة لك.</div>', unsafe_allow_html=True)
 
-            tab1,tab5=st.tabs(["📄 المذكرات المسجلة","🎓 لجان المناقشة"])
+            tab1,tab5=st.tabs(["📄 المذكرات المسجلة","📅 برنامج المناقشات"])
             with tab1:
                 st.subheader("المذكرات المسجلة")
                 reg_memos=prof_memos[prof_memos["تم التسجيل"].astype(str).str.strip()=="نعم"]
@@ -2026,13 +2026,13 @@ elif st.session_state.user_type == "professor":
                 else: st.info("لا توجد مذكرات مسجلة.")
 
             with tab5:
-                st.subheader("🎓 لجان المناقشة")
+                st.subheader("📅 برنامج المناقشات")
                 df_m_jury = load_memos()
                 jury_memos = pd.DataFrame()
 
                 if not df_m_jury.empty:
                     masks = []
-                    for col_j, role_j in [("الأستاذ","مشرف"),("الرئيس","رئيس لجنة"),("المناقش1","مناقش 1"),("المناقش2","مناقش 2")]:
+                    for col_j, role_j in [("الأستاذ","مشرف"),("الرئيس","رئيس لجنة"),("المناقش1","مناقش"),("المناقش2","مناقش")]:
                         if col_j in df_m_jury.columns:
                             mm = df_m_jury[df_m_jury[col_j].astype(str).str.strip() == prof_name.strip()].copy()
                             if not mm.empty:
@@ -2047,10 +2047,10 @@ elif st.session_state.user_type == "professor":
                             jury_memos = jury_memos[is_pub | is_sup]
 
                 if jury_memos.empty:
-                    st.info("⏳ لا توجد لجان منشورة تخصك حالياً.")
+                    st.info("⏳ لا توجد مناقشات منشورة تخصك حالياً.")
                 else:
-                    role_icons = {"مشرف":"👨‍🏫","رئيس لجنة":"🏛️","مناقش 1":"📋","مناقش 2":"📋"}
-                    role_colors = {"مشرف":"#2F9EA0","رئيس لجنة":"#FFD700","مناقش 1":"#94A3B8","مناقش 2":"#94A3B8"}
+                    role_icons = {"مشرف":"👨‍🏫","رئيس لجنة":"🏛️","مناقش":"📋"}
+                    role_colors = {"مشرف":"#2F9EA0","رئيس لجنة":"#FFD700","مناقش":"#94A3B8"}
                     role_counts = jury_memos["الصفة"].value_counts().to_dict()
 
                     # ملخص
@@ -2062,15 +2062,108 @@ elif st.session_state.user_type == "professor":
                     selected_role = st.selectbox("🔍 تصفية:", roles_list, key="jury_role_filter")
                     filtered = jury_memos if selected_role == "الكل" else jury_memos[jury_memos["الصفة"] == selected_role]
 
-                    # ترتيب: مواعيد محددة أولاً ثم غير محددة
+                    # ترتيب
                     filtered = filtered.copy()
                     filtered["_has_date"] = filtered["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: 0 if x and x not in ["","nan"] else 1)
                     filtered = filtered.sort_values(["_has_date","تاريخ المناقشة"]).drop(columns=["_has_date"]).reset_index(drop=True)
 
                     st.markdown(f"**{len(filtered)} مذكرة**")
+
+                    # زر تصدير PDF
+                    if st.button("📥 تصدير البرنامج PDF", key="export_pdf_btn"):
+                        try:
+                            from reportlab.lib.pagesizes import A4
+                            from reportlab.lib import colors
+                            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                            from reportlab.lib.units import cm
+                            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+                            from reportlab.pdfbase import pdfmetrics
+                            from reportlab.pdfbase.ttfonts import TTFont
+                            import io as _io
+
+                            buf = _io.BytesIO()
+                            doc = SimpleDocTemplate(buf, pagesize=A4,
+                                rightMargin=2*cm, leftMargin=2*cm,
+                                topMargin=2*cm, bottomMargin=2*cm)
+
+                            story = []
+                            styles = getSampleStyleSheet()
+
+                            # Header style
+                            header_style = ParagraphStyle("header", fontName="Helvetica",
+                                fontSize=11, alignment=1, spaceAfter=4)
+                            title_style = ParagraphStyle("title", fontName="Helvetica-Bold",
+                                fontSize=16, alignment=1, spaceAfter=12, spaceBefore=8)
+                            sub_style = ParagraphStyle("sub", fontName="Helvetica",
+                                fontSize=10, alignment=1, spaceAfter=16, textColor=colors.grey)
+
+                            story.append(Paragraph("Universite Mohamed El Bachir El Ibrahimi - Bordj Bou Arreridj", header_style))
+                            story.append(Paragraph("Faculte de Droit et des Sciences Politiques", header_style))
+                            story.append(Spacer(1, 0.3*cm))
+                            story.append(Paragraph("Programme de Soutenance des Memoires de Master 2025-2026", title_style))
+                            story.append(Paragraph(f"Enseignant(e): {prof_name}", sub_style))
+                            story.append(Spacer(1, 0.3*cm))
+
+                            # Table data
+                            table_data = [["N°", "Titre du memoire", "Qualite", "Date", "Heure", "Salle"]]
+                            for _, jm in filtered.iterrows():
+                                jmid  = str(jm.get("رقم المذكرة","")).strip()
+                                jtitle= str(jm.get("عنوان المذكرة","")).strip()
+                                jrole = str(jm.get("الصفة","")).strip()
+                                jdate = str(jm.get("تاريخ المناقشة","")).strip()
+                                jtime = str(jm.get("توقيت المناقشة","")).strip()
+                                jroom = str(jm.get("القاعة","")).strip()
+                                table_data.append([
+                                    jmid,
+                                    jtitle[:55] + ("..." if len(jtitle)>55 else ""),
+                                    jrole,
+                                    jdate if jdate not in ["","nan"] else "—",
+                                    jtime if jtime not in ["","nan"] else "—",
+                                    jroom if jroom not in ["","nan"] else "—",
+                                ])
+
+                            col_widths = [1.2*cm, 8*cm, 2.8*cm, 2.5*cm, 1.8*cm, 1.8*cm]
+                            t = Table(table_data, colWidths=col_widths, repeatRows=1)
+                            t.setStyle(TableStyle([
+                                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#0F2942")),
+                                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                                ("FONTSIZE", (0,0), (-1,0), 9),
+                                ("ALIGN", (0,0), (-1,-1), "CENTER"),
+                                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                                ("FONTNAME", (0,1), (-1,-1), "Helvetica"),
+                                ("FONTSIZE", (0,1), (-1,-1), 8),
+                                ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F8FAFC")]),
+                                ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
+                                ("TOPPADDING", (0,0), (-1,-1), 6),
+                                ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+                                ("LEFTPADDING", (0,0), (-1,-1), 4),
+                                ("RIGHTPADDING", (0,0), (-1,-1), 4),
+                            ]))
+                            story.append(t)
+                            story.append(Spacer(1, 0.5*cm))
+                            story.append(Paragraph(f"Document genere le {datetime.now().strftime('%Y-%m-%d %H:%M')}", 
+                                ParagraphStyle("footer", fontName="Helvetica", fontSize=8, 
+                                    alignment=1, textColor=colors.grey)))
+
+                            doc.build(story)
+                            buf.seek(0)
+                            st.download_button(
+                                label="⬇️ تحميل PDF",
+                                data=buf.getvalue(),
+                                file_name=f"programme_soutenance_{prof_name.replace(' ','_')}.pdf",
+                                mime="application/pdf",
+                                key="dl_pdf_btn"
+                            )
+                            st.success("✅ PDF جاهز للتحميل!")
+                        except ImportError:
+                            st.error("❌ مكتبة reportlab غير متاحة")
+                        except Exception as e:
+                            st.error(f"❌ {str(e)}")
+
                     st.markdown("---")
 
-                    # بناء HTML البطاقات
+                    # البطاقات
                     cards_html = ""
                     for _, jm in filtered.iterrows():
                         jmid  = str(jm.get("رقم المذكرة","")).strip()
@@ -2089,31 +2182,31 @@ elif st.session_state.user_type == "professor":
                         r_color = role_colors.get(jrole,"#94A3B8")
                         r_icon  = role_icons.get(jrole,"📄")
 
-                        preview_btn = f'<a href="{jlink}" target="_blank" style="background:#2F6F7E;color:#fff;padding:5px 12px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;white-space:nowrap;">👁️ معاينة</a>' if has_link else '<span style="color:#475569;font-size:0.78rem;">لا ملف</span>'
+                        preview_btn = f'<a href="{jlink}" target="_blank" style="background:#1E3A5F;color:#fff;padding:5px 14px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;">👁️ معاينة</a>' if has_link else '<span style="color:#475569;font-size:0.78rem;">لا ملف</span>'
 
                         if has_date:
-                            schedule_line = f'''<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;">
-                                <span style="color:#10B981;font-size:0.85rem;font-weight:600;">📅 {jdate}</span>
+                            schedule_line = f'''<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;">
+                                <span style="color:#10B981;font-weight:700;font-size:0.85rem;">📅 {jdate}</span>
                                 <span style="color:#94A3B8;font-size:0.85rem;">🕐 {jtime if has_time else "—"}</span>
                                 <span style="color:#94A3B8;font-size:0.85rem;">🏛️ {jroom if has_room else "—"}</span>
                             </div>'''
                         else:
                             schedule_line = '<div style="margin-top:8px;"><span style="color:#F59E0B;font-size:0.82rem;">⏳ لم يُحدد موعد المناقشة بعد</span></div>'
 
-                        cards_html += f'''
-                        <div style="background:#1E293B;border:1px solid rgba(255,255,255,0.08);border-right:4px solid {r_color};
-                                    border-radius:12px;padding:14px 16px;margin-bottom:10px;">
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                                <div style="display:flex;align-items:center;gap:10px;">
+                        cards_html += f'''<div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);
+                                    border-right:4px solid {r_color};border-radius:12px;
+                                    padding:14px 16px;margin-bottom:10px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">
+                                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                                     <span style="color:#FFD700;font-size:1rem;font-weight:900;">{jmid}</span>
-                                    <span style="background:rgba(255,255,255,0.06);color:{r_color};padding:2px 10px;
-                                                border-radius:20px;font-size:0.75rem;font-weight:700;
-                                                border:1px solid {r_color};">{r_icon} {jrole}</span>
+                                    <span style="color:{r_color};background:rgba(255,255,255,0.05);padding:2px 10px;
+                                        border-radius:20px;font-size:0.75rem;font-weight:700;
+                                        border:1px solid {r_color};">{r_icon} {jrole}</span>
                                 </div>
                                 {preview_btn}
                             </div>
-                            <div style="color:#CBD5E1;font-size:0.88rem;line-height:1.5;margin-bottom:2px;">
-                                {jtitle[:65]}{"..." if len(jtitle)>65 else ""}
+                            <div style="color:#F1F5F9;font-size:0.9rem;font-weight:700;line-height:1.5;">
+                                {jtitle[:70]}{"..." if len(jtitle)>70 else ""}
                             </div>
                             {schedule_line}
                         </div>'''
