@@ -2176,7 +2176,7 @@ elif st.session_state.user_type == "professor":
   <div class="faculty">كلية الحقوق والعلوم السياسية</div>
   <div class="title">برنامج مناقشة مذكرات الماستر 2025-2026</div>
   <div class="prof-name">الأستاذ(ة): {prof_name}</div>
-  <div class="meta">عدد المذكرات: {len(filtered)} | تاريخ التصدير: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+  <div class="meta">عدد المذكرات: {len(filtered)} | التاريخ: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
 </div>
 
 <table>
@@ -2196,13 +2196,13 @@ elif st.session_state.user_type == "professor":
 </table>
 
 <div class="footer">
-  <p>وثيقة رسمية صادرة عن منصة مذكرات الماستر — جامعة محمد البشير الإبراهيمي</p>
+  <p>سيتم تحديث البرنامج دوريا</p>
 </div>
 </body>
 </html>'''
 
                     st.download_button(
-                        label="📄 تصدير البرنامج HTML (قابل للطباعة كـ PDF)",
+                        label="📄  البرنامج ",
                         data=html_export.encode("utf-8"),
                         file_name=f"programme_{prof_name.replace(' ','_')}.html",
                         mime="text/html",
