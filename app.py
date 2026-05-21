@@ -2119,6 +2119,97 @@ elif st.session_state.user_type == "professor":
 
                     st.markdown(cards_html, unsafe_allow_html=True)
 
+                    # تصدير HTML
+                    st.markdown("---")
+                    rows_html = ""
+                    for idx_r, jm_r in filtered.iterrows():
+                        jmid_r  = str(jm_r.get("رقم المذكرة","")).strip()
+                        jtitle_r= str(jm_r.get("عنوان المذكرة","")).strip()
+                        jrole_r = str(jm_r.get("الصفة","")).strip()
+                        jdate_r = str(jm_r.get("تاريخ المناقشة","")).strip()
+                        jtime_r = str(jm_r.get("توقيت المناقشة","")).strip()
+                        jroom_r = str(jm_r.get("القاعة","")).strip()
+                        jdate_r = jdate_r if jdate_r not in ["","nan"] else "—"
+                        jtime_r = jtime_r if jtime_r not in ["","nan"] else "—"
+                        jroom_r = jroom_r if jroom_r not in ["","nan"] else "—"
+                        bg = "#f8fafc" if idx_r % 2 == 0 else "#ffffff"
+                        rows_html += f'''<tr style="background:{bg};">
+                            <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:#0F2942;">{jmid_r}</td>
+                            <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:right;">{jtitle_r}</td>
+                            <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;color:#2F6F7E;font-weight:600;">{jrole_r}</td>
+                            <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;color:#059669;font-weight:600;">{jdate_r}</td>
+                            <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;">{jtime_r}</td>
+                            <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;">{jroom_r}</td>
+                        </tr>'''
+
+                    html_export = f'''<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>برنامج مناقشة مذكرات الماستر 2025-2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ font-family:'Cairo', Arial, sans-serif; direction:rtl; background:#fff; color:#1e293b; padding:30px; }}
+  .header {{ text-align:center; margin-bottom:30px; padding-bottom:20px; border-bottom:3px solid #0F2942; }}
+  .univ {{ font-size:14px; font-weight:600; color:#64748b; margin-bottom:4px; }}
+  .faculty {{ font-size:13px; color:#94a3b8; margin-bottom:16px; }}
+  .title {{ font-size:22px; font-weight:900; color:#0F2942; margin-bottom:8px; }}
+  .prof-name {{ font-size:14px; color:#2F6F7E; font-weight:600; }}
+  .meta {{ font-size:12px; color:#94a3b8; margin-top:6px; }}
+  table {{ width:100%; border-collapse:collapse; margin-top:20px; }}
+  thead tr {{ background:#0F2942; color:#ffffff; }}
+  thead th {{ padding:12px 14px; text-align:center; font-size:13px; font-weight:700; border:1px solid #1e3a5c; }}
+  thead th:nth-child(2) {{ text-align:right; }}
+  tbody td {{ font-size:12px; color:#1e293b; }}
+  .footer {{ text-align:center; margin-top:30px; font-size:11px; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:16px; }}
+  @media print {{
+    body {{ padding:15px; }}
+    .no-print {{ display:none; }}
+  }}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="univ">🎓 جامعة محمد البشير الإبراهيمي — برج بوعريريج</div>
+  <div class="faculty">كلية الحقوق والعلوم السياسية</div>
+  <div class="title">برنامج مناقشة مذكرات الماستر 2025-2026</div>
+  <div class="prof-name">الأستاذ(ة): {prof_name}</div>
+  <div class="meta">عدد المذكرات: {len(filtered)} | تاريخ التصدير: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:60px;">رقم</th>
+      <th style="text-align:right;">عنوان المذكرة</th>
+      <th style="width:110px;">الصفة</th>
+      <th style="width:120px;">تاريخ المناقشة</th>
+      <th style="width:80px;">التوقيت</th>
+      <th style="width:80px;">القاعة</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows_html}
+  </tbody>
+</table>
+
+<div class="footer">
+  <p>وثيقة رسمية صادرة عن منصة مذكرات الماستر — جامعة محمد البشير الإبراهيمي</p>
+</div>
+</body>
+</html>'''
+
+                    st.download_button(
+                        label="📄 تصدير البرنامج HTML (قابل للطباعة كـ PDF)",
+                        data=html_export.encode("utf-8"),
+                        file_name=f"programme_{prof_name.replace(' ','_')}.html",
+                        mime="text/html",
+                        key="dl_html_btn",
+                        use_container_width=True
+                    )
+
 
 
 # ================================================================
