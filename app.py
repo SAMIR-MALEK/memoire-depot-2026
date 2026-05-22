@@ -1037,6 +1037,11 @@ def decode_str(s):
 # 🧠 خوارزمية الجدولة الذكية — DSatur + Tabu Search
 # ================================================================
 
+
+# ================================================================
+# 🧠 خوارزمية الجدولة الذكية v3 — Professor-First Algorithm
+# ================================================================
+
 def get_memo_members(row):
     """استخراج كل أعضاء لجنة المذكرة"""
     members = set()
@@ -1046,356 +1051,325 @@ def get_memo_members(row):
             members.add(v)
     return members
 
-def build_conflict_matrix(df_memos):
-    """بناء مصفوفة التعارض الكاملة"""
-    memos = df_memos.copy()
-    memo_ids = memos["رقم المذكرة"].astype(str).tolist()
-    memo_members = {}
-    for _, row in memos.iterrows():
+def build_prof_memo_map(df_memos):
+    """بناء خريطة الأساتذة ومذكراتهم"""
+    prof_memos = {}  # prof -> list of memo_ids
+    memo_members = {}  # memo_id -> set of profs
+    
+    for _, row in df_memos.iterrows():
         mid = str(row["رقم المذكرة"])
-        memo_members[mid] = get_memo_members(row)
+        members = get_memo_members(row)
+        memo_members[mid] = members
+        for prof in members:
+            if prof not in prof_memos:
+                prof_memos[prof] = []
+            if mid not in prof_memos[prof]:
+                prof_memos[prof].append(mid)
+    
+    return prof_memos, memo_members
+
+def build_conflict_matrix(df_memos):
+    """بناء مصفوفة التعارض"""
+    memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
+    _, memo_members = build_prof_memo_map(df_memos)
     
     conflicts = {m: set() for m in memo_ids}
     for i in range(len(memo_ids)):
         for j in range(i+1, len(memo_ids)):
             mi, mj = memo_ids[i], memo_ids[j]
-            if memo_members[mi] & memo_members[mj]:
+            if memo_members.get(mi, set()) & memo_members.get(mj, set()):
                 conflicts[mi].add(mj)
                 conflicts[mj].add(mi)
     return memo_ids, conflicts, memo_members
 
-def dsatur_coloring(memo_ids, conflicts):
+def plan_prof_days(prof_memos_count, days, max_per_day=3, max_consecutive=3):
     """
-    DSatur — أذكى خوارزمية Graph Coloring
-    تختار دائماً المذكرة الأصعب (الأكثر تعارضاً مع الألوان المجاورة)
+    تخطيط توزيع مذكرات الأستاذ على الأيام
+    القواعد:
+    - 3 مذكرات حد أقصى في اليوم
+    - لا أكثر من 3 أيام متتالية ثم راحة
+    - أقل عدد أيام ممكن
     """
-    colors = {}          # memo_id -> color (int)
-    saturation = {m: 0 for m in memo_ids}   # عدد الألوان المجاورة المختلفة
-    adj_colors = {m: set() for m in memo_ids}  # الألوان المجاورة
+    plan = []  # list of (day_index, slots_count)
+    remaining = prof_memos_count
+    consecutive = 0
+    day_idx = 0
     
-    uncolored = set(memo_ids)
+    while remaining > 0 and day_idx < len(days):
+        if consecutive >= max_consecutive:
+            # راحة إلزامية
+            day_idx += 1
+            consecutive = 0
+            continue
+        
+        today = min(remaining, max_per_day)
+        plan.append((day_idx, today))
+        remaining -= today
+        consecutive += 1
+        day_idx += 1
     
-    while uncolored:
-        # اختر المذكرة ذات أعلى saturation (وعند التعادل أكثر تعارضاً)
-        best = max(uncolored, key=lambda m: (saturation[m], len(conflicts.get(m, set()))))
-        
-        # أصغر لون متاح
-        used_by_neighbors = {colors[n] for n in conflicts.get(best, set()) if n in colors}
-        color = 0
-        while color in used_by_neighbors:
-            color += 1
-        
-        colors[best] = color
-        uncolored.remove(best)
-        
-        # تحديث saturation للجيران
-        for neighbor in conflicts.get(best, set()):
-            if neighbor in uncolored:
-                if color not in adj_colors[neighbor]:
-                    adj_colors[neighbor].add(color)
-                    saturation[neighbor] += 1
-    
-    return colors  # memo_id -> slot_index
+    return plan
 
-def assign_days_rooms(colors, memo_ids, memo_members, days, slots_per_day, rooms):
+def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_consecutive=3):
     """
-    توزيع الألوان (توقيتات) على الأيام والقاعات
-    مع تحسين: تجميع مذكرات كل أستاذ في أيام متلاصقة
+    الخوارزمية الرئيسية — تبدأ بالأستاذ وليس بالمذكرة
+    
+    المبدأ:
+    1. رتّب الأساتذة من الأكثر مذكرات إلى الأقل
+    2. لكل أستاذ: خطط له كتلة أيام وحصص متتالية
+    3. ضع مذكراته في الحصص المخصصة له
+    4. تحقق من التعارضات مع الأساتذة الآخرين
+    5. أي مذكرة لم تُجدول → ابحث عن أي خانة فارغة
     """
-    import math
+    import random
     
-    num_slots = max(colors.values()) + 1 if colors else 1
-    num_days = len(days)
-    slots_count = len(slots_per_day)
-    total_slots = num_days * slots_count
+    prof_memos_map, memo_members = build_prof_memo_map(df_memos)
+    memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
     
-    # بناء خريطة: لون -> قائمة المذكرات
-    color_to_memos = {}
-    for mid, color in colors.items():
-        color_to_memos.setdefault(color, []).append(mid)
+    # الجدول النهائي: memo_id -> (day, slot, room)
+    schedule = {}
     
-    # حساب عبء كل أستاذ
-    prof_memos = {}
-    for mid in memo_ids:
-        pass  # سيُحسب لاحقاً
+    # خريطة الخانات المشغولة: (day, slot, room) -> memo_id
+    occupied = {}
     
-    # توزيع الألوان على (يوم، حصة)
-    # نحاول وضع ألوان متلاصقة لنفس مجموعة الأساتذة في نفس اليوم
-    color_to_slot = {}  # color -> (day_idx, slot_idx)
+    # خريطة الأستاذ في التوقيت: (day, slot, prof) -> memo_id
+    prof_busy = {}
     
-    used_slots = set()  # (day_idx, slot_idx)
+    def can_place(memo_id, day, slot, room):
+        """هل يمكن وضع المذكرة في هذه الخانة؟"""
+        if (day, slot, room) in occupied:
+            return False
+        members = memo_members.get(memo_id, set())
+        for prof in members:
+            if (day, slot, prof) in prof_busy:
+                return False
+        return True
     
-    for color in range(num_slots):
-        # ابحث عن أفضل خانة
-        placed = False
-        for day_idx in range(num_days):
-            for slot_idx in range(slots_count):
-                if (day_idx, slot_idx) not in used_slots:
-                    # تحقق من الطاقة: عدد القاعات يجب أن يكفي
-                    memos_in_slot = color_to_memos.get(color, [])
-                    if len(memos_in_slot) <= len(rooms):
-                        color_to_slot[color] = (day_idx, slot_idx)
-                        used_slots.add((day_idx, slot_idx))
+    def place_memo(memo_id, day, slot, room):
+        """وضع المذكرة في الخانة"""
+        schedule[memo_id] = (day, slot, room)
+        occupied[(day, slot, room)] = memo_id
+        members = memo_members.get(memo_id, set())
+        for prof in members:
+            prof_busy[(day, slot, prof)] = memo_id
+    
+    # رتّب الأساتذة من الأكثر مذكرات إلى الأقل
+    sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
+    
+    # تتبع المذكرات المجدولة
+    scheduled_memos = set()
+    
+    # المرحلة 1: جدولة مذكرات كل أستاذ
+    for prof, prof_memo_list in sorted_profs:
+        # المذكرات التي لم تُجدول بعد لهذا الأستاذ
+        unscheduled = [m for m in prof_memo_list if m not in scheduled_memos]
+        if not unscheduled:
+            continue
+        
+        # خطط توزيع أيامه
+        day_plan = plan_prof_days(len(unscheduled), days, max_per_day, max_consecutive)
+        
+        memo_idx = 0
+        for (day_idx, count) in day_plan:
+            if day_idx >= len(days):
+                break
+            day = days[day_idx]
+            
+            # اختر حصص متتالية قدر الإمكان في هذا اليوم
+            placed_today = 0
+            slot_idx = 0
+            
+            while placed_today < count and memo_idx < len(unscheduled):
+                if slot_idx >= len(slots_per_day):
+                    break
+                
+                slot = slots_per_day[slot_idx]
+                memo = unscheduled[memo_idx]
+                
+                # ابحث عن قاعة متاحة
+                placed = False
+                for room in rooms:
+                    if can_place(memo, day, slot, room):
+                        place_memo(memo, day, slot, room)
+                        scheduled_memos.add(memo)
+                        placed_today += 1
+                        memo_idx += 1
                         placed = True
                         break
-            if placed:
-                break
+                
+                if not placed:
+                    # جرب التوقيت التالي في نفس اليوم
+                    # لكن تحقق من الفراغ — لا فراغ أكثر من توقيت واحد
+                    if placed_today > 0:
+                        # هناك فراغ — نقبله إذا كان توقيتاً واحداً فقط
+                        gap = slot_idx - slots_per_day.index(slots_per_day[slot_idx-1]) if placed_today > 0 else 0
+                        if gap > 1:
+                            # فراغ كبير — انتقل ليوم جديد
+                            break
+                
+                slot_idx += 1
     
-    # بناء الجدول النهائي
-    schedule = {}
-    for color, (day_idx, slot_idx) in color_to_slot.items():
-        memos_in_color = color_to_memos.get(color, [])
-        for k, mid in enumerate(memos_in_color):
-            if k < len(rooms):
-                schedule[mid] = (days[day_idx], slots_per_day[slot_idx], rooms[k])
-            else:
-                schedule[mid] = None  # لا قاعة متاحة
+    # المرحلة 2: المذكرات التي لم تُجدول بعد → ابحث عن أي خانة فارغة
+    unscheduled_final = [m for m in memo_ids if m not in scheduled_memos]
     
-    # المذكرات التي لم تُوزَّع
-    for mid in memo_ids:
-        if mid not in schedule:
-            schedule[mid] = None
+    for memo in unscheduled_final:
+        placed = False
+        for day in days:
+            for slot in slots_per_day:
+                for room in rooms:
+                    if can_place(memo, day, slot, room):
+                        place_memo(memo, day, slot, room)
+                        scheduled_memos.add(memo)
+                        placed = True
+                        break
+                if placed: break
+            if placed: break
+        
+        if not placed:
+            schedule[memo] = None
     
-    return schedule
+    # تأكد أن كل المذكرات في الجدول
+    for memo in memo_ids:
+        if memo not in schedule:
+            schedule[memo] = None
+    
+    return schedule, memo_members
 
-def calc_prof_idle(schedule, memo_members, days, slots_per_day):
-    """
-    حساب دالة التقييم:
-    1. عدد أيام حضور كل أستاذ (نقلل)
-    2. الفراغ بين حصص الأستاذ في اليوم الواحد (نقلل)
-    """
+def calc_schedule_quality(schedule, memo_members, days, slots_per_day):
+    """حساب جودة الجدول من منظور الأستاذ"""
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
+    day_to_idx = {d: i for i, d in enumerate(days)}
     
-    # بناء برنامج كل أستاذ
     prof_program = {}
     for mid, slot in schedule.items():
         if not slot: continue
         day, time_slot, room = slot
-        members = memo_members.get(mid, set())
-        for prof in members:
-            if prof not in prof_program:
-                prof_program[prof] = {}
-            if day not in prof_program[prof]:
-                prof_program[prof][day] = []
-            prof_program[prof][day].append(slot_to_idx.get(time_slot, 0))
+        for prof in memo_members.get(mid, set()):
+            prof_program.setdefault(prof, {}).setdefault(day, []).append(slot_to_idx.get(time_slot, 0))
     
     total_idle = 0
     total_days = 0
+    max_gap = 0
+    
     for prof, days_dict in prof_program.items():
-        n_days = len(days_dict)
-        total_days += n_days
-        # عقوبة كبيرة جداً على التشتيت في أيام كثيرة
-        # أستاذ في 3 أيام لـ 3 مناقشات = كارثة
-        memos_count = sum(len(v) for v in days_dict.values())
-        # كل يوم إضافي عن الحد الأدنى اللازم يُعاقب بشدة
-        min_days_needed = max(1, (memos_count + 3) // 4)  # 4 حصص يومياً
-        extra_days = max(0, n_days - min_days_needed)
-        total_idle += extra_days * 50  # عقوبة 50 لكل يوم زائد
-        
+        total_days += len(days_dict)
         for day, slot_indices in days_dict.items():
             if len(slot_indices) > 1:
-                sorted_slots = sorted(slot_indices)
-                for i in range(len(sorted_slots)-1):
-                    gap = sorted_slots[i+1] - sorted_slots[i] - 1
-                    total_idle += gap * 2  # عقوبة الفراغ
+                sorted_s = sorted(slot_indices)
+                for i in range(len(sorted_s)-1):
+                    gap = sorted_s[i+1] - sorted_s[i] - 1
+                    total_idle += gap
+                    max_gap = max(max_gap, gap)
     
-    return total_idle, total_days
+    placed = len([s for s in schedule.values() if s])
+    unplaced = len([s for s in schedule.values() if not s])
+    total = len(schedule)
+    
+    placement_rate = placed / total * 100 if total else 0
+    quality = round(placement_rate * 0.7 + max(0, 30 - total_idle) * 1.0, 1)
+    
+    return min(100, quality), placed, unplaced, total_idle, total_days, max_gap
 
-def tabu_search(schedule, memo_ids, conflicts, memo_members, days, slots_per_day, rooms, iterations=800):
+def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300):
     """
-    Tabu Search — تحسين الجدول بتبادل ذكي
-    القاعدة: حاول تجميع مذكرات كل أستاذ في أيام متتالية وحصص متلاصقة
+    تحسين الجدول:
+    - ابحث عن أستاذ لديه مذكرة معزولة في يوم وحدها
+    - حاول نقلها ليوم فيه مذكرات أخرى له
     """
     import random
     
-    current = dict(schedule)
-    best = dict(current)
-    best_idle, best_days = calc_prof_idle(best, memo_members, days, slots_per_day)
-    best_score = best_idle * 2 + best_days
+    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
     
-    tabu_list = []
-    tabu_size = 20
-    
-    all_slots = [(d, s, r) for d in days for s in slots_per_day for r in rooms]
-    
-    for iteration in range(iterations):
-        # اختر أسوأ أستاذ (الأكثر فراغاً أو أكثر أياماً)
-        slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
-        prof_program = {}
-        for mid, slot in current.items():
+    def get_prof_program(sched):
+        prog = {}
+        for mid, slot in sched.items():
             if not slot: continue
             day, time_slot, room = slot
             for prof in memo_members.get(mid, set()):
-                if prof not in prof_program:
-                    prof_program[prof] = {}
-                if day not in prof_program[prof]:
-                    prof_program[prof][day] = []
-                prof_program[prof][day].append((slot_to_idx.get(time_slot, 0), mid))
+                prog.setdefault(prof, {}).setdefault(day, []).append(mid)
+        return prog
+    
+    def can_place(sched, memo_id, day, slot, room):
+        for other_mid, other_slot in sched.items():
+            if other_mid == memo_id or not other_slot: continue
+            if other_slot == (day, slot, room): return False
+            if other_slot[0] == day and other_slot[1] == slot:
+                if memo_members.get(memo_id, set()) & memo_members.get(other_mid, set()):
+                    return False
+        return True
+    
+    current = dict(schedule)
+    _, _, _, cur_idle, cur_days, _ = calc_schedule_quality(current, memo_members, days, slots_per_day)
+    cur_score = cur_idle + cur_days * 10
+    
+    for _ in range(iterations):
+        prog = get_prof_program(current)
         
-        # ابحث عن مذكرة يمكن تحسين وضعها
-        best_move = None
-        best_move_score = float('inf')
+        # ابحث عن أستاذ له يوم فيه مذكرة واحدة فقط
+        lonely_memos = []
+        for prof, days_dict in prog.items():
+            if len(days_dict) <= 1: continue
+            for day, memos in days_dict.items():
+                if len(memos) == 1:
+                    lonely_memos.append((prof, day, memos[0]))
         
-        # أولوية: الأساتذة الأكثر تشتتاً في أيام كثيرة
-        candidates = []
-        for prof, days_dict in prof_program.items():
-            memos_count = sum(len(v) for v in days_dict.values())
-            min_days_needed = max(1, (memos_count + 3) // 4)
-            extra_days = len(days_dict) - min_days_needed
-            if extra_days > 0:
-                # اختر مذكرة من يوم فيه مناقشة واحدة فقط
-                for day, slots_memos in days_dict.items():
-                    if len(slots_memos) == 1:
-                        candidates.append((extra_days * 100, slots_memos[0][1], prof))
-            # أيضاً: أساتذة لديهم فراغ بين حصصهم
-            for day, slots_memos in days_dict.items():
-                if len(slots_memos) > 1:
-                    sorted_sm = sorted(slots_memos)
-                    for i in range(len(sorted_sm)-1):
-                        gap = sorted_sm[i+1][0] - sorted_sm[i][0] - 1
-                        if gap > 0:
-                            candidates.append((gap * 2, sorted_sm[i][1], prof))
-        
-        if not candidates:
+        if not lonely_memos:
             break
         
-        candidates.sort(reverse=True)
-        target_memo = candidates[0][1] if candidates else None
+        random.shuffle(lonely_memos)
+        prof, lonely_day, lonely_memo = lonely_memos[0]
+        old_slot = current[lonely_memo]
+        if not old_slot: continue
         
-        if not target_memo or target_memo in tabu_list:
-            target_memo = random.choice(memo_ids)
+        # حاول نقلها ليوم فيه مذكرات أخرى لنفس الأستاذ
+        best_day = None
+        best_slot_val = None
         
-        old_slot = current.get(target_memo)
+        for target_day, target_memos in prog.get(prof, {}).items():
+            if target_day == lonely_day: continue
+            if len(target_memos) >= 3: continue  # اليوم ممتلئ
+            
+            # جرب وضعها في توقيت متتالي مع مذكرات الأستاذ في هذا اليوم
+            for slot in slots_per_day:
+                for room in rooms:
+                    if can_place(current, lonely_memo, target_day, slot, room):
+                        current[lonely_memo] = (target_day, slot, room)
+                        _, _, _, new_idle, new_days, _ = calc_schedule_quality(current, memo_members, days, slots_per_day)
+                        new_score = new_idle + new_days * 10
+                        if new_score < cur_score:
+                            cur_score = new_score
+                            best_day = target_day
+                            best_slot_val = (target_day, slot, room)
+                        current[lonely_memo] = old_slot
+                        break
+                if best_slot_val: break
+            if best_day: break
         
-        # جرّب خانات بديلة
-        random.shuffle(all_slots)
-        for new_slot in all_slots[:50]:
-            if new_slot == old_slot: continue
-            # تحقق من عدم التعارض
-            conflict_found = False
-            for other_mid, other_slot in current.items():
-                if other_mid == target_memo or not other_slot: continue
-                if other_slot[0] == new_slot[0] and other_slot[1] == new_slot[1] and other_slot[2] == new_slot[2]:
-                    conflict_found = True; break
-                if other_slot[0] == new_slot[0] and other_slot[1] == new_slot[1]:
-                    if other_mid in conflicts.get(target_memo, set()):
-                        conflict_found = True; break
-            
-            if conflict_found: continue
-            
-            # حساب النتيجة بعد التبادل
-            current[target_memo] = new_slot
-            new_idle, new_days = calc_prof_idle(current, memo_members, days, slots_per_day)
-            new_score = new_idle * 2 + new_days
-            
-            if new_score < best_move_score:
-                best_move_score = new_score
-                best_move = new_slot
-            
-            current[target_memo] = old_slot
-        
-        if best_move:
-            current[target_memo] = best_move
-            tabu_list.append(target_memo)
-            if len(tabu_list) > tabu_size:
-                tabu_list.pop(0)
-            
-            cur_idle, cur_days = calc_prof_idle(current, memo_members, days, slots_per_day)
-            cur_score = cur_idle + cur_days * 100  # أيام الحضور أهم بكثير
-            if cur_score < best_score:
-                best = dict(current)
-                best_score = cur_score
-                best_idle = cur_idle
-                best_days = cur_days
-    
-    return best, best_idle, best_days
-
-def post_optimize(schedule, memo_ids, conflicts, memo_members, days, slots_per_day, rooms):
-    """
-    تحسين ما بعد Tabu: ضغط مذكرات كل أستاذ في حصص متتالية
-    """
-    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
-    idx_to_slot = {i: s for i, s in enumerate(slots_per_day)}
-    
-    current = dict(schedule)
-    
-    # لكل أستاذ، اجمع مذكراته
-    for attempt in range(3):
-        prof_program = {}
-        for mid, slot in current.items():
-            if not slot: continue
-            day, time_slot, room = slot
-            for prof in memo_members.get(mid, set()):
-                prof_program.setdefault(prof, {}).setdefault(day, []).append((slot_to_idx.get(time_slot, 0), mid, room))
-        
-        # لكل أستاذ في كل يوم، رتّب الحصص متتالية
-        for prof, days_dict in prof_program.items():
-            for day, slots_memos in days_dict.items():
-                if len(slots_memos) <= 1: continue
-                sorted_sm = sorted(slots_memos)
-                
-                # حاول وضعها في حصص 0,1,2,3 متتالية
-                for i, (old_slot_idx, mid, room) in enumerate(sorted_sm):
-                    new_slot_idx = sorted_sm[0][0] + i
-                    if new_slot_idx >= len(slots_per_day): break
-                    if old_slot_idx == new_slot_idx: continue
-                    
-                    new_time = idx_to_slot.get(new_slot_idx)
-                    if not new_time: continue
-                    new_slot_full = (day, new_time, room)
-                    
-                    # تحقق من التعارض
-                    conflict = any(
-                        other_slot and other_slot[0]==day and other_slot[1]==new_time and other_slot[2]==room
-                        for other_mid, other_slot in current.items() if other_mid != mid
-                    ) or any(
-                        other_slot and other_slot[0]==day and other_slot[1]==new_time
-                        and other_mid in conflicts.get(mid, set())
-                        for other_mid, other_slot in current.items() if other_mid != mid
-                    )
-                    
-                    if not conflict:
-                        current[mid] = new_slot_full
+        if best_slot_val:
+            current[lonely_memo] = best_slot_val
+            _, _, _, cur_idle, cur_days, _ = calc_schedule_quality(current, memo_members, days, slots_per_day)
+            cur_score = cur_idle + cur_days * 10
     
     return current
 
-def run_smart_schedule(df_memos, days, slots_per_day, rooms, tabu_iter=800):
-    """
-    الخوارزمية الكاملة:
-    1. DSatur Graph Coloring
-    2. توزيع على أيام وقاعات
-    3. Tabu Search
-    4. Post-optimization
-    """
-    memo_ids, conflicts, memo_members = build_conflict_matrix(df_memos)
+def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_consecutive=3, improve=True):
+    """الدالة الرئيسية للجدولة الذكية"""
     
-    # المرحلة 1: DSatur
-    colors = dsatur_coloring(memo_ids, conflicts)
-    
-    # المرحلة 2: توزيع على أيام وقاعات
-    schedule = assign_days_rooms(colors, memo_ids, memo_members, days, slots_per_day, rooms)
-    
-    # المرحلة 3: Tabu Search
-    schedule, idle, days_count = tabu_search(
-        schedule, memo_ids, conflicts, memo_members,
-        days, slots_per_day, rooms, iterations=tabu_iter
+    # المرحلة 1: Professor-First Scheduling
+    schedule, memo_members = professor_first_schedule(
+        df_memos, days, slots_per_day, rooms, max_per_day, max_consecutive
     )
     
-    # المرحلة 4: Post-optimization
-    schedule = post_optimize(schedule, memo_ids, conflicts, memo_members, days, slots_per_day, rooms)
+    # المرحلة 2: تحسين الجدول
+    if improve:
+        schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=400)
     
-    # حساب النتائج النهائية
-    placed = len([s for s in schedule.values() if s])
-    unplaced = len([s for s in schedule.values() if not s])
-    final_idle, final_days = calc_prof_idle(schedule, memo_members, days, slots_per_day)
+    # حساب الجودة
+    quality, placed, unplaced, idle, total_days, max_gap = calc_schedule_quality(
+        schedule, memo_members, days, slots_per_day
+    )
     
-    # درجة الجودة
-    placement_rate = placed / len(schedule) * 70 if schedule else 0
-    idle_score = max(0, 15 - final_idle)
-    days_score = max(0, 15 - final_days / 10)
-    quality = min(100, round(placement_rate + idle_score + days_score, 1))
-    
-    return schedule, quality, placed, unplaced, final_idle, final_days, memo_members
+    return schedule, quality, placed, unplaced, idle, total_days, memo_members
 
 def schedule_to_rows(schedule, df_memos):
     """تحويل الجدول لصفوف عرض"""
@@ -1515,7 +1489,7 @@ def save_member_observations(memo_number, prof_name, role, observations):
         return False, f"❌ {str(e)}"
 
 def clear_missing_flag(memo_number):
-    """إزالة علامة المفقودة بعد إعادة الرفع"""
+    """إزالة علامة المفقودة"""
     try:
         df_memos = load_memos()
         row = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==normalize_text(memo_number)]
@@ -1535,11 +1509,11 @@ def send_recovery_email_to_admin(memo_number, memo_title, student1_name, student
     """إرسال إيميل للإدارة عند استرجاع مذكرة مفقودة"""
     try:
         s2 = f" / {student2_name}" if student2_name else ""
-        body = f'''<html dir="rtl"><head><meta charset="UTF-8"><style>body{{font-family:Arial;direction:rtl;background:#f4f4f4;padding:20px}}.c{{background:#fff;padding:28px;border-radius:12px;max-width:600px;margin:auto}}.h{{background:linear-gradient(135deg,#0F2942,#1a472a);color:#fff;padding:20px;border-radius:8px;text-align:center;margin-bottom:18px}}.badge{{background:#10B981;color:#fff;padding:4px 14px;border-radius:20px;font-weight:700}}</style></head><body><div class="c"><div class="h"><h2>✅ استرجاع مذكرة مفقودة</h2></div><p>تمت إعادة رفع المذكرة:</p><table style="width:100%;border-collapse:collapse;margin:16px 0"><tr style="background:#f8fafc"><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">رقم المذكرة</td><td style="padding:10px;border:1px solid #e2e8f0"><span class="badge">{memo_number}</span></td></tr><tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">العنوان</td><td style="padding:10px;border:1px solid #e2e8f0">{memo_title}</td></tr><tr style="background:#f8fafc"><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">الطالب</td><td style="padding:10px;border:1px solid #e2e8f0">{student1_name}{s2}</td></tr><tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">تاريخ الاسترجاع</td><td style="padding:10px;border:1px solid #e2e8f0">{datetime.now().strftime("%Y-%m-%d %H:%M")}</td></tr></table><div style="background:#f0fdf4;padding:14px;border-right:4px solid #10B981;border-radius:6px"><p style="margin:0;color:#166534">✅ تم تحديث الرابط تلقائياً.</p></div></div></body></html>'''
+        body = f'''<html dir="rtl"><head><meta charset="UTF-8"><style>body{{font-family:Arial;direction:rtl;background:#f4f4f4;padding:20px}}.c{{background:#fff;padding:28px;border-radius:12px;max-width:600px;margin:auto}}.h{{background:linear-gradient(135deg,#0F2942,#1a472a);color:#fff;padding:20px;border-radius:8px;text-align:center}}.badge{{background:#10B981;color:#fff;padding:4px 14px;border-radius:20px;font-weight:700}}</style></head><body><div class="c"><div class="h"><h2>✅ استرجاع مذكرة مفقودة</h2></div><table style="width:100%;border-collapse:collapse;margin:16px 0"><tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">رقم المذكرة</td><td style="padding:10px;border:1px solid #e2e8f0"><span class="badge">{memo_number}</span></td></tr><tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">العنوان</td><td style="padding:10px;border:1px solid #e2e8f0">{memo_title}</td></tr><tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">الطالب</td><td style="padding:10px;border:1px solid #e2e8f0">{student1_name}{s2}</td></tr><tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700">التاريخ</td><td style="padding:10px;border:1px solid #e2e8f0">{datetime.now().strftime("%Y-%m-%d %H:%M")}</td></tr></table></div></body></html>'''
         msg = MIMEMultipart("alternative")
         msg["From"] = EMAIL_SENDER
         msg["To"] = EMAIL_SENDER
-        msg["Subject"] = f"✅ استرجاع مذكرة مفقودة — رقم {memo_number}"
+        msg["Subject"] = f"✅ استرجاع مذكرة — رقم {memo_number}"
         msg.attach(MIMEText(body, "html", "utf-8"))
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls(); server.login(EMAIL_SENDER, EMAIL_PASSWORD); server.send_message(msg)
@@ -2813,22 +2787,25 @@ elif st.session_state.user_type == "admin":
             st.subheader("📅 جدولة المناقشات الذكية")
             df_memos_j = load_memos()
             
-            # المذكرات التي اكتملت لجانها
-            # مذكرة جاهزة للجدولة:
-            # 1. معتمدة = حالة الإيداع = "قابلة للمناقشة"
-            # 2. لها لجنة كاملة: F=الأستاذ، AA=الرئيس، AB=المناقش1، AC=المناقش2
-            def _is_ready(row):
-                approved = str(row.get("حالة الإيداع","")).strip() == "قابلة للمناقشة"
+            # فلتر نوع المذكرات للجدولة
+            def has_jury(row):
                 def filled(val):
                     v = str(val).strip()
                     return v not in ["","nan","None","—"]
-                has_sup  = filled(row.get("الأستاذ",""))
-                has_pres = filled(row.get("الرئيس",""))
-                has_ex1  = filled(row.get("المناقش1",""))
-                has_ex2  = filled(row.get("المناقش2",""))
-                return approved and has_sup and has_pres and has_ex1 and has_ex2
-            ready_mask = df_memos_j.apply(_is_ready, axis=1)
-            ready_memos_j = df_memos_j[ready_mask].copy()
+                return filled(row.get("الأستاذ","")) and filled(row.get("الرئيس","")) and filled(row.get("المناقش1","")) and filled(row.get("المناقش2",""))
+
+            sched_mode = st.radio(
+                "🎯 اختر نوع المذكرات للجدولة:",
+                ["📋 المقبولة فقط (قابلة للمناقشة)", "📁 المودعة (تم الإيداع)", "📚 جميع المذكرات (لها لجان)"],
+                key="sched_mode_radio", horizontal=True
+            )
+
+            if sched_mode.startswith("📋"):
+                ready_memos_j = df_memos_j[df_memos_j.apply(lambda r: str(r.get("حالة الإيداع","")).strip()=="قابلة للمناقشة" and has_jury(r), axis=1)].copy()
+            elif sched_mode.startswith("📁"):
+                ready_memos_j = df_memos_j[df_memos_j.apply(lambda r: str(r.get("تم الإيداع","")).strip()=="نعم" and has_jury(r), axis=1)].copy()
+            else:
+                ready_memos_j = df_memos_j[df_memos_j.apply(lambda r: has_jury(r), axis=1)].copy()
             total_ready_j = len(ready_memos_j)
             already_sched_j = len(ready_memos_j[ready_memos_j["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"])]) if "تاريخ المناقشة" in ready_memos_j.columns else 0
 
@@ -2875,23 +2852,24 @@ elif st.session_state.user_type == "admin":
                 st.markdown("---")
                 c_g1,c_g2,c_g3 = st.columns(3)
                 with c_g1:
-                    if st.button("🚀 توليد الجدول الذكي (DSatur + Tabu Search)",type="primary",use_container_width=True,key="j_generate"):
+                    if st.button("🚀 توليد الجدول الذكي v3",type="primary",use_container_width=True,key="j_generate"):
                         if capacity < total_ready_j:
                             st.error(f"❌ الطاقة ({capacity}) أقل من عدد المذكرات ({total_ready_j}). زد الأيام أو القاعات.")
                         else:
-                            with st.spinner("🧠 جاري تشغيل DSatur + Tabu Search... (قد يستغرق 30 ثانية)"):
+                            with st.spinner("🧠 جاري الجدولة الذكية... (الأستاذ أولاً)"):
                                 schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j = run_smart_schedule(
-                                    ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j, tabu_iter=800
+                                    ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
+                                    max_per_day=3, max_consecutive=3, improve=True
                                 )
-                                named_sched = {m: s for m, s in schedule_j.items()}
-                                st.session_state["j_schedule"] = named_sched
+                                st.session_state["j_schedule"] = schedule_j
                                 st.session_state["j_score"] = quality_j
                                 st.session_state["j_unplaced"] = unplaced_j
                                 st.session_state["j_idle"] = idle_j
                                 st.session_state["j_slots_list"] = gen_slots_j
                                 st.session_state["j_days_list"] = gen_days_j
                                 st.session_state["j_rooms_list"] = gen_rooms_j
-                            st.success(f"✅ تم! الجودة: {quality_j}% | فراغ بين الحصص: {idle_j} | أيام الحضور الإجمالية: {days_j}")
+                                st.session_state["j_memo_members"] = memo_members_j
+                            st.success(f"✅ تم! مجدول: {placed_j}/{placed_j+unplaced_j} | غير مجدول: {unplaced_j} | جودة: {quality_j}%")
                             st.rerun()
 
                         if st.button("⚡ تحسين إضافي",use_container_width=True,key="j_improve",disabled="j_schedule" not in st.session_state):
