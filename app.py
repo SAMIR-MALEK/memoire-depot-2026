@@ -1182,13 +1182,22 @@ def calc_prof_idle(schedule, memo_members, days, slots_per_day):
     total_idle = 0
     total_days = 0
     for prof, days_dict in prof_program.items():
-        total_days += len(days_dict)
+        n_days = len(days_dict)
+        total_days += n_days
+        # عقوبة كبيرة جداً على التشتيت في أيام كثيرة
+        # أستاذ في 3 أيام لـ 3 مناقشات = كارثة
+        memos_count = sum(len(v) for v in days_dict.values())
+        # كل يوم إضافي عن الحد الأدنى اللازم يُعاقب بشدة
+        min_days_needed = max(1, (memos_count + 3) // 4)  # 4 حصص يومياً
+        extra_days = max(0, n_days - min_days_needed)
+        total_idle += extra_days * 50  # عقوبة 50 لكل يوم زائد
+        
         for day, slot_indices in days_dict.items():
             if len(slot_indices) > 1:
                 sorted_slots = sorted(slot_indices)
                 for i in range(len(sorted_slots)-1):
                     gap = sorted_slots[i+1] - sorted_slots[i] - 1
-                    total_idle += gap
+                    total_idle += gap * 2  # عقوبة الفراغ
     
     return total_idle, total_days
 
@@ -1227,16 +1236,25 @@ def tabu_search(schedule, memo_ids, conflicts, memo_members, days, slots_per_day
         best_move = None
         best_move_score = float('inf')
         
-        # اختر عشوائياً من أسوأ الأساتذة
+        # أولوية: الأساتذة الأكثر تشتتاً في أيام كثيرة
         candidates = []
         for prof, days_dict in prof_program.items():
+            memos_count = sum(len(v) for v in days_dict.values())
+            min_days_needed = max(1, (memos_count + 3) // 4)
+            extra_days = len(days_dict) - min_days_needed
+            if extra_days > 0:
+                # اختر مذكرة من يوم فيه مناقشة واحدة فقط
+                for day, slots_memos in days_dict.items():
+                    if len(slots_memos) == 1:
+                        candidates.append((extra_days * 100, slots_memos[0][1], prof))
+            # أيضاً: أساتذة لديهم فراغ بين حصصهم
             for day, slots_memos in days_dict.items():
                 if len(slots_memos) > 1:
                     sorted_sm = sorted(slots_memos)
                     for i in range(len(sorted_sm)-1):
                         gap = sorted_sm[i+1][0] - sorted_sm[i][0] - 1
                         if gap > 0:
-                            candidates.append((gap, sorted_sm[i][1], prof))
+                            candidates.append((gap * 2, sorted_sm[i][1], prof))
         
         if not candidates:
             break
@@ -1283,7 +1301,7 @@ def tabu_search(schedule, memo_ids, conflicts, memo_members, days, slots_per_day
                 tabu_list.pop(0)
             
             cur_idle, cur_days = calc_prof_idle(current, memo_members, days, slots_per_day)
-            cur_score = cur_idle * 2 + cur_days
+            cur_score = cur_idle + cur_days * 100  # أيام الحضور أهم بكثير
             if cur_score < best_score:
                 best = dict(current)
                 best_score = cur_score
