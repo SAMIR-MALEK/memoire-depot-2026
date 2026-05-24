@@ -2645,13 +2645,17 @@ elif st.session_state.user_type == "admin":
 
                         # الجدول
                         st.dataframe(
-                            df_show.style.background_gradient(subset=["المجموع"], cmap="Blues")
-                                        .bar(subset=["مشرف"], color="#2F9EA0")
-                                        .bar(subset=["رئيس"], color="#FFD700")
-                                        .bar(subset=["مناقش"], color="#818CF8"),
+                            df_show,
                             use_container_width=True,
                             hide_index=True,
-                            height=min(600, 50 + len(df_show)*38)
+                            height=min(600, 50 + len(df_show)*38),
+                            column_config={
+                                "الأستاذ": st.column_config.TextColumn("👨‍🏫 الأستاذ", width="large"),
+                                "مشرف": st.column_config.ProgressColumn("📚 مشرف", min_value=0, max_value=int(df_show["مشرف"].max()) if len(df_show)>0 else 1, format="%d"),
+                                "رئيس": st.column_config.ProgressColumn("🏛️ رئيس", min_value=0, max_value=int(df_show["رئيس"].max()) if len(df_show)>0 else 1, format="%d"),
+                                "مناقش": st.column_config.ProgressColumn("📋 مناقش", min_value=0, max_value=int(df_show["مناقش"].max()) if len(df_show)>0 else 1, format="%d"),
+                                "المجموع": st.column_config.ProgressColumn("🔢 المجموع", min_value=0, max_value=int(df_show["المجموع"].max()) if len(df_show)>0 else 1, format="%d"),
+                            }
                         )
 
                         # رسم بياني
