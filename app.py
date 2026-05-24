@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="منصة مذكرات الماستر", page_icon="📘", layout="wide")
 
-DEPOSIT_DEADLINE = datetime(2026, 5, 23, 23, 59)
+DEPOSIT_DEADLINE = datetime(2026, 5, 24, 0, 0)
 REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
 
 def get_days_remaining():
@@ -1784,8 +1784,10 @@ elif st.session_state.user_type == "student":
             is_published   = str(memo_info.get("AF","")).strip()=="نعم" if "AF" in memo_info.index else False
             prof_name_m    = str(memo_info.get("الأستاذ","")).strip()
 
-            # ── تحقق من علامة المفقودة ──
-            is_missing = str(memo_info.get("مفقودة","")).strip() == "1" or str(memo_info.get("AH","")).strip() == "1"
+            # ── تحقق من حالة الإيداع الاستثنائية ──
+            ah_val = str(memo_info.get("مفقودة","")).strip() or str(memo_info.get("AH","")).strip()
+            is_missing = ah_val == "1"      # مذكرة مفقودة → رسالة + إعادة رفع
+            is_extended = ah_val == "2"     # تمديد استثنائي → إيداع صامت بدون رسالة
 
             if is_missing:
                 st.markdown("""
@@ -1854,7 +1856,7 @@ elif st.session_state.user_type == "student":
 
             if deposit_status in ["", "nan", "مرفوضة"] or not deposit_status:
                 deadline_passed = datetime.now() > DEPOSIT_DEADLINE
-                if deadline_passed:
+                if deadline_passed and not is_extended:
                     st.markdown("""
                     <div style="background:linear-gradient(135deg,#1a0a0a,#2d0f0f);border:2px solid rgba(239,68,68,0.5);
                                 border-radius:18px;padding:28px 32px;margin-bottom:18px;text-align:center;">
@@ -1899,7 +1901,7 @@ elif st.session_state.user_type == "student":
                                             st.balloons(); clear_cache_and_reload(); time_module.sleep(2); st.rerun()
                                         else: st.error(m)
                                     else: st.error(msg)
-            elif deposit_status == "مودعة" and not is_missing:
+            elif deposit_status == "مودعة" and not is_missing and not is_extended:
                 st.markdown("""<div class="notif-card notif-card-waiting"><div class="notif-icon">🟡</div><div><div class="notif-title notif-title-waiting">مذكرتك مودعة — في انتظار مراجعة المشرف</div><div class="notif-desc">تم استلام ملفك. سيراجعه المشرف ويوافق أو يرسل ملاحظاته. ستتلقى إشعاراً فور اتخاذ القرار.</div></div></div>""", unsafe_allow_html=True)
                 if deposit_date and deposit_date not in ["","nan"]: st.caption(f"📅 تاريخ الإيداع: {deposit_date}")
                 if deposit_link and deposit_link not in ["","nan"]: st.markdown(f"📎 [عرض الملف المودع]({deposit_link})")
