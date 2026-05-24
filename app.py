@@ -89,6 +89,13 @@ div[data-testid="stFormSubmitButton"] button p { color: #ffffff !important; }
 .stSelectbox > div > div { background-color: #1E293B !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.15) !important; }
 .stSelectbox > div > div > div { color: #ffffff !important; }
 .stSelectbox svg { fill: #ffffff !important; }
+.stSelectbox [data-baseweb="select"] > div { background-color: #1E293B !important; color: #ffffff !important; }
+.stSelectbox [data-baseweb="select"] span { color: #ffffff !important; }
+div[data-baseweb="select"] { background-color: #1E293B !important; }
+div[data-baseweb="select"] > div { background-color: #1E293B !important; color: #ffffff !important; }
+div[data-baseweb="popover"] { background-color: #1E293B !important; }
+div[data-baseweb="popover"] li { color: #ffffff !important; background-color: #1E293B !important; }
+div[data-baseweb="popover"] li:hover { background-color: #2F6F7E !important; }
 .stTabs [aria-selected="true"] { background: rgba(47,111,126,0.2); color: #FFD700; border: 1px solid #2F6F7E; font-weight: bold; }
 [data-testid="stExpander"] { background-color: #1E293B !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 10px !important; }
 [data-testid="stExpander"] details { background-color: #1E293B !important; }
@@ -2307,7 +2314,7 @@ elif st.session_state.user_type == "professor":
 
             tab5, = st.tabs(["📅 برنامج المناقشات"])
             with tab5:
-                st.subheader("📅 برنامج المناقشات")
+                st.markdown('<h3 style="text-align:center;color:#FFD700;">📅 برنامج المناقشات</h3>', unsafe_allow_html=True)
                 df_m_jury = load_memos()
                 jury_memos = pd.DataFrame()
 
