@@ -2395,7 +2395,12 @@ elif st.session_state.user_type == "professor":
                             {schedule_line}
                         </div>'''
 
-                    st.markdown(cards_html, unsafe_allow_html=True)
+                    import streamlit.components.v1 as _cv1
+                    _cv1.html(
+                        f'''<div style="font-family:Arial,sans-serif;direction:rtl;">{cards_html}</div>''',
+                        height=min(900, len(filtered)*120 + 100),
+                        scrolling=True
+                    )
 
                     # تصدير HTML
                     st.markdown("---")
