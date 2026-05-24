@@ -86,6 +86,9 @@ div[data-testid="stFormSubmitButton"] button p { color: #ffffff !important; }
 .stTabs [data-baseweb="tab-list"] { gap: 1.5rem; padding-bottom: 12px; }
 .stTabs [data-baseweb="tab"] { background: transparent; color: #94A3B8; font-weight: 600; padding: 10px 20px; border-radius: 10px; border: 1px solid transparent; }
 .stTabs [data-baseweb="tab"]:hover { background: rgba(255,255,255,0.08); color: white; }
+.stSelectbox > div > div { background-color: #1E293B !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.15) !important; }
+.stSelectbox > div > div > div { color: #ffffff !important; }
+.stSelectbox svg { fill: #ffffff !important; }
 .stTabs [aria-selected="true"] { background: rgba(47,111,126,0.2); color: #FFD700; border: 1px solid #2F6F7E; font-weight: bold; }
 [data-testid="stExpander"] { background-color: #1E293B !important; border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 10px !important; }
 [data-testid="stExpander"] details { background-color: #1E293B !important; }
@@ -2297,7 +2300,7 @@ elif st.session_state.user_type == "professor":
                 <div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{total_roles}</div><div class="kpi-label">🔢 المجموع</div></div>
             </div>''', unsafe_allow_html=True)
 
-            if is_exhausted: st.markdown('<div class="alert-card">ملاحظة هامة : سيتم إعلامكم ببرمجة أي مذكرة عبر الإيميل المهني</div>', unsafe_allow_html=True)
+            if is_exhausted: st.markdown('<div class="alert-card">لقد استنفذت العناوين الأربعة المخصصة لك.</div>', unsafe_allow_html=True)
 
             tab5, = st.tabs(["📅 برنامج المناقشات"])
             with tab5:
@@ -2328,9 +2331,9 @@ elif st.session_state.user_type == "professor":
                     role_colors = {"مشرف":"#2F9EA0","رئيس لجنة":"#FFD700","مناقش":"#94A3B8"}
                     role_counts = jury_memos["الصفة"].value_counts().to_dict()
 
-                    # ملخص
-                    summary = "   ".join([f"{role_icons.get(r,'')} {r}: **{n}**" for r,n in role_counts.items()])
-                    st.markdown(summary)
+                    # ملخص - وسط الصفحة
+                    summary_parts = " &nbsp;&nbsp;|&nbsp;&nbsp; ".join([f"{role_icons.get(r,'')} {r}: <strong>{n}</strong>" for r,n in role_counts.items()])
+                    st.markdown(f'<div style="text-align:center;padding:10px 0;font-size:1rem;color:#E2E8F0;">{summary_parts}</div>', unsafe_allow_html=True)
 
                     # فلتر
                     roles_list = ["الكل"] + [r for r in role_icons if r in role_counts]
