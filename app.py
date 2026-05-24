@@ -2375,6 +2375,7 @@ elif st.session_state.user_type == "professor":
                         else:
                             schedule_line = '<div style="margin-top:8px;"><span style="color:#F59E0B;font-size:0.82rem;">⏳ لم يُحدد موعد المناقشة بعد</span></div>'
 
+                        sup_html = f'<div style="color:#94A3B8;font-size:0.8rem;margin-top:4px;">👨‍🏫 المشرف: <span style="color:#CBD5E1;">{jsup}</span></div>' if jrole != "مشرف" and jsup and jsup not in ["","nan"] else ""
                         cards_html += f'''<div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);
                                     border-right:4px solid {r_color};border-radius:12px;
                                     padding:14px 16px;margin-bottom:10px;">
@@ -2390,7 +2391,7 @@ elif st.session_state.user_type == "professor":
                             <div style="color:#F1F5F9;font-size:0.9rem;font-weight:700;line-height:1.5;">
                                 {jtitle[:70]}{"..." if len(jtitle)>70 else ""}
                             </div>
-                            {f'<div style="color:#94A3B8;font-size:0.8rem;margin-top:4px;">👨‍🏫 المشرف: <span style="color:#CBD5E1;">{jsup}</span></div>' if jrole != "مشرف" and jsup and jsup not in ["","nan"] else ""}
+                            {sup_html}
                             {schedule_line}
                         </div>'''
 
