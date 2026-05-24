@@ -31,7 +31,7 @@ def render_countdown_banner():
     days = get_days_remaining()
     now = datetime.now()
     if now > DEPOSIT_DEADLINE:
-        st.markdown("""<div style="background:linear-gradient(135deg,#1a472a,#2d6a4f);border-radius:16px;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 24px rgba(45,106,79,0.3);"><span style="font-size:2rem;">✅</span><div><div style="color:#fff;font-size:1.05rem;font-weight:800;">انتهى أجل إيداع المذكرات</div><div style="color:rgba(255,255,255,0.9);font-size:0.82rem;">14 ماي 2026</div></div></div>""", unsafe_allow_html=True)
+        st.markdown("""<div style="background:linear-gradient(135deg,#1a472a,#2d6a4f);border-radius:16px;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 24px rgba(45,106,79,0.3);"><span style="font-size:2rem;">✅</span><div><div style="color:#fff;font-size:1.05rem;font-weight:800;">انتهى أجل إيداع المذكرات</div><div style="color:rgba(255,255,255,0.9);font-size:0.82rem;">23 ماي 2026</div></div></div>""", unsafe_allow_html=True)
         return
     if days == 0:
         urgency = "⚡ اليوم الأخير للإيداع!"
@@ -46,7 +46,7 @@ def render_countdown_banner():
         bg = "linear-gradient(135deg,#8B4513,#E67E22)"
         shadow = "rgba(230,126,34,0.4)"
     else:
-        urgency = "📌 آخر أجل لإيداع المذكرات: 14 ماي 2026"
+        urgency = "📌 آخر أجل لإيداع المذكرات: 23 ماي 2026"
         bg = "linear-gradient(135deg,#1A3A5C,#2F6F7E)"
         shadow = "rgba(47,111,126,0.4)"
     st.markdown(f"""<div style="background:{bg};border-radius:16px;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:0 8px 28px {shadow};"><div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.9rem;">⏳</span><div><div style="color:#fff;font-size:1.05rem;font-weight:800;">{urgency}</div><div style="color:rgba(255,255,255,0.9);font-size:0.8rem;margin-top:2px;">آخر أجل لإيداع المذكرات النهائية: 23 ماي 2026</div></div></div><div style="background:rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,0.4);border-radius:12px;padding:8px 20px;text-align:center;"><div style="font-size:2.6rem;font-weight:900;color:#FFD700;line-height:1;text-shadow:0 0 20px rgba(255,215,0,0.5);">{days}</div><div style="font-size:0.72rem;color:rgba(255,255,255,0.8);letter-spacing:1px;">يوم متبقي</div></div></div>""", unsafe_allow_html=True)
@@ -1866,7 +1866,7 @@ elif st.session_state.user_type == "student":
                         </div>
                         <div style="font-size:0.9rem;color:#E2E8F0;line-height:1.7;">
                             انتهى الأجل الرسمي لإيداع المذكرات في
-                            <strong style="color:#FFD700;">14 ماي 2026 الساعة 23:59</strong>
+                            <strong style="color:#FFD700;">23 ماي 2026 الساعة 23:59</strong>
                             <br>لم يعد بإمكانك إيداع أي ملف عبر المنصة.
                             <br><br>
                             <span style="color:#F59E0B;">للاستفسار أو في حالة الضرورة القصوى، راجع الإدارة مباشرة.</span>
@@ -1874,7 +1874,7 @@ elif st.session_state.user_type == "student":
                     </div>""", unsafe_allow_html=True)
                 else:
                     days_left = get_days_remaining()
-                    st.markdown(f"""<div class="deposit-hero"><span class="deposit-hero-icon">📤</span><div class="deposit-hero-title">يمكنك الآن إيداع مذكرتك النهائية</div><div class="deposit-hero-sub" style="color:#E2E8F0!important;">آخر أجل: <strong style="color:#FFD700;">14 ماي 2026</strong> — تبقى <strong style="color:{'#EF4444' if days_left<=7 else '#FFD700'};">{days_left} يوم</strong><br>ارفع نسخة PDF من مذكرتك. سيراجعها المشرف ويوافق أو يرسل ملاحظاته.</div></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="deposit-hero"><span class="deposit-hero-icon">📤</span><div class="deposit-hero-title">يمكنك الآن إيداع مذكرتك النهائية</div><div class="deposit-hero-sub" style="color:#E2E8F0!important;">آخر أجل: <strong style="color:#FFD700;">23 ماي 2026</strong> — تبقى <strong style="color:{'#EF4444' if days_left<=7 else '#FFD700'};">{days_left} يوم</strong><br>ارفع نسخة PDF من مذكرتك. سيراجعها المشرف ويوافق أو يرسل ملاحظاته.</div></div>""", unsafe_allow_html=True)
                     uploaded_pdf = st.file_uploader("📁 اختر ملف المذكرة (PDF فقط)", type=["pdf"], key="upload_pdf")
                     if uploaded_pdf:
                         pdf_bytes = uploaded_pdf.read(); size_mb = len(pdf_bytes)/(1024*1024); uploaded_pdf.seek(0)
