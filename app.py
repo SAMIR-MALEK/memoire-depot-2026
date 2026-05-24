@@ -2052,7 +2052,7 @@ elif st.session_state.user_type == "professor":
             if not deposit_status or deposit_status in ["nan",""]:
                 st.markdown("""<div style="background:rgba(47,111,126,0.08);border:1px solid rgba(47,111,126,0.3);border-radius:14px;padding:22px;text-align:center;"><div style="font-size:2.3rem;">⏳</div><p style="color:#ffffff!important;font-size:0.95rem;margin:7px 0;">لم يودع الطالب المذكرة بعد.</p></div>""", unsafe_allow_html=True)
 
-            elif deposit_status == "مودعة":
+            elif deposit_status == "مودعة" and not is_extended:
                 st.markdown(f"""<div style="background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.04));border:2px solid rgba(245,158,11,0.42);border-radius:16px;padding:20px;margin-bottom:16px;"><h4 style="color:#F59E0B!important;margin:0 0 5px;">📥 مذكرة بانتظار مراجعتك</h4><p style="color:#E2E8F0!important;margin:0;font-size:0.88rem;">تاريخ الإيداع: <strong style="color:#FFD700;">{deposit_date if deposit_date and deposit_date!='nan' else '—'}</strong></p></div>""", unsafe_allow_html=True)
                 if deposit_link and deposit_link not in ["","nan"]:
                     st.markdown(f"""<div style="text-align:center;margin:14px 0 20px;"><a href="{deposit_link}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#1E3A5F,#2F6F7E);color:#ffffff;padding:15px 38px;border-radius:13px;text-decoration:none;font-size:1.05rem;font-weight:700;box-shadow:0 8px 22px rgba(47,111,126,0.38);">📄 الاطلاع على المذكرة المودعة</a></div>""", unsafe_allow_html=True)
@@ -2505,7 +2505,7 @@ elif st.session_state.user_type == "admin":
         st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
         st.markdown(f'<div class="kpi-card"><div class="kpi-value">{st_s}</div><div class="kpi-label">الطلاب</div></div><div class="kpi-card"><div class="kpi-value">{t_p}</div><div class="kpi-label">الأساتذة</div></div><div class="kpi-card"><div class="kpi-value">{t_m}</div><div class="kpi-label">المذكرات</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{r_m}</div><div class="kpi-label">مسجلة</div></div><div class="kpi-card" style="border-top:3px solid #F59E0B;"><div class="kpi-value" style="color:#F59E0B;">{a_m}</div><div class="kpi-label">متاحة</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{reg_st}</div><div class="kpi-label">طلاب مسجلون</div></div><div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{unreg_st}</div><div class="kpi-label">غير مسجلين</div></div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9=st.tabs(["المذكرات","الطلاب","الأساتذة","تقارير","تحديث","الطلبات","📧 إيميلات","🎓 لجان","📅 جدولة ذكية"])
+        tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9,tab10=st.tabs(["المذكرات","الطلاب","الأساتذة","تقارير","تحديث","الطلبات","📧 إيميلات","🎓 لجان","📅 جدولة ذكية","📥 استيراد اللجان"])
         with tab1:
             st.subheader("جدول المذكرات")
             f_status=st.selectbox("تصفية:",["الكل","مسجلة","متاحة"])
@@ -3094,5 +3094,70 @@ elif st.session_state.user_type == "admin":
                                     st.session_state["j_confirm_step"]=False; st.rerun()
                     else:
                         st.error("⛔ لا يمكن الاعتماد — صحّح التعارضات أولاً.")
+        with tab10:
+            st.subheader("📥 استيراد لجان المناقشة من Excel")
+            st.info("""ارفع ملف Excel بالهيكل التالي:
+- العمود A: رقم المذكرة
+- العمود B: الرئيس
+- العمود C: مناقش1
+- العمود D: مناقش2""")
+
+            uploaded_jury_xl = st.file_uploader("📁 اختر ملف Excel", type=["xlsx","xls"], key="jury_xl_upload")
+
+            if uploaded_jury_xl:
+                try:
+                    import openpyxl as _opxl
+                    wb_j = _opxl.load_workbook(uploaded_jury_xl)
+                    ws_j = wb_j.active
+
+                    jury_rows = []
+                    for row in ws_j.iter_rows(min_row=2, values_only=True):
+                        if not row[0]: continue
+                        jury_rows.append({
+                            "رقم المذكرة": str(row[0]).strip(),
+                            "الرئيس":   str(row[1]).strip() if len(row)>1 and row[1] else "",
+                            "المناقش1": str(row[2]).strip() if len(row)>2 and row[2] else "",
+                            "المناقش2": str(row[3]).strip() if len(row)>3 and row[3] else "",
+                        })
+
+                    st.success(f"✅ تم قراءة {len(jury_rows)} مذكرة")
+                    df_preview = pd.DataFrame(jury_rows)
+                    st.dataframe(df_preview, use_container_width=True, hide_index=True)
+
+                    if st.button("💾 حفظ اللجان في الشيت", type="primary", use_container_width=True, key="save_jury_import"):
+                        with st.spinner("⏳ جاري الحفظ..."):
+                            df_memos_import = load_memos()
+                            updates = []
+                            not_found = []
+                            saved = 0
+
+                            for jr in jury_rows:
+                                memo_num = jr["رقم المذكرة"]
+                                match = df_memos_import[df_memos_import["رقم المذكرة"].astype(str).apply(normalize_text) == normalize_text(memo_num)]
+                                if match.empty:
+                                    not_found.append(memo_num)
+                                    continue
+                                row_idx = match.index[0] + 2
+                                updates += [
+                                    {"range": f"Feuille 1!AA{row_idx}", "values": [[jr["الرئيس"]]]},
+                                    {"range": f"Feuille 1!AB{row_idx}", "values": [[jr["المناقش1"]]]},
+                                    {"range": f"Feuille 1!AC{row_idx}", "values": [[jr["المناقش2"]]]},
+                                ]
+                                saved += 1
+
+                            if updates:
+                                for i in range(0, len(updates), 100):
+                                    sheets_service.spreadsheets().values().batchUpdate(
+                                        spreadsheetId=MEMOS_SHEET_ID,
+                                        body={"valueInputOption":"USER_ENTERED","data":updates[i:i+100]}
+                                    ).execute()
+                                clear_cache_and_reload()
+                                st.success(f"✅ تم حفظ لجان {saved} مذكرة بنجاح!")
+                                if not_found:
+                                    st.warning(f"⚠️ لم تُوجد {len(not_found)} مذكرة: {', '.join(not_found[:10])}")
+                            else:
+                                st.error("❌ لم يتم حفظ أي شيء")
+                except Exception as e:
+                    st.error(f"❌ {str(e)}")
 st.markdown("---")
 st.markdown('<div style="text-align:center;color:#ffffff;font-size:11px;padding:16px;">إشراف مسؤول الميدان البروفيسور لخضر رفاف ©</div>', unsafe_allow_html=True)
