@@ -2562,10 +2562,111 @@ elif st.session_state.user_type == "admin":
                     s_df["المتاحة"]=s_df["total"]-s_df["registered"]; s_df=s_df.rename(columns={"total":"الإجمالي","registered":"المسجلة"})
                     st.dataframe(s_df,use_container_width=True)
         with tab4:
-            st.subheader("التحليل الإحصائي")
-            c1,c2=st.columns(2)
-            with c1: st.markdown("##### توزيع حسب التخصص"); st.bar_chart(df_memos.groupby("التخصص").size(),color="#2F6F7E")
-            with c2: st.markdown("##### مسجلة حسب التخصص"); st.bar_chart(df_memos.groupby("التخصص")["تم التسجيل"].apply(lambda x:(x.astype(str).str.strip()=="نعم").sum()),color="#FFD700")
+            st.subheader("📊 الإحصائيات والتقارير")
+            df_stats = load_memos()
+
+            tab_general, tab_jury = st.tabs(["📈 إحصائيات عامة", "⚖️ إحصائيات لجان المناقشة"])
+
+            with tab_general:
+                c1,c2=st.columns(2)
+                with c1:
+                    st.markdown("##### توزيع حسب التخصص")
+                    st.bar_chart(df_stats.groupby("التخصص").size(),color="#2F6F7E")
+                with c2:
+                    st.markdown("##### المذكرات المسجلة")
+                    st.bar_chart(df_stats.groupby("التخصص")["تم التسجيل"].apply(lambda x:(x.astype(str).str.strip()=="نعم").sum()),color="#FFD700")
+
+            with tab_jury:
+                st.markdown("### ⚖️ إحصائيات أعضاء لجان المناقشة")
+                st.caption("عدد المذكرات التي يشارك فيها كل أستاذ حسب صفته")
+
+                if df_stats.empty:
+                    st.info("لا توجد بيانات")
+                else:
+                    # حساب الإحصائيات
+                    jury_stats = {}
+
+                    for _, row in df_stats.iterrows():
+                        # مشرف
+                        sup = str(row.get("الأستاذ","")).strip()
+                        if sup and sup not in ["","nan","—"]:
+                            jury_stats.setdefault(sup, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
+                            jury_stats[sup]["مشرف"] += 1
+                            jury_stats[sup]["المجموع"] += 1
+                        # رئيس
+                        pres = str(row.get("الرئيس","")).strip()
+                        if pres and pres not in ["","nan","—"]:
+                            jury_stats.setdefault(pres, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
+                            jury_stats[pres]["رئيس"] += 1
+                            jury_stats[pres]["المجموع"] += 1
+                        # مناقش1
+                        ex1 = str(row.get("المناقش1","")).strip()
+                        if ex1 and ex1 not in ["","nan","—"]:
+                            jury_stats.setdefault(ex1, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
+                            jury_stats[ex1]["مناقش"] += 1
+                            jury_stats[ex1]["المجموع"] += 1
+                        # مناقش2
+                        ex2 = str(row.get("المناقش2","")).strip()
+                        if ex2 and ex2 not in ["","nan","—"]:
+                            jury_stats.setdefault(ex2, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
+                            jury_stats[ex2]["مناقش"] += 1
+                            jury_stats[ex2]["المجموع"] += 1
+
+                    if not jury_stats:
+                        st.warning("لا توجد لجان مسجلة بعد")
+                    else:
+                        df_jury = pd.DataFrame([
+                            {"الأستاذ": prof, **counts}
+                            for prof, counts in sorted(jury_stats.items(), key=lambda x: x[1]["المجموع"], reverse=True)
+                        ])
+
+                        # KPIs
+                        total_profs = len(df_jury)
+                        total_roles = df_jury["المجموع"].sum()
+                        max_load = df_jury["المجموع"].max()
+                        max_prof = df_jury.loc[df_jury["المجموع"].idxmax(), "الأستاذ"]
+
+                        k1,k2,k3,k4 = st.columns(4)
+                        with k1: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#FFD700;">{total_profs}</div><div class="kpi-label">👨‍🏫 عدد الأساتذة</div></div>''', unsafe_allow_html=True)
+                        with k2: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#10B981;">{int(df_jury["مشرف"].sum())}</div><div class="kpi-label">📚 إجمالي الإشراف</div></div>''', unsafe_allow_html=True)
+                        with k3: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#818CF8;">{int(df_jury["رئيس"].sum())}</div><div class="kpi-label">🏛️ إجمالي الرئاسة</div></div>''', unsafe_allow_html=True)
+                        with k4: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#F59E0B;">{int(df_jury["مناقش"].sum())}</div><div class="kpi-label">📋 إجمالي المناقشة</div></div>''', unsafe_allow_html=True)
+
+                        st.markdown("---")
+
+                        # فلتر
+                        filter_col = st.selectbox("🔍 تصفية حسب الصفة:", ["الكل","مشرف فقط","رئيس فقط","مناقش فقط"], key="jury_stats_filter")
+                        df_show = df_jury.copy()
+                        if filter_col == "مشرف فقط": df_show = df_show[df_show["مشرف"]>0]
+                        elif filter_col == "رئيس فقط": df_show = df_show[df_show["رئيس"]>0]
+                        elif filter_col == "مناقش فقط": df_show = df_show[df_show["مناقش"]>0]
+
+                        st.markdown(f"**{len(df_show)} أستاذ**")
+
+                        # الجدول
+                        st.dataframe(
+                            df_show.style.background_gradient(subset=["المجموع"], cmap="Blues")
+                                        .bar(subset=["مشرف"], color="#2F9EA0")
+                                        .bar(subset=["رئيس"], color="#FFD700")
+                                        .bar(subset=["مناقش"], color="#818CF8"),
+                            use_container_width=True,
+                            hide_index=True,
+                            height=min(600, 50 + len(df_show)*38)
+                        )
+
+                        # رسم بياني
+                        st.markdown("---")
+                        st.markdown("##### 📊 توزيع الأدوار حسب الأستاذ (أعلى 20)")
+                        top20 = df_show.nlargest(20, "المجموع").set_index("الأستاذ")[["مشرف","رئيس","مناقش"]]
+                        st.bar_chart(top20, color=["#2F9EA0","#FFD700","#818CF8"])
+
+                        # تحذير الأساتذة الأكثر تحميلاً
+                        overloaded = df_jury[df_jury["المجموع"] > 15]
+                        if not overloaded.empty:
+                            st.markdown("---")
+                            st.warning(f"⚠️ {len(overloaded)} أستاذ لديهم أكثر من 15 دور — يُنصح بمراجعة التوزيع:")
+                            for _, r in overloaded.iterrows():
+                                st.markdown(f"- **{r['الأستاذ']}**: {r['المجموع']} دور (مشرف:{r['مشرف']} | رئيس:{r['رئيس']} | مناقش:{r['مناقش']})")
         with tab5:
             st.subheader("تحديث البيانات")
             if st.button("🔄 ربط أرقام التسجيل",type="primary"):
