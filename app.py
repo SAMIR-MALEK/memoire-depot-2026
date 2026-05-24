@@ -1789,6 +1789,31 @@ elif st.session_state.user_type == "student":
             is_missing = ah_val == "1"      # مذكرة مفقودة → رسالة + إعادة رفع
             is_extended = ah_val == "2"     # تمديد استثنائي → إيداع صامت بدون رسالة
 
+            # ── موعد المناقشة في الصدارة ──
+            if def_date_m and def_date_m not in ["","nan"]:
+                date_color = "#10B981"
+                st.markdown(f'''<div style="background:linear-gradient(135deg,#0a1f12,#0f2d1a);
+                    border:2px solid rgba(16,185,129,0.5);border-radius:16px;
+                    padding:20px 24px;margin-bottom:18px;text-align:center;">
+                    <div style="font-size:0.85rem;color:#6EE7B7;margin-bottom:6px;">📅 موعد مناقشتك</div>
+                    <div style="font-size:1.6rem;font-weight:900;color:#10B981;">{def_date_m}</div>
+                    <div style="display:flex;justify-content:center;gap:24px;margin-top:10px;flex-wrap:wrap;">
+                        <div><span style="color:#6EE7B7;font-size:0.8rem;">🕐 التوقيت</span><br>
+                             <span style="color:#ffffff;font-weight:700;">{def_time_m if def_time_m and def_time_m not in ["","nan"] else "—"}</span></div>
+                        <div><span style="color:#6EE7B7;font-size:0.8rem;">🏛️ القاعة</span><br>
+                             <span style="color:#ffffff;font-weight:700;">{def_room_m if def_room_m and def_room_m not in ["","nan"] else "—"}</span></div>
+                    </div>
+                </div>''', unsafe_allow_html=True)
+
+            # ── ملاحظات المشرف (تظهر دائماً) ──
+            sup_notes_raw = str(memo_info.get("توقيع المشرف","")).strip()
+            sup_notes_display = sup_notes_raw if sup_notes_raw and sup_notes_raw not in ["","nan"] else "لا توجد ملاحظات حتى الآن."
+            st.markdown(f'''<div style="background:rgba(47,111,126,0.08);border:1px solid rgba(47,111,126,0.3);
+                border-radius:12px;padding:14px 18px;margin-bottom:14px;">
+                <div style="color:#2F9EA0;font-size:0.85rem;font-weight:700;margin-bottom:6px;">📝 ملاحظات المشرف</div>
+                <div style="color:#E2E8F0;font-size:0.88rem;line-height:1.7;">{sup_notes_display}</div>
+            </div>''', unsafe_allow_html=True)
+
             if is_missing:
                 st.markdown("""
                 <div style="background:linear-gradient(135deg,#1a0a0a,#3d0f0f);border:4px solid #EF4444;
@@ -2259,31 +2284,22 @@ elif st.session_state.user_type == "professor":
                                 st.session_state.prof_action = None
                                 st.rerun()
 
-            st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
-            st.markdown(f'<div class="kpi-card"><div class="kpi-value">{total}</div><div class="kpi-label">إجمالي المذكرات</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{registered}</div><div class="kpi-label">مسجلة</div></div><div class="kpi-card" style="border-top:3px solid #F59E0B;"><div class="kpi-value" style="color:#F59E0B;">{available}</div><div class="kpi-label">متاحة</div></div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            # إحصائيات عضوية الأستاذ في اللجان
+            df_jury_kpi = load_memos()
+            sup_count = len(df_jury_kpi[df_jury_kpi["الأستاذ"].astype(str).str.strip()==prof_name.strip()]) if "الأستاذ" in df_jury_kpi.columns else 0
+            pres_count = len(df_jury_kpi[df_jury_kpi["الرئيس"].astype(str).str.strip()==prof_name.strip()]) if "الرئيس" in df_jury_kpi.columns else 0
+            ex_count = len(df_jury_kpi[df_jury_kpi["المناقش1"].astype(str).str.strip()==prof_name.strip()]) + len(df_jury_kpi[df_jury_kpi["المناقش2"].astype(str).str.strip()==prof_name.strip()]) if "المناقش1" in df_jury_kpi.columns else 0
+            total_roles = sup_count + pres_count + ex_count
+            st.markdown(f'''<div class="kpi-grid">
+                <div class="kpi-card" style="border-top:3px solid #2F9EA0;"><div class="kpi-value" style="color:#2F9EA0;">{sup_count}</div><div class="kpi-label">📚 مشرف</div></div>
+                <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{pres_count}</div><div class="kpi-label">🏛️ رئيس لجنة</div></div>
+                <div class="kpi-card" style="border-top:3px solid #818CF8;"><div class="kpi-value" style="color:#818CF8;">{ex_count}</div><div class="kpi-label">📋 مناقش</div></div>
+                <div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{total_roles}</div><div class="kpi-label">🔢 المجموع</div></div>
+            </div>''', unsafe_allow_html=True)
+
             if is_exhausted: st.markdown('<div class="alert-card">لقد استنفذت العناوين الأربعة المخصصة لك.</div>', unsafe_allow_html=True)
 
-            tab1,tab5=st.tabs(["📄 المذكرات المسجلة","📅 برنامج المناقشات"])
-            with tab1:
-                st.subheader("المذكرات المسجلة")
-                reg_memos=prof_memos[prof_memos["تم التسجيل"].astype(str).str.strip()=="نعم"]
-                if not reg_memos.empty:
-                    cols=st.columns(2)
-                    for i,(_,memo) in enumerate(reg_memos.iterrows()):
-                        with cols[i%2]:
-                            dep_s=str(memo.get(col_dep,"")).strip() if col_dep in memo.index else ""
-                            dep_color_m={"مودعة":"#F59E0B","قابلة للمناقشة":"#10B981","مرفوضة":"#EF4444"}.get(dep_s,"#ffffff")
-                            dep_label_m={"مودعة":"📤 مودعة","قابلة للمناقشة":"🟢 معتمدة","مرفوضة":"🔴 معادة"}.get(dep_s,"⏳ لم تودَع")
-                            prog_v=str(memo.get('نسبة التقدم','0')).strip()
-                            try: prog_i=int(prog_v) if prog_v else 0
-                            except: prog_i=0
-                            s_info=get_student_info_from_memo(memo,df_students)
-                            st.markdown(f"""<div class="card" style="border-right:5px solid {dep_color_m};"><div style="display:flex;justify-content:space-between;margin-bottom:8px;"><h4 style="margin:0;color:#FFD700!important;">{memo['رقم المذكرة']}</h4><span style="background:rgba(0,0,0,0.25);color:#ffffff;padding:3px 9px;border-radius:12px;font-size:0.78rem;font-weight:700;border:1px solid {dep_color_m};">{dep_label_m}</span></div><p style="font-size:0.9rem;color:#ffffff!important;font-weight:600;margin-bottom:5px;">{str(memo['عنوان المذكرة'])[:55]}</p><p style="font-size:0.82rem;color:#E2E8F0!important;">{memo['التخصص']} | {prog_i}%</p><p style="font-size:0.9rem;color:#ffffff!important;">{s_info['s1_name']}</p>{f"<p style='font-size:0.88rem;color:#ffffff!important;'>{s_info['s2_name']}</p>" if s_info['s2_name'] else ""}<div class="progress-container"><div class="progress-bar" style="width:{prog_i}%;"></div></div></div>""", unsafe_allow_html=True)
-                            if st.button(f"👉 فتح {memo['رقم المذكرة']}",key=f"open_{memo['رقم المذكرة']}",use_container_width=True):
-                                st.session_state.selected_memo_id=memo['رقم المذكرة']; st.session_state.prof_action=None; st.rerun()
-                else: st.info("لا توجد مذكرات مسجلة.")
-
+            tab5, = st.tabs(["📅 برنامج المناقشات"])
             with tab5:
                 st.subheader("📅 برنامج المناقشات")
                 df_m_jury = load_memos()
@@ -2338,6 +2354,7 @@ elif st.session_state.user_type == "professor":
                         jdate = str(jm.get("تاريخ المناقشة","")).strip()
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
+                        jsup  = str(jm.get("الأستاذ","")).strip()  # اسم المشرف دائماً
 
                         has_date = jdate and jdate not in ["","nan"]
                         has_time = jtime and jtime not in ["","nan"]
@@ -2373,6 +2390,7 @@ elif st.session_state.user_type == "professor":
                             <div style="color:#F1F5F9;font-size:0.9rem;font-weight:700;line-height:1.5;">
                                 {jtitle[:70]}{"..." if len(jtitle)>70 else ""}
                             </div>
+                            {f'<div style="color:#94A3B8;font-size:0.8rem;margin-top:4px;">👨‍🏫 المشرف: <span style="color:#CBD5E1;">{jsup}</span></div>' if jrole != "مشرف" and jsup and jsup not in ["","nan"] else ""}
                             {schedule_line}
                         </div>'''
 
@@ -2503,181 +2521,24 @@ elif st.session_state.user_type == "admin":
         memo_col=df_students["رقم المذكرة"].astype(str).str.strip()
         reg_st=(memo_col!="").sum(); unreg_st=(memo_col=="").sum()
         st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
-        st.markdown(f'<div class="kpi-card"><div class="kpi-value">{st_s}</div><div class="kpi-label">الطلاب</div></div><div class="kpi-card"><div class="kpi-value">{t_p}</div><div class="kpi-label">الأساتذة</div></div><div class="kpi-card"><div class="kpi-value">{t_m}</div><div class="kpi-label">المذكرات</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{r_m}</div><div class="kpi-label">مسجلة</div></div><div class="kpi-card" style="border-top:3px solid #F59E0B;"><div class="kpi-value" style="color:#F59E0B;">{a_m}</div><div class="kpi-label">متاحة</div></div><div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{reg_st}</div><div class="kpi-label">طلاب مسجلون</div></div><div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{unreg_st}</div><div class="kpi-label">غير مسجلين</div></div>', unsafe_allow_html=True)
+        # إحصائيات المناقشات
+        df_kpi = load_memos()
+        total_memos = len(df_kpi)
+        def _has_jury(r):
+            def f(v): return str(v).strip() not in ["","nan","—","None"]
+            return f(r.get("الرئيس","")) and f(r.get("المناقش1","")) and f(r.get("المناقش2",""))
+        has_jury_mask = df_kpi.apply(_has_jury, axis=1)
+        no_jury = (~has_jury_mask).sum()
+        scheduled = df_kpi["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"]).sum() if "تاريخ المناقشة" in df_kpi.columns else 0
+        defended = df_kpi[df_kpi.get("حالة المناقشة", pd.Series(dtype=str)).astype(str).str.strip()=="تمت"].shape[0] if "حالة المناقشة" in df_kpi.columns else 0
+        st.markdown(f'''<div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-value">{total_memos}</div><div class="kpi-label">📚 إجمالي المذكرات</div></div>
+            <div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{int(scheduled)}</div><div class="kpi-label">📅 مبرمجة</div></div>
+            <div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{int(no_jury)}</div><div class="kpi-label">⚠️ ناقصة اللجان</div></div>
+            <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
+        </div>''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab1,tab2,tab3,tab4,tab5,tab6,tab7,tab8,tab9,tab10=st.tabs(["المذكرات","الطلاب","الأساتذة","تقارير","تحديث","الطلبات","📧 إيميلات","🎓 لجان","📅 جدولة ذكية","📥 استيراد اللجان"])
-        with tab1:
-            st.subheader("جدول المذكرات")
-            f_status=st.selectbox("تصفية:",["الكل","مسجلة","متاحة"])
-            if f_status=="مسجلة": dm=df_memos[df_memos["تم التسجيل"].astype(str).str.strip()=="نعم"]
-            elif f_status=="متاحة": dm=df_memos[df_memos["تم التسجيل"].astype(str).str.strip()!="نعم"]
-            else: dm=df_memos
-            st.dataframe(dm,use_container_width=True,height=400)
-        with tab2:
-            st.subheader("الطلاب")
-            q=st.text_input("بحث:")
-            if st.session_state.get('admin_edit_student_user'):
-                tu=st.session_state.admin_edit_student_user
-                sd=df_students[df_students["اسم المستخدم"]==tu]
-                if not sd.empty:
-                    s=sd.iloc[0]; vals=s.tolist()
-                    def gv(i): return vals[i] if len(vals)>i else ""
-                    st.markdown(f"<h3>📝 ملف التخرج: {s.get('لقب','')} {s.get('إسم','')}</h3>", unsafe_allow_html=True)
-                    with st.form("edit_diploma"):
-                        c1,c2=st.columns(2)
-                        with c1:
-                            no=st.selectbox("شهادة الميلاد",["متوفر","غير متوفر"],index=0 if gv(14)=="متوفر" else 1)
-                            np_v=st.selectbox("كشف M1",["متوفر","مدين","محول","خطأ"],index=["متوفر","مدين","محول","خطأ"].index(gv(15)) if gv(15) in ["متوفر","مدين","محول","خطأ"] else 0)
-                            nq=st.selectbox("كشف M2",["غير متوفر","متوفر"],index=0 if gv(16)=="غير متوفر" else 1)
-                        with c2:
-                            nr=st.selectbox("محضر المناقشة",["غير متوفر","متوفر"],index=0 if gv(17)=="غير متوفر" else 1)
-                            ns=st.selectbox("حالة الملف",["ناقص","كامل","كامل لحد الآن"],index=["ناقص","كامل","كامل لحد الآن"].index(gv(18)) if gv(18) in ["ناقص","كامل","كامل لحد الآن"] else 0)
-                            nt_v=st.selectbox("حالة الشهادة",["غير جاهز","جاهز","تم التسليم"],index=["غير جاهز","جاهز","تم التسليم"].index(gv(19)) if gv(19) in ["غير جاهز","جاهز","تم التسليم"] else 0)
-                        cs,cc=st.columns([1,4])
-                        with cs:
-                            if st.form_submit_button("💾 حفظ"):
-                                ok,msg=update_diploma_status(tu,{'O':no,'P':np_v,'Q':nq,'R':nr,'S':ns,'T':nt_v})
-                                if ok: st.success(msg); st.session_state.admin_edit_student_user=None; st.rerun()
-                                else: st.error(msg)
-                        with cc:
-                            if st.form_submit_button("❌ إلغاء"): st.session_state.admin_edit_student_user=None; st.rerun()
-            if q:
-                name_cols=[c for c in df_students.columns if any(x in c.lower() for x in ['اسم','لقب','إسم'])]
-                fst=df_students[df_students[name_cols].astype(str).apply(lambda x:x.str.contains(q,case=False,na=False)).any(axis=1)] if name_cols else df_students
-                for idx,row in fst.iterrows():
-                    st.markdown(f'<div style="background:rgba(255,255,255,0.03);padding:9px;border-radius:8px;border:1px solid #333;margin-bottom:4px;"><b>{row.get("لقب","")} {row.get("إسم","")}</b><br><small style="color:#E2E8F0;">{row.get("اسم المستخدم","")} | {row.get("رقم التسجيل","")}</small></div>', unsafe_allow_html=True)
-                    c_e,_=st.columns([1,4])
-                    with c_e:
-                        if st.button("📝 ملف التخرج",key=f"edit_{idx}"):
-                            st.session_state.admin_edit_student_user=row.get("اسم المستخدم"); st.rerun()
-            else: st.dataframe(df_students,use_container_width=True,height=400)
-        with tab3:
-            st.subheader("توزيع الأساتذة")
-            if "الأستاذ" in df_memos.columns:
-                profs_list=sorted(df_memos["الأستاذ"].dropna().unique().tolist())
-                sel_p=st.selectbox("اختر أستاذ:",["الكل"]+profs_list)
-                if sel_p!="الكل": st.dataframe(df_memos[df_memos["الأستاذ"].astype(str).str.strip()==sel_p.strip()],use_container_width=True,height=400)
-                else:
-                    s_df=df_memos.groupby("الأستاذ").agg(total=("رقم المذكرة","count"),registered=("تم التسجيل",lambda x:(x.astype(str).str.strip()=="نعم").sum())).reset_index()
-                    s_df["المتاحة"]=s_df["total"]-s_df["registered"]; s_df=s_df.rename(columns={"total":"الإجمالي","registered":"المسجلة"})
-                    st.dataframe(s_df,use_container_width=True)
-        with tab4:
-            st.subheader("📊 الإحصائيات والتقارير")
-            df_stats = load_memos()
-
-            tab_general, tab_jury = st.tabs(["📈 إحصائيات عامة", "⚖️ إحصائيات لجان المناقشة"])
-
-            with tab_general:
-                c1,c2=st.columns(2)
-                with c1:
-                    st.markdown("##### توزيع حسب التخصص")
-                    st.bar_chart(df_stats.groupby("التخصص").size(),color="#2F6F7E")
-                with c2:
-                    st.markdown("##### المذكرات المسجلة")
-                    st.bar_chart(df_stats.groupby("التخصص")["تم التسجيل"].apply(lambda x:(x.astype(str).str.strip()=="نعم").sum()),color="#FFD700")
-
-            with tab_jury:
-                st.markdown("### ⚖️ إحصائيات أعضاء لجان المناقشة")
-                st.caption("عدد المذكرات التي يشارك فيها كل أستاذ حسب صفته")
-
-                if df_stats.empty:
-                    st.info("لا توجد بيانات")
-                else:
-                    # حساب الإحصائيات
-                    jury_stats = {}
-
-                    for _, row in df_stats.iterrows():
-                        # مشرف
-                        sup = str(row.get("الأستاذ","")).strip()
-                        if sup and sup not in ["","nan","—"]:
-                            jury_stats.setdefault(sup, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
-                            jury_stats[sup]["مشرف"] += 1
-                            jury_stats[sup]["المجموع"] += 1
-                        # رئيس
-                        pres = str(row.get("الرئيس","")).strip()
-                        if pres and pres not in ["","nan","—"]:
-                            jury_stats.setdefault(pres, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
-                            jury_stats[pres]["رئيس"] += 1
-                            jury_stats[pres]["المجموع"] += 1
-                        # مناقش1
-                        ex1 = str(row.get("المناقش1","")).strip()
-                        if ex1 and ex1 not in ["","nan","—"]:
-                            jury_stats.setdefault(ex1, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
-                            jury_stats[ex1]["مناقش"] += 1
-                            jury_stats[ex1]["المجموع"] += 1
-                        # مناقش2
-                        ex2 = str(row.get("المناقش2","")).strip()
-                        if ex2 and ex2 not in ["","nan","—"]:
-                            jury_stats.setdefault(ex2, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
-                            jury_stats[ex2]["مناقش"] += 1
-                            jury_stats[ex2]["المجموع"] += 1
-
-                    if not jury_stats:
-                        st.warning("لا توجد لجان مسجلة بعد")
-                    else:
-                        df_jury = pd.DataFrame([
-                            {"الأستاذ": prof, **counts}
-                            for prof, counts in sorted(jury_stats.items(), key=lambda x: x[1]["المجموع"], reverse=True)
-                        ])
-
-                        # KPIs
-                        total_profs = len(df_jury)
-                        total_roles = df_jury["المجموع"].sum()
-                        max_load = df_jury["المجموع"].max()
-                        max_prof = df_jury.loc[df_jury["المجموع"].idxmax(), "الأستاذ"]
-
-                        k1,k2,k3,k4 = st.columns(4)
-                        with k1: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#FFD700;">{total_profs}</div><div class="kpi-label">👨‍🏫 عدد الأساتذة</div></div>''', unsafe_allow_html=True)
-                        with k2: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#10B981;">{int(df_jury["مشرف"].sum())}</div><div class="kpi-label">📚 إجمالي الإشراف</div></div>''', unsafe_allow_html=True)
-                        with k3: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#818CF8;">{int(df_jury["رئيس"].sum())}</div><div class="kpi-label">🏛️ إجمالي الرئاسة</div></div>''', unsafe_allow_html=True)
-                        with k4: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#F59E0B;">{int(df_jury["مناقش"].sum())}</div><div class="kpi-label">📋 إجمالي المناقشة</div></div>''', unsafe_allow_html=True)
-
-                        st.markdown("---")
-
-                        # فلتر
-                        filter_col = st.selectbox("🔍 تصفية حسب الصفة:", ["الكل","مشرف فقط","رئيس فقط","مناقش فقط"], key="jury_stats_filter")
-                        df_show = df_jury.copy()
-                        if filter_col == "مشرف فقط": df_show = df_show[df_show["مشرف"]>0]
-                        elif filter_col == "رئيس فقط": df_show = df_show[df_show["رئيس"]>0]
-                        elif filter_col == "مناقش فقط": df_show = df_show[df_show["مناقش"]>0]
-
-                        st.markdown(f"**{len(df_show)} أستاذ**")
-
-                        # الجدول
-                        st.dataframe(
-                            df_show,
-                            use_container_width=True,
-                            hide_index=True,
-                            height=min(600, 50 + len(df_show)*38),
-                            column_config={
-                                "الأستاذ": st.column_config.TextColumn("👨‍🏫 الأستاذ", width="large"),
-                                "مشرف": st.column_config.ProgressColumn("📚 مشرف", min_value=0, max_value=int(df_show["مشرف"].max()) if len(df_show)>0 else 1, format="%d"),
-                                "رئيس": st.column_config.ProgressColumn("🏛️ رئيس", min_value=0, max_value=int(df_show["رئيس"].max()) if len(df_show)>0 else 1, format="%d"),
-                                "مناقش": st.column_config.ProgressColumn("📋 مناقش", min_value=0, max_value=int(df_show["مناقش"].max()) if len(df_show)>0 else 1, format="%d"),
-                                "المجموع": st.column_config.ProgressColumn("🔢 المجموع", min_value=0, max_value=int(df_show["المجموع"].max()) if len(df_show)>0 else 1, format="%d"),
-                            }
-                        )
-
-                        # رسم بياني
-                        st.markdown("---")
-                        st.markdown("##### 📊 توزيع الأدوار حسب الأستاذ (أعلى 20)")
-                        top20 = df_show.nlargest(20, "المجموع").set_index("الأستاذ")[["مشرف","رئيس","مناقش"]]
-                        st.bar_chart(top20, color=["#2F9EA0","#FFD700","#818CF8"])
-
-                        # تحذير الأساتذة الأكثر تحميلاً
-                        overloaded = df_jury[df_jury["المجموع"] > 15]
-                        if not overloaded.empty:
-                            st.markdown("---")
-                            st.warning(f"⚠️ {len(overloaded)} أستاذ لديهم أكثر من 15 دور — يُنصح بمراجعة التوزيع:")
-                            for _, r in overloaded.iterrows():
-                                st.markdown(f"- **{r['الأستاذ']}**: {r['المجموع']} دور (مشرف:{r['مشرف']} | رئيس:{r['رئيس']} | مناقش:{r['مناقش']})")
-        with tab5:
-            st.subheader("تحديث البيانات")
-            if st.button("🔄 ربط أرقام التسجيل",type="primary"):
-                with st.spinner("جاري المعالجة..."):
-                    ok,msg=sync_student_registration_numbers()
-                    if ok: st.success(msg); clear_cache_and_reload(); st.rerun()
-                    else: st.info(msg)
+        tab8,tab9,tab10=st.tabs(["🎓 لجان المناقشة","📅 جدولة ذكية","📥 استيراد اللجان"])
         with tab8:
             st.subheader("🎓 اقتراح لجان المناقشة")
             st.info("يتم اقتراح لجان عادلة لكل المذكرات المسجلة. يمكنك تعديل الجدول قبل الحفظ.")
@@ -2889,6 +2750,62 @@ elif st.session_state.user_type == "admin":
                     if failed>0: st.error(f"فشل لـ {failed} أستاذ.")
                     with st.expander("سجل العمليات"):
                         for log in logs: st.text(log)
+
+        # ── إحصائيات الأساتذة ──
+        with st.expander("📊 إحصائيات الأساتذة في اللجان", expanded=False):
+            df_ps = load_memos()
+            jury_stats = {}
+            for _, row in df_ps.iterrows():
+                for col, role in [("الأستاذ","مشرف"),("الرئيس","رئيس"),("المناقش1","مناقش"),("المناقش2","مناقش")]:
+                    v = str(row.get(col,"")).strip()
+                    if v and v not in ["","nan","—"]:
+                        jury_stats.setdefault(v, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
+                        jury_stats[v][role] += 1
+                        jury_stats[v]["المجموع"] += 1
+
+            if jury_stats:
+                df_js = pd.DataFrame([{"الأستاذ":p,**c} for p,c in sorted(jury_stats.items(), key=lambda x:x[1]["المجموع"], reverse=True)])
+                avg = df_js["المجموع"].mean()
+                std = df_js["المجموع"].std()
+
+                k1,k2,k3 = st.columns(3)
+                with k1: st.metric("👨‍🏫 عدد الأساتذة", len(df_js))
+                with k2: st.metric("📊 المعدل", f"{avg:.1f} دور")
+                with k3: st.metric("🔢 إجمالي الأدوار", int(df_js["المجموع"].sum()))
+
+                overloaded = df_js[df_js["المجموع"] > avg + std]
+                underloaded = df_js[df_js["المجموع"] < avg - std]
+
+                if not overloaded.empty:
+                    st.warning(f"🔴 {len(overloaded)} أستاذ فوق المعدل بكثير (>{avg+std:.0f} دور):")
+                    st.dataframe(overloaded, use_container_width=True, hide_index=True,
+                        column_config={
+                            "مشرف": st.column_config.ProgressColumn("مشرف", min_value=0, max_value=int(df_js["مشرف"].max()), format="%d"),
+                            "رئيس": st.column_config.ProgressColumn("رئيس", min_value=0, max_value=int(df_js["رئيس"].max()), format="%d"),
+                            "مناقش": st.column_config.ProgressColumn("مناقش", min_value=0, max_value=int(df_js["مناقش"].max()), format="%d"),
+                            "المجموع": st.column_config.ProgressColumn("المجموع", min_value=0, max_value=int(df_js["المجموع"].max()), format="%d"),
+                        })
+
+                if not underloaded.empty:
+                    st.info(f"🔵 {len(underloaded)} أستاذ دون المعدل بكثير (<{avg-std:.0f} دور):")
+                    st.dataframe(underloaded, use_container_width=True, hide_index=True,
+                        column_config={
+                            "مشرف": st.column_config.ProgressColumn("مشرف", min_value=0, max_value=int(df_js["مشرف"].max()), format="%d"),
+                            "رئيس": st.column_config.ProgressColumn("رئيس", min_value=0, max_value=int(df_js["رئيس"].max()), format="%d"),
+                            "مناقش": st.column_config.ProgressColumn("مناقش", min_value=0, max_value=int(df_js["مناقش"].max()), format="%d"),
+                            "المجموع": st.column_config.ProgressColumn("المجموع", min_value=0, max_value=int(df_js["المجموع"].max()), format="%d"),
+                        })
+
+                st.markdown("##### الجدول الكامل")
+                st.dataframe(df_js, use_container_width=True, hide_index=True,
+                    column_config={
+                        "الأستاذ": st.column_config.TextColumn("👨‍🏫 الأستاذ", width="large"),
+                        "مشرف": st.column_config.ProgressColumn("📚 مشرف", min_value=0, max_value=int(df_js["مشرف"].max()), format="%d"),
+                        "رئيس": st.column_config.ProgressColumn("🏛️ رئيس", min_value=0, max_value=int(df_js["رئيس"].max()), format="%d"),
+                        "مناقش": st.column_config.ProgressColumn("📋 مناقش", min_value=0, max_value=int(df_js["مناقش"].max()), format="%d"),
+                        "المجموع": st.column_config.ProgressColumn("🔢 المجموع", min_value=0, max_value=int(df_js["المجموع"].max()), format="%d"),
+                    }, height=min(500, 50+len(df_js)*38))
+
 
         with tab9:
             st.subheader("📅 جدولة المناقشات الذكية")
