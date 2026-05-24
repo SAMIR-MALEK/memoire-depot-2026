@@ -2506,14 +2506,18 @@ elif st.session_state.user_type == "professor":
 </body>
 </html>'''
 
-                    st.download_button(
-                        label="📄  البرنامج ",
-                        data=html_export.encode("utf-8"),
-                        file_name=f"programme_{prof_name.replace(' ','_')}.html",
-                        mime="text/html",
-                        key="dl_html_btn",
-                        use_container_width=True
-                    )
+                    import base64 as _b64
+                    _html_b64 = _b64.b64encode(html_export.encode("utf-8")).decode()
+                    _fname = f"programme_{prof_name.replace(' ','_')}.html"
+                    st.markdown(f'''<div style="text-align:center;margin-top:12px;">
+                        <a href="data:text/html;base64,{_html_b64}" download="{_fname}"
+                           style="display:inline-block;background:linear-gradient(135deg,#0F2942,#1A3A5C);
+                                  color:#FFD700;padding:8px 22px;border-radius:20px;
+                                  text-decoration:none;font-weight:700;font-size:0.88rem;
+                                  border:1px solid rgba(255,215,0,0.4);">
+                            📄 تحميل البرنامج
+                        </a>
+                    </div>''', unsafe_allow_html=True)
 
 
 
