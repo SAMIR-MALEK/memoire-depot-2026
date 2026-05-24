@@ -86,6 +86,11 @@ div[data-testid="stFormSubmitButton"] button p { color: #ffffff !important; }
 .stTabs [data-baseweb="tab-list"] { gap: 1.5rem; padding-bottom: 12px; }
 .stTabs [data-baseweb="tab"] { background: transparent; color: #94A3B8; font-weight: 600; padding: 10px 20px; border-radius: 10px; border: 1px solid transparent; }
 .stTabs [data-baseweb="tab"]:hover { background: rgba(255,255,255,0.08); color: white; }
+div[role="radiogroup"] label { color: #ffffff !important; background: #1E293B !important; border: 1px solid rgba(255,255,255,0.2) !important; border-radius: 20px !important; padding: 4px 14px !important; margin: 2px !important; cursor: pointer !important; }
+div[role="radiogroup"] label:hover { background: #2F6F7E !important; border-color: #2F6F7E !important; }
+div[role="radiogroup"] label[data-checked="true"], div[role="radiogroup"] input:checked + div { background: #2F6F7E !important; }
+div[role="radiogroup"] p { color: #ffffff !important; }
+.stRadio > div { flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; }
 .stSelectbox > div > div { background-color: #1E293B !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.15) !important; }
 .stSelectbox > div > div > div { color: #ffffff !important; }
 .stSelectbox svg { fill: #ffffff !important; }
@@ -2347,7 +2352,7 @@ elif st.session_state.user_type == "professor":
 
                     # فلتر
                     roles_list = ["الكل"] + [r for r in role_icons if r in role_counts]
-                    selected_role = st.selectbox("🔍 تصفية:", roles_list, key="jury_role_filter")
+                    selected_role = st.radio("", roles_list, key="jury_role_filter", horizontal=True)
                     filtered = jury_memos if selected_role == "الكل" else jury_memos[jury_memos["الصفة"] == selected_role]
 
                     # ترتيب
@@ -2428,6 +2433,8 @@ elif st.session_state.user_type == "professor":
                         jdate_r = jdate_r if jdate_r not in ["","nan"] else "—"
                         jtime_r = jtime_r if jtime_r not in ["","nan"] else "—"
                         jroom_r = jroom_r if jroom_r not in ["","nan"] else "—"
+                        jlink_r = str(jm_r.get("رابط الملف","")).strip()
+                        link_cell = f'<a href="{jlink_r}" target="_blank" style="color:#2F6F7E;font-weight:700;text-decoration:none;">👁️ معاينة</a>' if jlink_r and jlink_r not in ["","nan"] else "—"
                         bg = "#f8fafc" if idx_r % 2 == 0 else "#ffffff"
                         rows_html += f'''<tr style="background:{bg};">
                             <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:#0F2942;">{jmid_r}</td>
@@ -2436,6 +2443,7 @@ elif st.session_state.user_type == "professor":
                             <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;color:#059669;font-weight:600;">{jdate_r}</td>
                             <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;">{jtime_r}</td>
                             <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;">{jroom_r}</td>
+                            <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;">{link_cell}</td>
                         </tr>'''
 
                     html_export = f'''<!DOCTYPE html>
@@ -2484,6 +2492,7 @@ elif st.session_state.user_type == "professor":
       <th style="width:120px;">تاريخ المناقشة</th>
       <th style="width:80px;">التوقيت</th>
       <th style="width:80px;">القاعة</th>
+      <th style="width:80px;">المذكرة</th>
     </tr>
   </thead>
   <tbody>
