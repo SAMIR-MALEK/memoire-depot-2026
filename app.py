@@ -2423,7 +2423,8 @@ elif st.session_state.user_type == "professor":
                     # تصدير HTML
                     st.markdown("---")
                     rows_html = ""
-                    for idx_r, jm_r in filtered.iterrows():
+                    _all_for_html = jury_memos.copy()
+                    for idx_r, jm_r in _all_for_html.iterrows():
                         jmid_r  = str(jm_r.get("رقم المذكرة","")).strip()
                         jtitle_r= str(jm_r.get("عنوان المذكرة","")).strip()
                         jrole_r = str(jm_r.get("الصفة","")).strip()
@@ -2480,7 +2481,7 @@ elif st.session_state.user_type == "professor":
   <div class="faculty">كلية الحقوق والعلوم السياسية</div>
   <div class="title">برنامج مناقشة مذكرات الماستر 2025-2026</div>
   <div class="prof-name">الأستاذ(ة): {prof_name}</div>
-  <div class="meta">عدد المذكرات: {len(filtered)} | التاريخ: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+  <div class="meta">عدد المذكرات: {len(jury_memos)} | التاريخ: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
 </div>
 
 <table>
@@ -2501,7 +2502,7 @@ elif st.session_state.user_type == "professor":
 </table>
 
 <div class="footer">
-  <p>سيتم تحديث البرنامج دوريا</p>
+  <p></p>
 </div>
 </body>
 </html>'''
