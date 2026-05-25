@@ -1149,6 +1149,8 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
     
     # خريطة الأستاذ في التوقيت: (day, slot, prof) -> memo_id
     prof_busy = {}
+    # عدد مناقشات الأستاذ في اليوم: (prof, day) -> count
+    prof_day_count = {}
     
     def can_place(memo_id, day, slot, room):
         """هل يمكن وضع المذكرة في هذه الخانة؟"""
@@ -1156,7 +1158,11 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
             return False
         members = memo_members.get(memo_id, set())
         for prof in members:
+            # تعارض في نفس التوقيت
             if (day, slot, prof) in prof_busy:
+                return False
+            # الحد الأقصى 3 مناقشات في اليوم لكل أستاذ — قاعدة مطلقة
+            if prof_day_count.get((prof, day), 0) >= 3:
                 return False
         return True
     
@@ -1167,6 +1173,7 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
         members = memo_members.get(memo_id, set())
         for prof in members:
             prof_busy[(day, slot, prof)] = memo_id
+            prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
     
     # رتّب الأساتذة من الأكثر مذكرات إلى الأقل
     sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
@@ -2508,7 +2515,8 @@ elif st.session_state.user_type == "professor":
                         jdate = str(jm.get("تاريخ المناقشة","")).strip()
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
-                        jsup  = str(jm.get("الأستاذ","")).strip()  # اسم المشرف دائماً
+                        jsup       = str(jm.get("الأستاذ","")).strip()
+                        jdeposit   = str(jm.get("حالة الإيداع","")).strip()
 
                         has_date = jdate and jdate not in ["","nan"]
                         has_time = jtime and jtime not in ["","nan"]
@@ -2518,7 +2526,15 @@ elif st.session_state.user_type == "professor":
                         r_color = role_colors.get(jrole,"#94A3B8")
                         r_icon  = role_icons.get(jrole,"📄")
 
-                        preview_btn = f'<a href="{jlink}" target="_blank" style="background:#1E3A5F;color:#fff;padding:5px 14px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;">👁️ معاينة</a>' if has_link else '<span style="color:#475569;font-size:0.78rem;">لا ملف</span>'
+                        # زر المعاينة حسب حالة الإيداع
+                        if has_link and jdeposit in ["مقبولة","قابلة للمناقشة","مودعة"]:
+                            preview_btn = f'<a href="{jlink}" target="_blank" style="background:#1E3A5F;color:#fff;padding:5px 14px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;">👁️ معاينة</a>'
+                        elif jdeposit == "مودعة" or (has_link and jdeposit not in ["مقبولة","قابلة للمناقشة",""]):
+                            preview_btn = '<span style="background:rgba(245,158,11,0.15);color:#F59E0B;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⏳ في انتظار موافقة المشرف</span>'
+                        elif not jdeposit or jdeposit in ["","nan"]:
+                            preview_btn = '<span style="background:rgba(239,68,68,0.12);color:#EF4444;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⚠️ لم يتم الإيداع بعد</span>'
+                        else:
+                            preview_btn = '<span style="background:rgba(245,158,11,0.15);color:#F59E0B;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⏳ في انتظار موافقة المشرف</span>'
 
                         if has_date:
                             schedule_line = f'''<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;">
