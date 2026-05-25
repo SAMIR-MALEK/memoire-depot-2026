@@ -2516,13 +2516,15 @@ elif st.session_state.user_type == "professor":
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
                         jsup       = str(jm.get("الأستاذ","")).strip()
-                        # العمود T = حالة الإيداع — نقرأ بالموضع مباشرة (الأضمن)
-                        try:
-                            jdeposit = str(jm.iloc[19]).strip().replace("\u200f","").replace("\u200e","").replace("\xa0"," ").strip()
-                            if jdeposit in ["nan","None"]: jdeposit = ""
-                        except:
-                            jdeposit = str(jm.get("حالة الإيداع","")).strip()
-                            if jdeposit in ["nan","None"]: jdeposit = ""
+                        # العمود T = حالة الإيداع
+                        jdeposit = ""
+                        _cols_list = list(jm.index)
+                        for _cn in _cols_list:
+                            if "حالة" in str(_cn) and "إيداع" in str(_cn):
+                                _v = str(jm[_cn]).strip()
+                                if _v and _v not in ["nan","None",""]:
+                                    jdeposit = _v
+                                    break
 
                         has_date = jdate and jdate not in ["","nan"]
                         has_time = jtime and jtime not in ["","nan"]
@@ -2534,8 +2536,11 @@ elif st.session_state.user_type == "professor":
 
                         # زر المعاينة حسب حالة الإيداع والصفة
                         is_supervisor_role = (jrole == "مشرف")
-                        # تنظيف jdeposit من أي مسافات أو أحرف غير مرئية
-                        jdeposit = jdeposit.strip().replace("\u200f","").replace("\u200e","").replace("\xa0","")
+                        # تنظيف jdeposit
+                        jdeposit = jdeposit.strip()
+                        # DEBUG مؤقت
+                        if jmid in ["161","162","163"]:
+                            st.warning(f"🔍 {jmid}: T='{jdeposit}' | صفة='{jrole}' | مشرف={is_supervisor_role}")
 
                         if not jdeposit or jdeposit in ["","nan"]:
                             # لم يُودع بعد
