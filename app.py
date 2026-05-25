@@ -480,7 +480,7 @@ def send_deposit_email_to_professor(prof_name, memo_number, memo_title, student1
             </div>"""
 
         body = f"""<html dir="rtl"><head><meta charset="UTF-8">{_email_style()}</head><body>
-        <div class="container">
+        <div class="container" dir="rtl">
             <div class="header">
                 <h2>📥 إيداع مذكرة — للإطلاع والمراجعة</h2>
                 <p style="color:rgba(255,255,255,0.8);margin:5px 0 0;font-size:0.88rem;">
@@ -1585,7 +1585,7 @@ def send_jury_notification_email(prof_row, has_pending_memos=False, pending_memo
 <html dir="rtl" lang="ar">
 <head><meta charset="UTF-8">
 <style>
-body {{ font-family: Arial, sans-serif; direction: rtl; text-align: right; background: #f4f6f8; margin: 0; padding: 20px; }}
+body {{ font-family: Arial, sans-serif; direction: rtl; text-align: right; background: #f4f6f8; margin: 0; padding: 20px; }} * {{ direction: rtl; text-align: right; }} td {{ text-align: right; }}
 .container {{ background: #ffffff; max-width: 650px; margin: auto; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
 .header {{ background: linear-gradient(135deg, #0F2942, #1A4A6E); padding: 28px 32px; text-align: center; }}
 .header h2 {{ color: #FFD700; font-size: 1.3rem; margin: 0 0 6px; }}
@@ -1646,8 +1646,9 @@ body {{ font-family: Arial, sans-serif; direction: rtl; text-align: right; backg
         </div>
 
         <p style="margin-top:24px;">مع فائق التقدير والاحترام،<br>
-        <strong>إدارة كلية الحقوق والعلوم السياسية</strong><br>
-        جامعة محمد البشير الإبراهيمي – برج بوعريريج</p>
+        <strong>مسؤول الميدان</strong><br>
+        <strong>البروفيسور رفاف لخضر</strong><br><br>
+        <span style="color:#64748b;font-size:0.9rem;">للاستفسار: يمكنكم الاتصال بمكتب فريق التكوين في الطابق الأرضي بالكلية.</span></p>
     </div>
     <div class="footer">هذا البريد مُرسَل تلقائياً من منصة مذكرات الماستر — لا تردّ على هذه الرسالة</div>
 </div>
