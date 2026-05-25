@@ -2584,19 +2584,9 @@ elif st.session_state.user_type == "professor":
                             {schedule_line}
                         </div>'''
 
-                    # عرض debug قبل البطاقات
-                    for _, _jm_dbg in filtered.iterrows():
-                        if str(_jm_dbg.get("رقم المذكرة","")).strip() == "161":
-                            try: _dep_dbg = str(_jm_dbg.iloc[19]).strip()
-                            except: _dep_dbg = str(_jm_dbg.get("حالة الإيداع",""))
-                            st.error(f"DEBUG 161: T='{_dep_dbg}' | صفة='{_jm_dbg.get('الصفة','')}'")
-
                     import streamlit.components.v1 as _cv1
-                    _cv1.html(
-                        f'''<div style="font-family:Arial,sans-serif;direction:rtl;">{cards_html}</div>''',
-                        height=min(900, len(filtered)*120 + 100),
-                        scrolling=True
-                    )
+                    # إجبار إعادة التحميل الكامل — لا cache
+                    st.markdown(f'<div style="font-family:Arial,sans-serif;direction:rtl;">{cards_html}</div>', unsafe_allow_html=True)
 
                     # تصدير HTML
                     st.markdown("---")
