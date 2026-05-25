@@ -1590,7 +1590,7 @@ body {{ font-family: Arial, sans-serif; direction: rtl; text-align: right; backg
 .header {{ background: linear-gradient(135deg, #0F2942, #1A4A6E); padding: 28px 32px; text-align: center; }}
 .header h2 {{ color: #FFD700; font-size: 1.3rem; margin: 0 0 6px; }}
 .header p {{ color: rgba(255,255,255,0.85); font-size: 0.9rem; margin: 0; }}
-.body {{ padding: 28px 32px; color: #1e293b; line-height: 1.9; font-size: 1.05rem; }}
+.body {{ padding: 28px 32px; color: #1e293b; line-height: 1.9; font-size: 1.1rem; }}
 .credentials {{ background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin: 20px 0; }}
 .credentials table {{ width: 100%; border-collapse: collapse; }}
 .credentials td {{ padding: 6px 10px; }}
@@ -1602,9 +1602,9 @@ body {{ font-family: Arial, sans-serif; direction: rtl; text-align: right; backg
 </head>
 <body>
 <div class="container">
-    <div class="header">
-        <h2>🎓 منصة مذكرات الماستر 2025-2026</h2>
-        <p>كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي</p>
+    <div class="header" style="text-align:center;" dir="rtl">
+        <h2 style="font-size:1.5rem;text-align:center;">🎓 منصة مذكرات الماستر 2025-2026</h2>
+        <p style="font-size:1.05rem;text-align:center;">كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي</p>
     </div>
     <div class="body">
         <p>الأستاذ(ة) الفاضل(ة) <strong>{prof_name_e}</strong>،</p>
