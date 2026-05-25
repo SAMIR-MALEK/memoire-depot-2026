@@ -2538,9 +2538,7 @@ elif st.session_state.user_type == "professor":
                         is_supervisor_role = (jrole == "مشرف")
                         # تنظيف jdeposit
                         jdeposit = jdeposit.strip()
-                        # DEBUG مؤقت
-                        if jmid in ["161","162","163"]:
-                            st.warning(f"🔍 {jmid}: T='{jdeposit}' | صفة='{jrole}' | مشرف={is_supervisor_role}")
+
 
                         if not jdeposit or jdeposit in ["","nan"]:
                             # لم يُودع بعد
@@ -2590,8 +2588,11 @@ elif st.session_state.user_type == "professor":
                         </div>'''
 
                     import streamlit.components.v1 as _cv1
-                    # إجبار إعادة التحميل الكامل — لا cache
-                    st.markdown(f'<div style="font-family:Arial,sans-serif;direction:rtl;">{cards_html}</div>', unsafe_allow_html=True)
+                    _cv1.html(
+                        f'''<!DOCTYPE html><html dir="rtl"><body style="font-family:Arial,sans-serif;direction:rtl;background:transparent;margin:0;">{cards_html}</body></html>''',
+                        height=min(900, len(filtered)*130 + 100),
+                        scrolling=True
+                    )
 
                     # تصدير HTML
                     st.markdown("---")
