@@ -2506,6 +2506,14 @@ elif st.session_state.user_type == "professor":
                     st.markdown(f"**{len(filtered)} مذكرة**")
 
                     # البطاقات
+                    # DEBUG مؤقت
+                    for _, _dbg in filtered.iterrows():
+                        _mid = str(_dbg.get("رقم المذكرة","")).strip()
+                        _dep = str(_dbg.get("حالة الإيداع","")).strip()
+                        _rol = str(_dbg.get("الصفة","")).strip()
+                        if _mid == "161":
+                            st.error(f"DEBUG 161: deposit='{_dep}' | role='{_rol}'")
+                    # END DEBUG
                     cards_html = ""
                     for _, jm in filtered.iterrows():
                         jmid  = str(jm.get("رقم المذكرة","")).strip()
@@ -2543,7 +2551,7 @@ elif st.session_state.user_type == "professor":
                         is_supervisor_role = (jrole == "مشرف")
                         # تنظيف jdeposit من أي مسافات أو أحرف غير مرئية
                         jdeposit = jdeposit.strip().replace("\u200f","").replace("\u200e","").replace("\xa0","")
-                        if jmid == "161": st.error(f"DEBUG 161: deposit='{jdeposit}' | role='{jrole}' | supervisor={is_supervisor_role}")
+
                         if not jdeposit or jdeposit in ["","nan"]:
                             # لم يُودع بعد
                             preview_btn = '<span style="background:rgba(239,68,68,0.12);color:#EF4444;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⚠️ لم يتم الإيداع بعد</span>'
