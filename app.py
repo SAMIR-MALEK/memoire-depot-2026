@@ -1537,7 +1537,7 @@ def send_recovery_email_to_admin(memo_number, memo_title, student1_name, student
         return False, f"❌ {str(e)}"
 
 
-def send_jury_notification_email(prof_row, has_pending_memos=False):
+def send_jury_notification_email(prof_row, has_pending_memos=False, pending_memo_list=None):
     """إرسال إيميل إعلام بلجان المناقشة للأستاذ"""
     try:
         email = get_email_smart(prof_row)
@@ -1556,13 +1556,28 @@ def send_jury_notification_email(prof_row, has_pending_memos=False):
 
         # فقرة المذكرات العالقة (للمشرف فقط)
         pending_section = ""
-        if has_pending_memos:
+        if has_pending_memos and pending_memo_list:
+            memo_items = "".join([f'<li style="margin:4px 0;"><strong>مذكرة رقم {m}</strong></li>' for m in pending_memo_list])
+            pending_section = f"""
+            <div style="background:#fff8e1;border-right:4px solid #F59E0B;border-radius:10px;padding:18px 22px;margin:20px 0;">
+                <div style="font-weight:700;color:#92400E;margin-bottom:10px;font-size:1.05rem;">⚠️ تنبيه خاص — مذكرات تنتظر رأيكم</div>
+                <div style="color:#78350F;line-height:1.9;margin-bottom:12px;">
+                    لا تزال <strong>{len(pending_memo_list)} مذكرة</strong> مسندة إليكم في انتظار رأيكم النهائي:
+                </div>
+                <ul style="color:#78350F;padding-right:20px;margin:0 0 12px;">
+                    {memo_items}
+                </ul>
+                <div style="color:#78350F;line-height:1.9;">
+                    ندعوكم إلى الولوج إلى المنصة وإبداء رأيكم بشأنها، سواء بالموافقة أو بإرسال ملاحظاتكم للطالب المعني،
+                    وذلك حتى يتسنّى إدراجها ضمن الجدول الرسمي للمناقشات.
+                </div>
+            </div>"""
+        elif has_pending_memos:
             pending_section = """
-            <div style="background:#fff8e1;border-right:4px solid #F59E0B;border-radius:8px;padding:16px 20px;margin:20px 0;">
+            <div style="background:#fff8e1;border-right:4px solid #F59E0B;border-radius:10px;padding:18px 22px;margin:20px 0;">
                 <div style="font-weight:700;color:#92400E;margin-bottom:8px;">⚠️ تنبيه خاص</div>
                 <div style="color:#78350F;line-height:1.9;">
-                    كما ندعوكم إلى الولوج إلى المنصة وإبداء رأيكم النهائي بشأن المذكرات المسندة إليكم والتي لا تزال في انتظار قراركم،
-                    سواء بالموافقة أو بإرسال ملاحظاتكم للطالب المعني، وذلك حتى يتسنّى إدراجها ضمن الجدول الرسمي للمناقشات.
+                    لا تزال بعض المذكرات المسندة إليكم في انتظار رأيكم النهائي. ندعوكم إلى الولوج إلى المنصة وإبداء رأيكم بشأنها.
                 </div>
             </div>"""
 
@@ -1570,12 +1585,12 @@ def send_jury_notification_email(prof_row, has_pending_memos=False):
 <html dir="rtl" lang="ar">
 <head><meta charset="UTF-8">
 <style>
-body {{ font-family: Arial, sans-serif; direction: rtl; background: #f4f6f8; margin: 0; padding: 20px; }}
+body {{ font-family: Arial, sans-serif; direction: rtl; text-align: right; background: #f4f6f8; margin: 0; padding: 20px; }}
 .container {{ background: #ffffff; max-width: 650px; margin: auto; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
 .header {{ background: linear-gradient(135deg, #0F2942, #1A4A6E); padding: 28px 32px; text-align: center; }}
 .header h2 {{ color: #FFD700; font-size: 1.3rem; margin: 0 0 6px; }}
 .header p {{ color: rgba(255,255,255,0.85); font-size: 0.9rem; margin: 0; }}
-.body {{ padding: 28px 32px; color: #1e293b; line-height: 1.9; font-size: 0.95rem; }}
+.body {{ padding: 28px 32px; color: #1e293b; line-height: 1.9; font-size: 1.05rem; }}
 .credentials {{ background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin: 20px 0; }}
 .credentials table {{ width: 100%; border-collapse: collapse; }}
 .credentials td {{ padding: 6px 10px; }}
@@ -1617,12 +1632,17 @@ body {{ font-family: Arial, sans-serif; direction: rtl; background: #f4f6f8; mar
 
         {pending_section}
 
-        <p>
-        أما التكليفات الرسمية والبرنامج التفصيلي للمناقشات فسيتم إرسالها إليكم عبر هذا البريد الإلكتروني.
-        </p>
-
         <div style="text-align:center;margin-top:20px;">
             <a href="https://memoires2026.streamlit.app" class="btn">🔗 الدخول إلى المنصة</a>
+        </div>
+
+        <div style="text-align:center;margin:28px 0 8px;">
+            <div style="display:inline-block;background:#f0f9ff;border:2px solid #2F6F7E;border-radius:12px;padding:14px 24px;max-width:90%;">
+                <div style="font-weight:900;color:#0F2942;font-size:1.05rem;margin-bottom:4px;">⚠️ ملاحظة هامة</div>
+                <div style="color:#1e3a5c;font-size:1rem;line-height:1.7;">
+                    التكليفات الرسمية والبرنامج التفصيلي للمناقشات سيتم إرسالها إليكم عبر البريد الإلكتروني المهني.
+                </div>
+            </div>
         </div>
 
         <p style="margin-top:24px;">مع فائق التقدير والاحترام،<br>
@@ -3001,7 +3021,12 @@ elif st.session_state.user_type == "admin":
 
                         if st.button("📧 إرسال الإيميل", type="primary", use_container_width=True, key="jury_email_send_one"):
                             with st.spinner("⏳ جاري الإرسال..."):
-                                ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending)
+                                # أرقام المذكرات العالقة لهذا الأستاذ
+                                pending_nums = df_memos_email[
+                                    (df_memos_email["حالة الإيداع"].astype(str).str.strip()=="مودعة") &
+                                    (df_memos_email["الأستاذ"].astype(str).str.strip()==sel_prof)
+                                ]["رقم المذكرة"].astype(str).tolist() if "حالة الإيداع" in df_memos_email.columns else []
+                                ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending, pending_memo_list=pending_nums)
                             if ok: st.success(f"✅ تم الإرسال: {msg}")
                             else: st.error(msg)
 
@@ -3016,7 +3041,11 @@ elif st.session_state.user_type == "admin":
                         for i, (_, prof_row) in enumerate(df_profs_email.iterrows()):
                             pname = str(prof_row.get(prof_col, "")).strip()
                             has_pending = pname in pending_profs
-                            ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending)
+                            pending_nums_a = df_memos_email[
+                                    (df_memos_email["حالة الإيداع"].astype(str).str.strip()=="مودعة") &
+                                    (df_memos_email["الأستاذ"].astype(str).str.strip()==pname)
+                                ]["رقم المذكرة"].astype(str).tolist() if "حالة الإيداع" in df_memos_email.columns else []
+                            ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending, pending_memo_list=pending_nums_a)
                             if ok: sent_ok.append(pname)
                             else: sent_fail.append(f"{pname}: {msg}")
                             progress.progress((i+1)/total)
