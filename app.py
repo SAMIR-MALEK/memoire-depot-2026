@@ -2608,8 +2608,18 @@ elif st.session_state.user_type == "professor":
                         jdate_r = jdate_r if jdate_r not in ["","nan"] else "—"
                         jtime_r = jtime_r if jtime_r not in ["","nan"] else "—"
                         jroom_r = jroom_r if jroom_r not in ["","nan"] else "—"
-                        jlink_r = str(jm_r.get("رابط الملف","")).strip()
-                        link_cell = f'<a href="{jlink_r}" target="_blank" style="color:#2F6F7E;font-weight:700;text-decoration:none;">👁️ معاينة</a>' if jlink_r and jlink_r not in ["","nan"] else "—"
+                        jlink_r    = str(jm_r.get("رابط الملف","")).strip()
+                        jdeposit_r = str(jm_r.get("حالة الإيداع","")).strip()
+                        jrole_r_v  = str(jm_r.get("الصفة","")).strip()
+                        is_sup_r   = (jrole_r_v == "مشرف")
+                        if not jdeposit_r or jdeposit_r in ["","nan"]:
+                            link_cell = "⚠️ لم يتم الإيداع"
+                        elif jdeposit_r == "قابلة للمناقشة" and jlink_r and jlink_r not in ["","nan"]:
+                            link_cell = f'<a href="{jlink_r}" target="_blank" style="color:#2F6F7E;font-weight:700;text-decoration:none;">👁️ معاينة</a>'
+                        elif is_sup_r and jlink_r and jlink_r not in ["","nan"]:
+                            link_cell = f'<a href="{jlink_r}" target="_blank" style="color:#2F6F7E;font-weight:700;text-decoration:none;">👁️ معاينة</a>'
+                        else:
+                            link_cell = "⏳ في انتظار موافقة المشرف"
                         bg = "#f8fafc" if idx_r % 2 == 0 else "#ffffff"
                         rows_html += f'''<tr style="background:{bg};">
                             <td style="padding:10px 14px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:#0F2942;">{jmid_r}</td>
