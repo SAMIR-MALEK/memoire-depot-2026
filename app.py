@@ -1963,14 +1963,7 @@ elif st.session_state.user_type == "student":
 
 
             # ── ملاحظات المشرف (تظهر دائماً) ──
-            sup_notes_raw = str(memo_info.get("توقيع المشرف","")).strip()
-            sup_notes_display = sup_notes_raw if sup_notes_raw and sup_notes_raw not in ["","nan"] else "لا توجد ملاحظات حتى الآن."
-            st.markdown(f'''<div style="background:rgba(47,111,126,0.08);border:1px solid rgba(47,111,126,0.3);
-                border-radius:12px;padding:14px 18px;margin-bottom:14px;">
-                <div style="color:#2F9EA0;font-size:0.85rem;font-weight:700;margin-bottom:6px;">📝 ملاحظات المشرف</div>
-                <div style="color:#E2E8F0;font-size:0.88rem;line-height:1.7;">{sup_notes_display}</div>
-            </div>''', unsafe_allow_html=True)
-
+          # العمود Z يظهر فقط عند الرفض في الإشعارات
             if is_missing:
                 st.markdown("""
                 <div style="background:linear-gradient(135deg,#1a0a0a,#3d0f0f);border:4px solid #EF4444;
