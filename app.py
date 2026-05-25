@@ -3003,7 +3003,9 @@ elif st.session_state.user_type == "admin":
                     pending_mask = df_memos_email["حالة الإيداع"].astype(str).str.strip() == "مودعة"
                     pending_profs = set(df_memos_email[pending_mask]["الأستاذ"].astype(str).str.strip().unique())
 
-                st.info(f"**{len(df_profs_email)} أستاذ** | **{len(pending_profs)} منهم** لديهم مذكرات تنتظر رأيهم")
+                prof_col_e = "الأستاذ" if "الأستاذ" in df_profs_email.columns else df_profs_email.columns[0]
+                valid_profs = df_profs_email[df_profs_email[prof_col_e].astype(str).str.strip().apply(lambda x: bool(x) and x not in ["","nan","None"])]
+                st.info(f"**{len(valid_profs)} أستاذ** | **{len(pending_profs)} منهم** لديهم مذكرات تنتظر رأيهم")
 
                 send_mode = st.radio("طريقة الإرسال:", ["📩 أستاذ محدد", "🚀 جميع الأساتذة"], horizontal=True, key="jury_email_mode")
 
@@ -3032,14 +3034,14 @@ elif st.session_state.user_type == "admin":
                             else: st.error(msg)
 
                 else:
-                    st.markdown(f"سيُرسل لـ **{len(df_profs_email)} أستاذ** — الأساتذة الذين لديهم مذكرات عالقة سيتلقون الفقرة التنبيهية الإضافية.")
+                    st.markdown(f"سيُرسل لـ **{len(valid_profs)} أستاذ** — الأساتذة الذين لديهم مذكرات عالقة سيتلقون الفقرة التنبيهية الإضافية.")
 
                     if st.button("🚀 إرسال للجميع", type="primary", use_container_width=True, key="jury_email_send_all"):
                         prof_col = "الأستاذ" if "الأستاذ" in df_profs_email.columns else df_profs_email.columns[0]
                         sent_ok, sent_fail = [], []
                         progress = st.progress(0)
-                        total = len(df_profs_email)
-                        for i, (_, prof_row) in enumerate(df_profs_email.iterrows()):
+                        total = len(valid_profs)
+                        for i, (_, prof_row) in enumerate(valid_profs.iterrows()):
                             pname = str(prof_row.get(prof_col, "")).strip()
                             has_pending = pname in pending_profs
                             pending_nums_a = df_memos_email[
