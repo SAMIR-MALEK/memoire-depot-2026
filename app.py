@@ -2516,7 +2516,14 @@ elif st.session_state.user_type == "professor":
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
                         jsup       = str(jm.get("الأستاذ","")).strip()
-                        jdeposit   = str(jm.get("حالة الإيداع","")).strip()
+                        # العمود T = حالة الإيداع
+                        jdeposit = str(jm.get("حالة الإيداع","")).strip()
+                        if not jdeposit or jdeposit == "nan":
+                            # محاولة بالاسم البديل أو بالموضع
+                            for _col in ["T","deposit_status","حالة إيداع المذكرة"]:
+                                if _col in jm.index:
+                                    jdeposit = str(jm.get(_col,"")).strip()
+                                    if jdeposit and jdeposit != "nan": break
 
                         has_date = jdate and jdate not in ["","nan"]
                         has_time = jtime and jtime not in ["","nan"]
@@ -2529,16 +2536,21 @@ elif st.session_state.user_type == "professor":
                         # زر المعاينة حسب حالة الإيداع والصفة
                         is_supervisor_role = (jrole == "مشرف")
                         if not jdeposit or jdeposit in ["","nan"]:
-                            # لم يُودع بعد — لا أحد يرى
+                            # لم يُودع بعد
                             preview_btn = '<span style="background:rgba(239,68,68,0.12);color:#EF4444;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⚠️ لم يتم الإيداع بعد</span>'
-                        elif jdeposit == "قابلة للمناقشة" and has_link:
-                            # مقبولة — الجميع يرى
-                            preview_btn = f'<a href="{jlink}" target="_blank" style="background:#1E3A5F;color:#fff;padding:5px 14px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;">👁️ معاينة</a>'
-                        elif is_supervisor_role and has_link:
-                            # مودعة أو مرفوضة — المشرف فقط يرى
-                            preview_btn = f'<a href="{jlink}" target="_blank" style="background:#1E3A5F;color:#fff;padding:5px 14px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;">👁️ معاينة</a>'
+                        elif jdeposit == "قابلة للمناقشة":
+                            # وافق المشرف — الجميع يرى
+                            if has_link:
+                                preview_btn = f'<a href="{jlink}" target="_blank" style="background:#1E3A5F;color:#fff;padding:5px 14px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;">👁️ معاينة</a>'
+                            else:
+                                preview_btn = '<span style="color:#64748B;font-size:0.78rem;">لا ملف</span>'
+                        elif jdeposit in ["مودعة","مرفوضة"]:
+                            # لم يوافق المشرف بعد — المشرف فقط
+                            if is_supervisor_role and has_link:
+                                preview_btn = f'<a href="{jlink}" target="_blank" style="background:#1E3A5F;color:#fff;padding:5px 14px;border-radius:8px;text-decoration:none;font-size:0.82rem;font-weight:700;">👁️ معاينة</a>'
+                            else:
+                                preview_btn = '<span style="background:rgba(245,158,11,0.15);color:#F59E0B;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⏳ في انتظار موافقة المشرف</span>'
                         else:
-                            # مودعة أو مرفوضة — الرئيس والمناقش لا يرون
                             preview_btn = '<span style="background:rgba(245,158,11,0.15);color:#F59E0B;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⏳ في انتظار موافقة المشرف</span>'
 
                         if has_date:
