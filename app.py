@@ -2541,6 +2541,8 @@ elif st.session_state.user_type == "professor":
 
                         # زر المعاينة حسب حالة الإيداع والصفة
                         is_supervisor_role = (jrole == "مشرف")
+                        # تنظيف jdeposit من أي مسافات أو أحرف غير مرئية
+                        jdeposit = jdeposit.strip().replace("\u200f","").replace("\u200e","").replace("\xa0","")
                         if not jdeposit or jdeposit in ["","nan"]:
                             # لم يُودع بعد
                             preview_btn = '<span style="background:rgba(239,68,68,0.12);color:#EF4444;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⚠️ لم يتم الإيداع بعد</span>'
