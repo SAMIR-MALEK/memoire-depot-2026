@@ -2795,7 +2795,7 @@ elif st.session_state.user_type == "admin":
                                 rm_j = st.session_state.get("j_rooms_list", gen_rooms_j)
                                 _, conflicts_j2, memo_members_j2 = build_conflict_matrix(ready_memos_j)
                                 better_j = improve_schedule(cur, memo_members_j2, dy_j, sl_j, rm_j, iterations=400)
-                                better_j = post_optimize(better_j, list(cur.keys()), conflicts_j2, memo_members_j2, dy_j, sl_j, rm_j)
+                                better_j = improve_schedule(better_j, memo_members_j2, dy_j, sl_j, rm_j, iterations=200)
                                 q2, p2, u2, i2, d2, _ = calc_schedule_quality(better_j, memo_members_j2, dy_j, sl_j)
                                 st.session_state["j_schedule"] = better_j
                                 st.session_state["j_score"] = q2
