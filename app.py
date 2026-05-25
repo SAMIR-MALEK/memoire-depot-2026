@@ -1879,6 +1879,41 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
     return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day
 
 
+def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, slots_per_day):
+    """
+    فحص التعارضات بين الاستثناءات قبل التوليد
+    يُرجع قائمة التعارضات
+    """
+    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
+    conflicts = []
+    
+    _, memo_members = build_prof_memo_map(df_memos)
+    
+    for memo_id, (fixed_day, fixed_slot, fixed_room) in fixed_slots.items():
+        members = memo_members.get(str(memo_id), set())
+        for prof in members:
+            # تعارض: يوم مثبت ممنوع للأستاذ
+            if fixed_day in prof_banned_days.get(prof, set()):
+                conflicts.append(f"⚠️ المذكرة **{memo_id}** مثبتة يوم **{fixed_day}** لكنه ممنوع على الأستاذ **{prof}**")
+            
+            # تعارض: توقيت مثبت قبل حد الأستاذ
+            if prof in prof_not_before:
+                if slot_to_idx.get(fixed_slot, 0) < slot_to_idx.get(prof_not_before[prof], 0):
+                    conflicts.append(f"⚠️ المذكرة **{memo_id}** مثبتة في **{fixed_slot}** لكن الأستاذ **{prof}** لا يحضر قبل **{prof_not_before[prof]}**")
+            
+            # تعارض: توقيت مثبت بعد حد الأستاذ
+            if prof in prof_not_after:
+                if slot_to_idx.get(fixed_slot, 99) > slot_to_idx.get(prof_not_after[prof], 99):
+                    conflicts.append(f"⚠️ المذكرة **{memo_id}** مثبتة في **{fixed_slot}** لكن الأستاذ **{prof}** لا يحضر بعد **{prof_not_after[prof]}**")
+    
+    # تعارض: حدود تاريخ المذكرة متناقضة
+    for memo_id, (earliest, latest) in memo_date_limits.items():
+        if earliest and latest and earliest > latest:
+            conflicts.append(f"⚠️ المذكرة **{memo_id}** لها أقرب تاريخ **{earliest}** أكبر من أبعد تاريخ **{latest}**")
+    
+    return conflicts
+
+
 df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
 if df_students.empty or df_memos.empty or df_prof_memos.empty:
     st.error("❌ خطأ في تحميل البيانات."); st.stop()
@@ -3110,29 +3145,41 @@ elif st.session_state.user_type == "admin":
                         if capacity < total_ready_j:
                             st.error(f"❌ الطاقة ({capacity}) أقل من عدد المذكرات ({total_ready_j})")
                         else:
-                            with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
-                                # قراءة الاستثناءات
-                                _df_memo_exc = load_memo_exceptions()
-                                _df_prof_exc = load_prof_exceptions()
-                                _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day = build_constraints(
-                                    _df_memo_exc, _df_prof_exc, gen_slots_j
-                                )
-                                schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j = run_smart_schedule(
-                                    ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
-                                    max_per_day=3, max_consecutive=3, improve=True,
-                                    fixed_slots=_fixed, memo_date_limits=_date_lim,
-                                    prof_banned_days=_ban_days, prof_not_before=_not_bef,
-                                    prof_not_after=_not_aft, prof_one_day=_one_day
-                                )
-                                st.session_state["j_schedule"] = schedule_j
-                                st.session_state["j_score"] = quality_j
-                                st.session_state["j_unplaced"] = unplaced_j
-                                st.session_state["j_slots_list"] = gen_slots_j
-                                st.session_state["j_days_list"] = gen_days_j
-                                st.session_state["j_rooms_list"] = gen_rooms_j
-                                st.session_state["j_memo_members"] = memo_members_j
-                            st.success(f"✅ مجدول: {placed_j}/{placed_j+unplaced_j} | غير مجدول: {unplaced_j} | جودة: {quality_j}%")
-                            st.rerun()
+                            # قراءة الاستثناءات وفحص التعارضات أولاً
+                            _df_memo_exc = load_memo_exceptions()
+                            _df_prof_exc = load_prof_exceptions()
+                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day = build_constraints(
+                                _df_memo_exc, _df_prof_exc, gen_slots_j
+                            )
+                            _conflicts = detect_constraint_conflicts(
+                                ready_memos_j, _fixed, _date_lim, _ban_days, _not_bef, _not_aft, gen_slots_j
+                            )
+                            if _conflicts:
+                                st.error("⛔ تم اكتشاف تعارضات في الاستثناءات — يجب حلها قبل التوليد:")
+                                for _cf in _conflicts:
+                                    st.markdown(f"- {_cf}")
+                                st.stop()
+                            else:
+                                with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
+                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day = build_constraints(
+                                        _df_memo_exc, _df_prof_exc, gen_slots_j
+                                    )
+                                    schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j = run_smart_schedule(
+                                        ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
+                                        max_per_day=3, max_consecutive=3, improve=True,
+                                        fixed_slots=_fixed, memo_date_limits=_date_lim,
+                                        prof_banned_days=_ban_days, prof_not_before=_not_bef,
+                                        prof_not_after=_not_aft, prof_one_day=_one_day
+                                    )
+                                    st.session_state["j_schedule"] = schedule_j
+                                    st.session_state["j_score"] = quality_j
+                                    st.session_state["j_unplaced"] = unplaced_j
+                                    st.session_state["j_slots_list"] = gen_slots_j
+                                    st.session_state["j_days_list"] = gen_days_j
+                                    st.session_state["j_rooms_list"] = gen_rooms_j
+                                    st.session_state["j_memo_members"] = memo_members_j
+                                st.success(f"✅ مجدول: {placed_j}/{placed_j+unplaced_j} | غير مجدول: {unplaced_j} | جودة: {quality_j}%")
+                                st.rerun()
                 with c_g2:
                     if st.button("⚡ تحسين إضافي", use_container_width=True, key="j_improve", disabled="j_schedule" not in st.session_state):
                         if "j_schedule" in st.session_state:
