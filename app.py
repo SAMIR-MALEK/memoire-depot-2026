@@ -2506,14 +2506,6 @@ elif st.session_state.user_type == "professor":
                     st.markdown(f"**{len(filtered)} مذكرة**")
 
                     # البطاقات
-                    # DEBUG مؤقت
-                    for _, _dbg in filtered.iterrows():
-                        _mid = str(_dbg.get("رقم المذكرة","")).strip()
-                        _dep = str(_dbg.get("حالة الإيداع","")).strip()
-                        _rol = str(_dbg.get("الصفة","")).strip()
-                        if _mid == "161":
-                            st.error(f"DEBUG 161: deposit='{_dep}' | role='{_rol}'")
-                    # END DEBUG
                     cards_html = ""
                     for _, jm in filtered.iterrows():
                         jmid  = str(jm.get("رقم المذكرة","")).strip()
@@ -2524,20 +2516,13 @@ elif st.session_state.user_type == "professor":
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
                         jsup       = str(jm.get("الأستاذ","")).strip()
-                        # العمود T = حالة الإيداع — نقرأ بكل الطرق الممكنة
-                        jdeposit = ""
-                        for _cn in ["حالة الإيداع","حالة إيداع المذكرة","T","deposit_status"]:
-                            _v = str(jm.get(_cn,"")).strip() if _cn in jm.index else ""
-                            if _v and _v not in ["","nan","None"]:
-                                jdeposit = _v
-                                break
-                        # إذا لم نجد بالاسم، نحاول بالموضع (T = العمود 19)
-                        if not jdeposit:
-                            try:
-                                _pos_val = str(jm.iloc[19]).strip()
-                                if _pos_val and _pos_val not in ["","nan","None"]:
-                                    jdeposit = _pos_val
-                            except: pass
+                        # العمود T = حالة الإيداع — نقرأ بالموضع مباشرة (الأضمن)
+                        try:
+                            jdeposit = str(jm.iloc[19]).strip().replace("\u200f","").replace("\u200e","").replace("\xa0"," ").strip()
+                            if jdeposit in ["nan","None"]: jdeposit = ""
+                        except:
+                            jdeposit = str(jm.get("حالة الإيداع","")).strip()
+                            if jdeposit in ["nan","None"]: jdeposit = ""
 
                         has_date = jdate and jdate not in ["","nan"]
                         has_time = jtime and jtime not in ["","nan"]
@@ -2598,6 +2583,13 @@ elif st.session_state.user_type == "professor":
                             {sup_html}
                             {schedule_line}
                         </div>'''
+
+                    # عرض debug قبل البطاقات
+                    for _, _jm_dbg in filtered.iterrows():
+                        if str(_jm_dbg.get("رقم المذكرة","")).strip() == "161":
+                            try: _dep_dbg = str(_jm_dbg.iloc[19]).strip()
+                            except: _dep_dbg = str(_jm_dbg.get("حالة الإيداع",""))
+                            st.error(f"DEBUG 161: T='{_dep_dbg}' | صفة='{_jm_dbg.get('الصفة','')}'")
 
                     import streamlit.components.v1 as _cv1
                     _cv1.html(
