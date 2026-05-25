@@ -1537,6 +1537,117 @@ def send_recovery_email_to_admin(memo_number, memo_title, student1_name, student
         return False, f"❌ {str(e)}"
 
 
+def send_jury_notification_email(prof_row, has_pending_memos=False):
+    """إرسال إيميل إعلام بلجان المناقشة للأستاذ"""
+    try:
+        email = get_email_smart(prof_row)
+        if not email or "@" not in email:
+            return False, "لا بريد"
+        
+        # اسم المستخدم وكلمة المرور من عمود M و N
+        cols = list(prof_row.index) if hasattr(prof_row, 'index') else []
+        username = str(prof_row.iloc[12]).strip() if len(prof_row) > 12 else ""
+        password = str(prof_row.iloc[13]).strip() if len(prof_row) > 13 else ""
+        
+        # اسم الأستاذ
+        prof_name_e = str(prof_row.get("الأستاذ", "")).strip() if hasattr(prof_row, 'get') else ""
+        if not prof_name_e:
+            prof_name_e = str(prof_row.iloc[0]).strip() if len(prof_row) > 0 else "الأستاذ(ة)"
+
+        # فقرة المذكرات العالقة (للمشرف فقط)
+        pending_section = ""
+        if has_pending_memos:
+            pending_section = """
+            <div style="background:#fff8e1;border-right:4px solid #F59E0B;border-radius:8px;padding:16px 20px;margin:20px 0;">
+                <div style="font-weight:700;color:#92400E;margin-bottom:8px;">⚠️ تنبيه خاص</div>
+                <div style="color:#78350F;line-height:1.9;">
+                    كما ندعوكم إلى الولوج إلى المنصة وإبداء رأيكم النهائي بشأن المذكرات المسندة إليكم والتي لا تزال في انتظار قراركم،
+                    سواء بالموافقة أو بإرسال ملاحظاتكم للطالب المعني، وذلك حتى يتسنّى إدراجها ضمن الجدول الرسمي للمناقشات.
+                </div>
+            </div>"""
+
+        body = f'''<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8">
+<style>
+body {{ font-family: Arial, sans-serif; direction: rtl; background: #f4f6f8; margin: 0; padding: 20px; }}
+.container {{ background: #ffffff; max-width: 650px; margin: auto; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
+.header {{ background: linear-gradient(135deg, #0F2942, #1A4A6E); padding: 28px 32px; text-align: center; }}
+.header h2 {{ color: #FFD700; font-size: 1.3rem; margin: 0 0 6px; }}
+.header p {{ color: rgba(255,255,255,0.85); font-size: 0.9rem; margin: 0; }}
+.body {{ padding: 28px 32px; color: #1e293b; line-height: 1.9; font-size: 0.95rem; }}
+.credentials {{ background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin: 20px 0; }}
+.credentials table {{ width: 100%; border-collapse: collapse; }}
+.credentials td {{ padding: 6px 10px; }}
+.credentials .label {{ color: #0369a1; font-weight: 700; width: 40%; }}
+.credentials .value {{ color: #0F2942; font-weight: 900; font-size: 1rem; }}
+.btn {{ display: inline-block; background: linear-gradient(135deg, #0F2942, #2F6F7E); color: #FFD700 !important; padding: 12px 30px; border-radius: 25px; text-decoration: none; font-weight: 700; font-size: 0.95rem; margin-top: 16px; }}
+.footer {{ background: #f8fafc; padding: 16px 32px; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid #e2e8f0; }}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>🎓 منصة مذكرات الماستر 2025-2026</h2>
+        <p>كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي</p>
+    </div>
+    <div class="body">
+        <p>الأستاذ(ة) الفاضل(ة) <strong>{prof_name_e}</strong>،</p>
+        <p>تحية طيبة وبعد،</p>
+        <p>
+        نتقدم إليكم بجزيل الشكر على تفاعلكم مع منصة مذكرات الماستر ومساهمتكم في إنجاح مشروع رقمنة تسيير مذكرات التخرج بكلية الحقوق والعلوم السياسية.
+        </p>
+        <p>
+        يسرّنا إعلامكم بانطلاق مناقشات مذكرات الماستر ابتداءً من يوم <strong style="color:#0F2942;">31 ماي 2026</strong>،
+        كما نعلمكم بأنه تم ضبط لجان المناقشة وإدراجها على المنصة.
+        </p>
+        <p>
+        يمكنكم الاطلاع عليها من خلال الولوج إلى المنصة، ثم اختيار <strong>«فضاء الأساتذة»</strong> وإدخال بياناتكم أدناه.
+        وستجدون ضمن تبويب <strong>«برنامج المناقشات»</strong> جميع المذكرات التي أنتم أعضاء في لجان مناقشتها،
+        مع إمكانية معاينة كل مذكرة مباشرةً عبر المنصة.
+        </p>
+
+        <div class="credentials">
+            <div style="font-weight:700;color:#0369a1;margin-bottom:10px;">🔐 بيانات الدخول</div>
+            <table>
+                <tr><td class="label">اسم المستخدم:</td><td class="value">{username}</td></tr>
+                <tr><td class="label">كلمة المرور:</td><td class="value">{password}</td></tr>
+            </table>
+        </div>
+
+        {pending_section}
+
+        <p>
+        أما التكليفات الرسمية والبرنامج التفصيلي للمناقشات فسيتم إرسالها إليكم عبر هذا البريد الإلكتروني.
+        </p>
+
+        <div style="text-align:center;margin-top:20px;">
+            <a href="https://memoires2026.streamlit.app" class="btn">🔗 الدخول إلى المنصة</a>
+        </div>
+
+        <p style="margin-top:24px;">مع فائق التقدير والاحترام،<br>
+        <strong>إدارة كلية الحقوق والعلوم السياسية</strong><br>
+        جامعة محمد البشير الإبراهيمي – برج بوعريريج</p>
+    </div>
+    <div class="footer">هذا البريد مُرسَل تلقائياً من منصة مذكرات الماستر — لا تردّ على هذه الرسالة</div>
+</div>
+</body>
+</html>'''
+
+        msg = MIMEMultipart("alternative")
+        msg["From"] = EMAIL_SENDER
+        msg["To"] = email
+        msg["Subject"] = "🎓 لجان مناقشة مذكرات الماستر — انطلاق المناقشات 31 ماي 2026"
+        msg.attach(MIMEText(body, "html", "utf-8"))
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+        return True, f"✅ {email}"
+    except Exception as e:
+        return False, f"❌ {str(e)}"
+
+
 df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
 if df_students.empty or df_memos.empty or df_prof_memos.empty:
     st.error("❌ خطأ في تحميل البيانات."); st.stop()
@@ -2854,6 +2965,68 @@ elif st.session_state.user_type == "admin":
         # ================================================================
         # TAB إحصائيات الأساتذة
         # ================================================================
+        # ================================================================
+        # TAB إرسال إيميلات اللجان
+        # ================================================================
+        # نضعها كقسم منفصل داخل تاب الجدولة
+        with st.expander("📧 إرسال إيميلات إعلام الأساتذة بلجان المناقشة", expanded=False):
+            df_profs_email = load_prof_memos()
+            df_memos_email = load_memos()
+
+            if df_profs_email.empty:
+                st.warning("لا توجد بيانات أساتذة")
+            else:
+                # تحديد الأساتذة الذين لديهم مذكرات عالقة (مودعة ولم يبدِ رأيه)
+                pending_profs = set()
+                if not df_memos_email.empty and "حالة الإيداع" in df_memos_email.columns and "الأستاذ" in df_memos_email.columns:
+                    pending_mask = df_memos_email["حالة الإيداع"].astype(str).str.strip() == "مودعة"
+                    pending_profs = set(df_memos_email[pending_mask]["الأستاذ"].astype(str).str.strip().unique())
+
+                st.info(f"**{len(df_profs_email)} أستاذ** | **{len(pending_profs)} منهم** لديهم مذكرات تنتظر رأيهم")
+
+                send_mode = st.radio("طريقة الإرسال:", ["📩 أستاذ محدد", "🚀 جميع الأساتذة"], horizontal=True, key="jury_email_mode")
+
+                if send_mode == "📩 أستاذ محدد":
+                    prof_col = "الأستاذ" if "الأستاذ" in df_profs_email.columns else df_profs_email.columns[0]
+                    profs_list = sorted(df_profs_email[prof_col].astype(str).str.strip().unique().tolist())
+                    sel_prof = st.selectbox("اختر الأستاذ:", profs_list, key="jury_email_sel_prof")
+
+                    if sel_prof:
+                        prof_row = df_profs_email[df_profs_email[prof_col].astype(str).str.strip() == sel_prof].iloc[0]
+                        has_pending = sel_prof in pending_profs
+                        if has_pending:
+                            st.warning(f"⚠️ لدى **{sel_prof}** مذكرات تنتظر رأيه — سيتضمن الإيميل الفقرة التنبيهية")
+                        else:
+                            st.success("✅ لا توجد مذكرات عالقة لهذا الأستاذ")
+
+                        if st.button("📧 إرسال الإيميل", type="primary", use_container_width=True, key="jury_email_send_one"):
+                            with st.spinner("⏳ جاري الإرسال..."):
+                                ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending)
+                            if ok: st.success(f"✅ تم الإرسال: {msg}")
+                            else: st.error(msg)
+
+                else:
+                    st.markdown(f"سيُرسل لـ **{len(df_profs_email)} أستاذ** — الأساتذة الذين لديهم مذكرات عالقة سيتلقون الفقرة التنبيهية الإضافية.")
+
+                    if st.button("🚀 إرسال للجميع", type="primary", use_container_width=True, key="jury_email_send_all"):
+                        prof_col = "الأستاذ" if "الأستاذ" in df_profs_email.columns else df_profs_email.columns[0]
+                        sent_ok, sent_fail = [], []
+                        progress = st.progress(0)
+                        total = len(df_profs_email)
+                        for i, (_, prof_row) in enumerate(df_profs_email.iterrows()):
+                            pname = str(prof_row.get(prof_col, "")).strip()
+                            has_pending = pname in pending_profs
+                            ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending)
+                            if ok: sent_ok.append(pname)
+                            else: sent_fail.append(f"{pname}: {msg}")
+                            progress.progress((i+1)/total)
+                            import time as _time; _time.sleep(0.3)
+                        progress.empty()
+                        st.success(f"✅ أُرسل بنجاح لـ {len(sent_ok)} أستاذ")
+                        if sent_fail:
+                            st.warning(f"⚠️ فشل الإرسال لـ {len(sent_fail)}:")
+                            for f in sent_fail[:10]: st.markdown(f"- {f}")
+
         with tab_stats:
             st.subheader("📊 إحصائيات الأساتذة في لجان المناقشة")
             df_ps = load_memos()
