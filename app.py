@@ -684,12 +684,12 @@ def send_session_emails(students_data, session_info, prof_name):
         if not row.empty:
             e = get_email_smart(row.iloc[0])
             if e: emails.append(e)
-    body = f"""<html dir="rtl"><head>{_email_style()}</head><body><div class="container"><div class="header"><h2>📅 جلسة إشراف</h2></div><p>الأستاذ(ة) <strong>{prof_name}</strong> يُعلن عن جلسة إشراف:</p><div class="success-box"><p><strong>📆 الموعد:</strong> {session_info}</p></div><div class="footer"><p>جامعة محمد البشير الإبراهيمي</p></div></div></body></html>"""
+    body = f"""<html dir="rtl"><head>{_email_style()}</head><body><div class="container"><div class="header"><h2>📅 ملاحظة من المشرف</h2></div><p>الأستاذ(ة) <strong>{prof_name}</strong> يُعلن عن ملاحظة من المشرف:</p><div class="success-box"><p><strong>📆 الموعد:</strong> {session_info}</p></div><div class="footer"><p>جامعة محمد البشير الإبراهيمي</p></div></div></body></html>"""
     try:
         msg = MIMEMultipart('alternative')
         msg['From']=EMAIL_SENDER; msg['To']=ADMIN_EMAIL
         if emails: msg['Bcc']=", ".join(emails)
-        msg['Subject']=f"🔔 جلسة إشراف — {prof_name}"
+        msg['Subject']=f"🔔 ملاحظة من المشرف — {prof_name}"
         msg.attach(MIMEText(body,'html','utf-8'))
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls(); server.login(EMAIL_SENDER, EMAIL_PASSWORD); server.send_message(msg)
@@ -1938,19 +1938,29 @@ elif st.session_state.user_type == "student":
 
             # ── موعد المناقشة في الصدارة ──
             if def_date_m and def_date_m not in ["","nan"]:
-                date_color = "#10B981"
                 st.markdown(f'''<div style="background:linear-gradient(135deg,#0a1f12,#0f2d1a);
                     border:2px solid rgba(16,185,129,0.5);border-radius:16px;
                     padding:20px 24px;margin-bottom:18px;text-align:center;">
-                    <div style="font-size:0.85rem;color:#6EE7B7;margin-bottom:6px;">📅 موعد مناقشتك</div>
-                    <div style="font-size:1.6rem;font-weight:900;color:#10B981;">{def_date_m}</div>
-                    <div style="display:flex;justify-content:center;gap:24px;margin-top:10px;flex-wrap:wrap;">
-                        <div><span style="color:#6EE7B7;font-size:0.8rem;">🕐 التوقيت</span><br>
-                             <span style="color:#ffffff;font-weight:700;">{def_time_m if def_time_m and def_time_m not in ["","nan"] else "—"}</span></div>
-                        <div><span style="color:#6EE7B7;font-size:0.8rem;">🏛️ القاعة</span><br>
-                             <span style="color:#ffffff;font-weight:700;">{def_room_m if def_room_m and def_room_m not in ["","nan"] else "—"}</span></div>
+                    <div style="font-size:0.85rem;color:#6EE7B7;margin-bottom:6px;font-weight:700;">📅 موعد مناقشتك</div>
+                    <div style="font-size:1.8rem;font-weight:900;color:#10B981;">{def_date_m}</div>
+                    <div style="display:flex;justify-content:center;gap:28px;margin-top:12px;flex-wrap:wrap;">
+                        <div><span style="color:#6EE7B7;font-size:0.82rem;">🕐 التوقيت</span><br>
+                             <span style="color:#ffffff;font-weight:700;font-size:1.1rem;">{def_time_m if def_time_m and def_time_m not in ["","nan"] else "—"}</span></div>
+                        <div><span style="color:#6EE7B7;font-size:0.82rem;">🏛️ القاعة</span><br>
+                             <span style="color:#ffffff;font-weight:700;font-size:1.1rem;">{def_room_m if def_room_m and def_room_m not in ["","nan"] else "—"}</span></div>
                     </div>
                 </div>''', unsafe_allow_html=True)
+            else:
+                st.markdown('''<div style="background:linear-gradient(135deg,#0f1f2d,#1a2f3d);
+                    border:2px solid rgba(245,158,11,0.4);border-radius:16px;
+                    padding:20px 24px;margin-bottom:18px;text-align:center;">
+                    <div style="font-size:1.4rem;margin-bottom:10px;">📅</div>
+                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">المناقشات ستنطلق ابتداءً من 31 ماي 2026</div>
+                    <div style="font-size:0.88rem;color:#CBD5E1;line-height:1.7;">
+                        يُرجى متابعة فضائك على المنصة باستمرار للاطلاع على موعد مناقشتك فور تحديده.
+                    </div>
+                </div>''', unsafe_allow_html=True)
+
 
             # ── ملاحظات المشرف (تظهر دائماً) ──
             sup_notes_raw = str(memo_info.get("توقيع المشرف","")).strip()
@@ -2132,7 +2142,7 @@ elif st.session_state.user_type == "student":
                     sessions=pd.DataFrame()
                     if not my_row.empty:
                         my_prof=str(my_row.iloc[0]["الأستاذ"]).strip()
-                        sessions=df_reqs[(df_reqs["النوع"]=="جلسة إشراف") & (df_reqs["الأستاذ"].astype(str).str.strip()==my_prof)]
+                        sessions=df_reqs[(df_reqs["النوع"]=="ملاحظة من المشرف") & (df_reqs["الأستاذ"].astype(str).str.strip()==my_prof)]
                         if not sessions.empty:
                             last=sessions.iloc[-1]; details=""
                             try:
@@ -2145,7 +2155,7 @@ elif st.session_state.user_type == "student":
                                             except: details=rv
                                         else: details=rv
                             except: pass
-                            if details: st.markdown(f"""<div class="notif-card notif-card-scheduled"><div class="notif-icon">📅</div><div><div class="notif-title notif-title-scheduled">جلسة إشراف</div><div class="notif-desc">{details}</div></div></div>""", unsafe_allow_html=True)
+                            if details: st.markdown(f"""<div class="notif-card notif-card-scheduled"><div class="notif-icon">📅</div><div><div class="notif-title notif-title-scheduled">ملاحظة من المشرف</div><div class="notif-desc">{details}</div></div></div>""", unsafe_allow_html=True)
                     my_reqs=df_reqs[df_reqs["رقم المذكرة"].astype(str).apply(normalize_text)==note_num]
                     if my_reqs.empty and sessions.empty: st.info("لا توجد إشعارات جديدة.")
                     else:
