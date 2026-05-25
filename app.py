@@ -2516,14 +2516,20 @@ elif st.session_state.user_type == "professor":
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
                         jsup       = str(jm.get("الأستاذ","")).strip()
-                        # العمود T = حالة الإيداع
-                        jdeposit = str(jm.get("حالة الإيداع","")).strip()
-                        if not jdeposit or jdeposit == "nan":
-                            # محاولة بالاسم البديل أو بالموضع
-                            for _col in ["T","deposit_status","حالة إيداع المذكرة"]:
-                                if _col in jm.index:
-                                    jdeposit = str(jm.get(_col,"")).strip()
-                                    if jdeposit and jdeposit != "nan": break
+                        # العمود T = حالة الإيداع — نقرأ بكل الطرق الممكنة
+                        jdeposit = ""
+                        for _cn in ["حالة الإيداع","حالة إيداع المذكرة","T","deposit_status"]:
+                            _v = str(jm.get(_cn,"")).strip() if _cn in jm.index else ""
+                            if _v and _v not in ["","nan","None"]:
+                                jdeposit = _v
+                                break
+                        # إذا لم نجد بالاسم، نحاول بالموضع (T = العمود 19)
+                        if not jdeposit:
+                            try:
+                                _pos_val = str(jm.iloc[19]).strip()
+                                if _pos_val and _pos_val not in ["","nan","None"]:
+                                    jdeposit = _pos_val
+                            except: pass
 
                         has_date = jdate and jdate not in ["","nan"]
                         has_time = jtime and jtime not in ["","nan"]
