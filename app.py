@@ -2312,10 +2312,11 @@ elif st.session_state.user_type == "professor":
                 <div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{total_roles}</div><div class="kpi-label">🔢 المجموع</div></div>
             </div>''', unsafe_allow_html=True)
 
-            st.markdown('''<div style="text-align:center;padding:18px 24px;margin-bottom:16px;">
+            st.markdown('''<div style="text-align:center;padding:18px 24px;margin-bottom:4px;">
                 <div style="font-size:1.15rem;font-weight:900;color:#FFD700;margin-bottom:4px;">⚠️ ملاحظة هامة</div>
                 <div style="font-size:1.05rem;font-weight:700;color:#ffffff;">سيتم إعلامكم ببرمجة أي مذكرة عبر الإيميل المهني.</div>
-            </div>''', unsafe_allow_html=True)
+            </div>
+            <hr style="border:none;border-top:1px solid rgba(255,255,255,0.12);margin:8px 0 16px 0;">''', unsafe_allow_html=True)
 
             tab5, = st.tabs(["📅 برنامج المناقشات"])
             with tab5:
