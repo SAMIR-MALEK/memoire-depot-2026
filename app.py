@@ -1373,12 +1373,22 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
         return prog
     
     def can_place(sched, memo_id, day, slot, room):
+        members_new = memo_members.get(memo_id, set())
+        day_counts = {}  # prof -> count in this day
         for other_mid, other_slot in sched.items():
             if other_mid == memo_id or not other_slot: continue
             if other_slot == (day, slot, room): return False
             if other_slot[0] == day and other_slot[1] == slot:
-                if memo_members.get(memo_id, set()) & memo_members.get(other_mid, set()):
+                if members_new & memo_members.get(other_mid, set()):
                     return False
+            # حساب عدد مذكرات كل أستاذ في هذا اليوم
+            if other_slot[0] == day:
+                for p in memo_members.get(other_mid, set()):
+                    day_counts[p] = day_counts.get(p, 0) + 1
+        # تحقق من حد 3 مذكرات/يوم — قاعدة مطلقة
+        for p in members_new:
+            if day_counts.get(p, 0) >= 3:
+                return False
         return True
     
     current = dict(schedule)
