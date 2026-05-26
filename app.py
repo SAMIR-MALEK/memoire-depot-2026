@@ -1127,13 +1127,16 @@ def plan_prof_days(prof_memos_count, days, max_per_day=3, max_consecutive=3):
 
 def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_consecutive=3,
                              fixed_slots=None, memo_date_limits=None, prof_banned_days=None,
-                             prof_not_before=None, prof_not_after=None, prof_one_day=None):
+                             prof_not_before=None, prof_not_after=None, prof_one_day=None,
+                             prof_allowed_days=None, prof_consecutive=None):
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
     prof_banned_days = prof_banned_days or {}
     prof_not_before = prof_not_before or {}
     prof_not_after = prof_not_after or {}
     prof_one_day = prof_one_day or set()
+    prof_allowed_days = prof_allowed_days or {}
+    prof_consecutive = prof_consecutive or set()
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
     """
     الخوارزمية الرئيسية — تبدأ بالأستاذ وليس بالمذكرة
@@ -1183,6 +1186,10 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
             # أيام ممنوعة للأستاذ
             if day in prof_banned_days.get(prof, set()):
                 return False
+            # أيام مسموحة فقط — إذا حُدّدت، لا يُقبل أي يوم خارجها
+            if prof in prof_allowed_days and prof_allowed_days[prof]:
+                if day not in prof_allowed_days[prof]:
+                    return False
             # لا قبل توقيت معين
             if prof in prof_not_before:
                 if slot_to_idx.get(slot, 0) < slot_to_idx.get(prof_not_before[prof], 0):
@@ -1411,7 +1418,8 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
 
 def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_consecutive=3, improve=True,
                        fixed_slots=None, memo_date_limits=None, prof_banned_days=None,
-                       prof_not_before=None, prof_not_after=None, prof_one_day=None):
+                       prof_not_before=None, prof_not_after=None, prof_one_day=None,
+                       prof_allowed_days=None, prof_consecutive=None):
     """الدالة الرئيسية للجدولة الذكية"""
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
@@ -1419,13 +1427,16 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
     prof_not_before = prof_not_before or {}
     prof_not_after = prof_not_after or {}
     prof_one_day = prof_one_day or set()
+    prof_allowed_days = prof_allowed_days or {}
+    prof_consecutive = prof_consecutive or set()
 
     # المرحلة 1: Professor-First Scheduling مع الاستثناءات
     schedule, memo_members = professor_first_schedule(
         df_memos, days, slots_per_day, rooms, max_per_day, max_consecutive,
         fixed_slots=fixed_slots, memo_date_limits=memo_date_limits,
         prof_banned_days=prof_banned_days, prof_not_before=prof_not_before,
-        prof_not_after=prof_not_after, prof_one_day=prof_one_day
+        prof_not_after=prof_not_after, prof_one_day=prof_one_day,
+        prof_allowed_days=prof_allowed_days, prof_consecutive=prof_consecutive
     )
     
     # المرحلة 2: تحسين الجدول
@@ -1746,7 +1757,7 @@ def load_prof_exceptions():
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A1:E1000"
+            range="استثناءات_أساتذة!A1:G1000"
         ).execute()
         values = result.get('values', [])
         if not values or len(values) < 2: return pd.DataFrame()
@@ -1786,13 +1797,15 @@ def save_prof_exception(row_data):
         values = [[
             str(row_data.get("اسم الأستاذ","")),
             str(row_data.get("أيام ممنوعة","")),
+            str(row_data.get("أيام مسموحة فقط","")),
             str(row_data.get("لا قبل","")),
             str(row_data.get("لا بعد","")),
-            str(row_data.get("يوم واحد",""))
+            str(row_data.get("يوم واحد","")),
+            str(row_data.get("أيام متتالية",""))
         ]]
         sheets_service.spreadsheets().values().append(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A:E",
+            range="استثناءات_أساتذة!A:G",
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
             body={"values": values}
@@ -1852,20 +1865,29 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
                     late if late not in ["","nan"] else None
                 )
 
+    prof_allowed_days = {}   # أيام مسموحة فقط
+    prof_consecutive = set() # أيام متتالية
+
     # استثناءات الأساتذة
     if not df_prof_exc.empty:
         for _, row in df_prof_exc.iterrows():
             prof = str(row.get("اسم الأستاذ","")).strip()
             if not prof or prof in ["","nan"]: continue
             
-            banned = str(row.get("أيام ممنوعة","")).strip()
-            not_before = str(row.get("لا قبل","")).strip()
+            banned    = str(row.get("أيام ممنوعة","")).strip()
+            allowed   = str(row.get("أيام مسموحة فقط","")).strip()
+            not_before= str(row.get("لا قبل","")).strip()
             not_after = str(row.get("لا بعد","")).strip()
-            one_day = str(row.get("يوم واحد","")).strip()
+            one_day   = str(row.get("يوم واحد","")).strip()
+            consec    = str(row.get("أيام متتالية","")).strip()
             
             if banned and banned not in ["","nan"]:
-                days_list = [d.strip() for d in banned.split(",") if d.strip()]
-                prof_banned_days.setdefault(prof, set()).update(days_list)
+                prof_banned_days.setdefault(prof, set()).update(
+                    [d.strip() for d in banned.split(",") if d.strip()])
+            
+            if allowed and allowed not in ["","nan"]:
+                prof_allowed_days[prof] = set(
+                    [d.strip() for d in allowed.split(",") if d.strip()])
             
             if not_before and not_before not in ["","nan"]:
                 prof_not_before[prof] = not_before
@@ -1875,8 +1897,11 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             
             if one_day.lower() in ["نعم","yes","1","true"]:
                 prof_one_day.add(prof)
+
+            if consec.lower() in ["نعم","yes","1","true"]:
+                prof_consecutive.add(prof)
     
-    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day
+    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive
 
 
 def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, slots_per_day):
@@ -1910,7 +1935,17 @@ def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_ba
     for memo_id, (earliest, latest) in memo_date_limits.items():
         if earliest and latest and earliest > latest:
             conflicts.append(f"⚠️ المذكرة **{memo_id}** لها أقرب تاريخ **{earliest}** أكبر من أبعد تاريخ **{latest}**")
-    
+
+    # تعارض: أيام ممنوعة وأيام مسموحة متناقضة لنفس الأستاذ
+    _, _, prof_banned_days2, _, _, _, prof_allowed_days2, _ = build_constraints(
+        pd.DataFrame(), df_prof_exc, slots_per_day
+    ) if not df_prof_exc.empty else ({},{},{},{},{},set(),{},set())
+    for prof, allowed in prof_allowed_days2.items():
+        banned = prof_banned_days2.get(prof, set())
+        overlap = allowed & banned
+        if overlap:
+            conflicts.append(f"⚠️ الأستاذ **{prof}**: الأيام {overlap} موجودة في الممنوعة والمسموحة معاً")
+
     return conflicts
 
 
@@ -3110,26 +3145,30 @@ elif st.session_state.user_type == "admin":
                         st.markdown("**➕ إضافة استثناء أستاذ:**")
                         ex_p1, ex_p2 = st.columns(2)
                         with ex_p1:
-                            # قائمة الأساتذة
-                            profs_for_exc = sorted(set(
-                                list(df_memos_j["الأستاذ"].astype(str).str.strip().unique()) +
-                                list(df_memos_j.get("الرئيس", pd.Series()).astype(str).str.strip().unique()) if "الرئيس" in df_memos_j.columns else []
-                            ) - {"","nan"})
+                            _profs_all = set()
+                            for _pc in ["الأستاذ","الرئيس","المناقش1","المناقش2"]:
+                                if _pc in df_memos_j.columns:
+                                    _profs_all.update(df_memos_j[_pc].astype(str).str.strip().unique())
+                            profs_for_exc = sorted(_profs_all - {"","nan","None"})
                             exc_prof_name = st.selectbox("اسم الأستاذ", ["—"]+profs_for_exc, key="exc_prof_name")
-                            exc_prof_banned = st.multiselect("أيام ممنوعة", gen_days_j, key="exc_prof_banned")
+                            exc_prof_banned = st.multiselect("🚫 أيام ممنوعة", gen_days_j, key="exc_prof_banned")
+                            exc_prof_allowed = st.multiselect("✅ أيام مسموحة فقط", gen_days_j, key="exc_prof_allowed")
                         with ex_p2:
-                            exc_prof_before = st.selectbox("لا قبل (توقيت)", ["—"]+gen_slots_j, key="exc_prof_before")
-                            exc_prof_after = st.selectbox("لا بعد (توقيت)", ["—"]+gen_slots_j, key="exc_prof_after")
-                            exc_prof_oneday = st.checkbox("يوم واحد فقط", key="exc_prof_oneday")
+                            exc_prof_before = st.selectbox("⏰ لا قبل (توقيت)", ["—"]+gen_slots_j, key="exc_prof_before")
+                            exc_prof_after = st.selectbox("⏰ لا بعد (توقيت)", ["—"]+gen_slots_j, key="exc_prof_after")
+                            exc_prof_oneday = st.checkbox("📅 يوم واحد فقط", key="exc_prof_oneday")
+                            exc_prof_consec = st.checkbox("📅 أيام متتالية", key="exc_prof_consec")
 
                         if st.button("💾 حفظ استثناء الأستاذ", key="save_prof_exc", use_container_width=True):
                             if exc_prof_name != "—":
                                 ok = save_prof_exception({
                                     "اسم الأستاذ": exc_prof_name,
                                     "أيام ممنوعة": ",".join(exc_prof_banned),
+                                    "أيام مسموحة فقط": ",".join(exc_prof_allowed),
                                     "لا قبل": exc_prof_before if exc_prof_before != "—" else "",
                                     "لا بعد": exc_prof_after if exc_prof_after != "—" else "",
                                     "يوم واحد": "نعم" if exc_prof_oneday else "",
+                                    "أيام متتالية": "نعم" if exc_prof_consec else "",
                                 })
                                 if ok:
                                     st.success("✅ تم الحفظ!")
@@ -3148,7 +3187,7 @@ elif st.session_state.user_type == "admin":
                             # قراءة الاستثناءات وفحص التعارضات أولاً
                             _df_memo_exc = load_memo_exceptions()
                             _df_prof_exc = load_prof_exceptions()
-                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day = build_constraints(
+                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec = build_constraints(
                                 _df_memo_exc, _df_prof_exc, gen_slots_j
                             )
                             _conflicts = detect_constraint_conflicts(
@@ -3161,7 +3200,7 @@ elif st.session_state.user_type == "admin":
                                 st.stop()
                             else:
                                 with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
-                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day = build_constraints(
+                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec = build_constraints(
                                         _df_memo_exc, _df_prof_exc, gen_slots_j
                                     )
                                     schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j = run_smart_schedule(
@@ -3169,7 +3208,8 @@ elif st.session_state.user_type == "admin":
                                         max_per_day=3, max_consecutive=3, improve=True,
                                         fixed_slots=_fixed, memo_date_limits=_date_lim,
                                         prof_banned_days=_ban_days, prof_not_before=_not_bef,
-                                        prof_not_after=_not_aft, prof_one_day=_one_day
+                                        prof_not_after=_not_aft, prof_one_day=_one_day,
+                                        prof_allowed_days=_allow_days, prof_consecutive=_consec
                                     )
                                     st.session_state["j_schedule"] = schedule_j
                                     st.session_state["j_score"] = quality_j
