@@ -1129,7 +1129,8 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
                              fixed_slots=None, memo_date_limits=None, prof_banned_days=None,
                              prof_not_before=None, prof_not_after=None, prof_one_day=None,
                              prof_allowed_days=None, prof_consecutive=None,
-                       frozen_profs=None):
+                       frozen_profs=None, prof_phase_split=None,
+                       memo_alt_days=None):
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
     prof_banned_days = prof_banned_days or {}
@@ -1138,6 +1139,8 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
     prof_one_day = prof_one_day or set()
     prof_allowed_days = prof_allowed_days or {}
     prof_consecutive = prof_consecutive or set()
+    prof_phase_split = prof_phase_split or {}
+    memo_alt_days = memo_alt_days or {}
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
     """
     الخوارزمية الرئيسية — تبدأ بالأستاذ وليس بالمذكرة
@@ -1175,6 +1178,9 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
             earliest, latest = memo_date_limits[memo_id]
             if earliest and day < earliest: return False
             if latest and day > latest: return False
+        # أيام بديلة: المذكرة لا تُبرمج إلا في هذه الأيام
+        if memo_id in memo_alt_days and memo_alt_days[memo_id]:
+            if day not in memo_alt_days[memo_id]: return False
 
         members = memo_members.get(memo_id, set())
         for prof in members:
@@ -1209,12 +1215,17 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
         for prof in members:
             prof_busy[(day, slot, prof)] = memo_id
             prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
+            if prof in prof_phase_split:
+                prof_first_phase_count[prof] = prof_first_phase_count.get(prof, 0) + 1
     
     # رتّب الأساتذة من الأكثر مذكرات إلى الأقل
     sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
     
     # تتبع المذكرات المجدولة
     scheduled_memos = set()
+
+    # بناء خريطة التقسيم الزمني للأساتذة
+    prof_first_phase_count = {prof: 0 for prof in prof_phase_split}
 
     # المرحلة 0: تطبيق المواعيد المثبتة أولاً (قيود صارمة)
     for _fmid, (_fday, _fslot, _froom) in fixed_slots.items():
@@ -1431,6 +1442,8 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
     prof_allowed_days = prof_allowed_days or {}
     prof_consecutive = prof_consecutive or set()
     frozen_profs = frozen_profs or set()
+    prof_phase_split = prof_phase_split or {}
+    memo_alt_days = memo_alt_days or {}
 
     # تصفية المذكرات التي تحتوي أساتذة مجمّدين
     if frozen_profs:
@@ -1448,7 +1461,8 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
         prof_banned_days=prof_banned_days, prof_not_before=prof_not_before,
         prof_not_after=prof_not_after, prof_one_day=prof_one_day,
         prof_allowed_days=prof_allowed_days, prof_consecutive=prof_consecutive,
-        frozen_profs=frozen_profs
+        frozen_profs=frozen_profs, prof_phase_split=prof_phase_split,
+        memo_alt_days=memo_alt_days
     )
     
     # المرحلة 2: تحسين الجدول
@@ -1751,7 +1765,7 @@ def load_memo_exceptions():
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_مذكرات!A1:F1000"
+            range="استثناءات_مذكرات!A1:G1000"
         ).execute()
         values = result.get('values', [])
         if not values or len(values) < 2: return pd.DataFrame()
@@ -1769,7 +1783,7 @@ def load_prof_exceptions():
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A1:H1000"
+            range="استثناءات_أساتذة!A1:J1000"
         ).execute()
         values = result.get('values', [])
         if not values or len(values) < 2: return pd.DataFrame()
@@ -1790,11 +1804,12 @@ def save_memo_exception(row_data):
             str(row_data.get("توقيت مثبت","")),
             str(row_data.get("قاعة مثبتة","")),
             str(row_data.get("أقرب تاريخ","")),
-            str(row_data.get("أبعد تاريخ",""))
+            str(row_data.get("أبعد تاريخ","")),
+            str(row_data.get("أيام بديلة",""))
         ]]
         sheets_service.spreadsheets().values().append(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_مذكرات!A:F",
+            range="استثناءات_مذكرات!A:G",
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
             body={"values": values}
@@ -1814,11 +1829,13 @@ def save_prof_exception(row_data):
             str(row_data.get("لا بعد","")),
             str(row_data.get("يوم واحد","")),
             str(row_data.get("أيام متتالية","")),
-            str(row_data.get("مجمّد",""))
+            str(row_data.get("مجمّد","")),
+            str(row_data.get("عدد مناقشات الفترة الأولى","")),
+            str(row_data.get("بداية الفترة الثانية",""))
         ]]
         sheets_service.spreadsheets().values().append(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A:H",
+            range="استثناءات_أساتذة!A:J",
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
             body={"values": values}
@@ -1915,14 +1932,32 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
                 prof_consecutive.add(prof)
     
     frozen_profs = set()
+    prof_phase_split = {}  # {prof: (n_first, start_second)}
+    memo_alt_days = {}     # {memo_id: set(days)}
+
     if not df_prof_exc.empty:
         for _, row in df_prof_exc.iterrows():
             prof = str(row.get("اسم الأستاذ","")).strip()
+            if not prof or prof in ["","nan"]: continue
             frozen = str(row.get("مجمّد","")).strip()
-            if prof and frozen.lower() in ["نعم","yes","1","true"]:
+            if frozen.lower() in ["نعم","yes","1","true"]:
                 frozen_profs.add(prof)
+            n_first = str(row.get("عدد مناقشات الفترة الأولى","")).strip()
+            start_second = str(row.get("بداية الفترة الثانية","")).strip()
+            if n_first and n_first not in ["","nan"] and start_second and start_second not in ["","nan"]:
+                try:
+                    prof_phase_split[prof] = (int(n_first), start_second)
+                except: pass
 
-    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs
+    # استثناءات الأيام البديلة للمذكرات
+    if not df_memo_exc.empty:
+        for _, row in df_memo_exc.iterrows():
+            mid = str(row.get("رقم المذكرة","")).strip()
+            alt = str(row.get("أيام بديلة","")).strip()
+            if mid and alt and alt not in ["","nan"]:
+                memo_alt_days[mid] = set([d.strip() for d in alt.split(",") if d.strip()])
+
+    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days
 
 
 def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, slots_per_day):
@@ -3138,6 +3173,7 @@ elif st.session_state.user_type == "admin":
                             exc_memo_room = st.selectbox("قاعة مثبتة (اختياري)", ["—"]+gen_rooms_j, key="exc_memo_room")
                             exc_memo_early = st.text_input("أقرب تاريخ (YYYY-MM-DD)", key="exc_memo_early")
                             exc_memo_late = st.text_input("أبعد تاريخ (YYYY-MM-DD)", key="exc_memo_late")
+                            exc_memo_alt = st.multiselect("📅 أيام بديلة (أو/أو)", gen_days_j, key="exc_memo_alt")
 
                         if st.button("💾 حفظ استثناء المذكرة", key="save_memo_exc", use_container_width=True):
                             if exc_memo_id.strip():
@@ -3148,6 +3184,7 @@ elif st.session_state.user_type == "admin":
                                     "قاعة مثبتة": exc_memo_room if exc_memo_room != "—" else "",
                                     "أقرب تاريخ": exc_memo_early.strip(),
                                     "أبعد تاريخ": exc_memo_late.strip(),
+                                    "أيام بديلة": ",".join(exc_memo_alt),
                                 })
                                 if ok:
                                     st.success("✅ تم الحفظ!")
@@ -3180,6 +3217,9 @@ elif st.session_state.user_type == "admin":
                             exc_prof_oneday = st.checkbox("📅 يوم واحد فقط", key="exc_prof_oneday")
                             exc_prof_consec = st.checkbox("📅 أيام متتالية", key="exc_prof_consec")
                             exc_prof_frozen = st.checkbox("🔒 تجميد كلي (لا يُبرمج حتى إشعار آخر)", key="exc_prof_frozen")
+                            st.markdown("**تقسيم على فترتين:**")
+                            exc_prof_n_first = st.number_input("عدد مناقشات الفترة الأولى", min_value=0, max_value=20, value=0, key="exc_prof_n_first")
+                            exc_prof_start2 = st.selectbox("بداية الفترة الثانية", ["—"]+gen_days_j, key="exc_prof_start2")
 
                         if st.button("💾 حفظ استثناء الأستاذ", key="save_prof_exc", use_container_width=True):
                             if exc_prof_name != "—":
@@ -3192,6 +3232,8 @@ elif st.session_state.user_type == "admin":
                                     "يوم واحد": "نعم" if exc_prof_oneday else "",
                                     "أيام متتالية": "نعم" if exc_prof_consec else "",
                                     "مجمّد": "نعم" if exc_prof_frozen else "",
+                                    "عدد مناقشات الفترة الأولى": str(exc_prof_n_first) if exc_prof_n_first > 0 else "",
+                                    "بداية الفترة الثانية": exc_prof_start2 if exc_prof_start2 != "—" else "",
                                 })
                                 if ok:
                                     st.success("✅ تم الحفظ!")
@@ -3210,7 +3252,7 @@ elif st.session_state.user_type == "admin":
                             # قراءة الاستثناءات وفحص التعارضات أولاً
                             _df_memo_exc = load_memo_exceptions()
                             _df_prof_exc = load_prof_exceptions()
-                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen = build_constraints(
+                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days = build_constraints(
                                 _df_memo_exc, _df_prof_exc, gen_slots_j
                             )
                             _conflicts = detect_constraint_conflicts(
@@ -3223,7 +3265,7 @@ elif st.session_state.user_type == "admin":
                                 st.stop()
                             else:
                                 with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
-                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen = build_constraints(
+                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days = build_constraints(
                                         _df_memo_exc, _df_prof_exc, gen_slots_j
                                     )
                                     schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j = run_smart_schedule(
@@ -3233,7 +3275,8 @@ elif st.session_state.user_type == "admin":
                                         prof_banned_days=_ban_days, prof_not_before=_not_bef,
                                         prof_not_after=_not_aft, prof_one_day=_one_day,
                                         prof_allowed_days=_allow_days, prof_consecutive=_consec,
-                                        frozen_profs=_frozen
+                                        frozen_profs=_frozen, prof_phase_split=_phase,
+                                        memo_alt_days=_alt_days
                                     )
                                     st.session_state["j_schedule"] = schedule_j
                                     st.session_state["j_score"] = quality_j
