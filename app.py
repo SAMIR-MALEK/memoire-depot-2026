@@ -1130,7 +1130,8 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
                              prof_not_before=None, prof_not_after=None, prof_one_day=None,
                              prof_allowed_days=None, prof_consecutive=None,
                              frozen_profs=None, prof_phase_split=None,
-                             memo_alt_days=None, day_time_limits=None):
+                             memo_alt_days=None, day_time_limits=None,
+                             profs_accept_18=None):
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
     prof_banned_days = prof_banned_days or {}
@@ -1142,6 +1143,9 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
     prof_phase_split = prof_phase_split or {}
     memo_alt_days = memo_alt_days or {}
     day_time_limits = day_time_limits or {}
+    profs_accept_18 = profs_accept_18 or set()
+    LATE_SLOT = "18:00"
+    profs_accept_18 = profs_accept_18 or set()
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
     """
     الخوارزمية الرئيسية — تبدأ بالأستاذ وليس بالمذكرة
@@ -1174,6 +1178,12 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
         if (day, slot, room) in occupied:
             return False
 
+        # تحقق من توقيت 18:00 — يُسمح فقط إذا كل أعضاء اللجنة موافقون
+        if slot == LATE_SLOT:
+            members_check = memo_members.get(memo_id, set())
+            if not members_check.issubset(profs_accept_18):
+                return False
+
         # تحقق من قيود التوقيت اليومي (صباح/مساء)
         if day in day_time_limits:
             from_t, to_t = day_time_limits[day]
@@ -1204,6 +1214,9 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
             if prof in prof_allowed_days and prof_allowed_days[prof]:
                 if day not in prof_allowed_days[prof]:
                     return False
+            # توقيت 18:00 — فقط إذا كل أعضاء اللجنة يقبلونه
+            if slot == "18:00" and prof not in profs_accept_18:
+                return False
             # لا قبل توقيت معين
             if prof in prof_not_before:
                 if slot_to_idx.get(slot, 0) < slot_to_idx.get(prof_not_before[prof], 0):
@@ -1450,7 +1463,8 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
                        prof_not_before=None, prof_not_after=None, prof_one_day=None,
                        prof_allowed_days=None, prof_consecutive=None,
                        frozen_profs=None, prof_phase_split=None,
-                       memo_alt_days=None, day_time_limits=None):
+                       memo_alt_days=None, day_time_limits=None,
+                       profs_accept_18=None):
     """الدالة الرئيسية للجدولة الذكية"""
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
@@ -1481,7 +1495,8 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
         prof_not_after=prof_not_after, prof_one_day=prof_one_day,
         prof_allowed_days=prof_allowed_days, prof_consecutive=prof_consecutive,
         frozen_profs=frozen_profs, prof_phase_split=prof_phase_split,
-        memo_alt_days=memo_alt_days, day_time_limits=day_time_limits or {}
+        memo_alt_days=memo_alt_days, day_time_limits=day_time_limits or {},
+        profs_accept_18=profs_accept_18
     )
     
     # المرحلة 2: تحسين الجدول
@@ -1529,7 +1544,7 @@ def save_full_schedule_to_sheets(schedule, df_memos):
                 {"range": f"Feuille 1!W{row_idx}", "values": [[slot[0]]]},
                 {"range": f"Feuille 1!X{row_idx}", "values": [[slot[1]]]},
                 {"range": f"Feuille 1!Y{row_idx}", "values": [[slot[2]]]},
-                {"range": f"Feuille 1!AD{row_idx}", "values": [["نعم"]]},
+                # AD (نشر البرنامج) لا يُعدّل تلقائياً — الإدارة تتحكم فيه يدوياً
             ]
         if updates:
             for i in range(0, len(updates), 100):
@@ -1538,7 +1553,7 @@ def save_full_schedule_to_sheets(schedule, df_memos):
                     body={"valueInputOption": "USER_ENTERED", "data": updates[i:i+100]}
                 ).execute()
             clear_cache_and_reload()
-            return True, f"✅ تم حفظ {len([s for s in schedule.values() if s])} مذكرة"
+            return True, f"✅ تم حفظ {len([s for s in schedule.values() if s])} مذكرة — لم يتم النشر بعد، الإدارة تتحكم في النشر من الشيت"
         return False, "لا شيء للحفظ"
     except Exception as e:
         return False, f"❌ {str(e)}"
@@ -1802,7 +1817,7 @@ def load_prof_exceptions():
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A1:J1000"
+            range="استثناءات_أساتذة!A1:K1000"
         ).execute()
         values = result.get('values', [])
         if not values or len(values) < 2: return pd.DataFrame()
@@ -1850,11 +1865,12 @@ def save_prof_exception(row_data):
             str(row_data.get("أيام متتالية","")),
             str(row_data.get("مجمّد","")),
             str(row_data.get("عدد مناقشات الفترة الأولى","")),
-            str(row_data.get("بداية الفترة الثانية",""))
+            str(row_data.get("بداية الفترة الثانية","")),
+            str(row_data.get("يقبل 18:00",""))
         ]]
         sheets_service.spreadsheets().values().append(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A:J",
+            range="استثناءات_أساتذة!A:K",
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
             body={"values": values}
@@ -1951,8 +1967,9 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
                 prof_consecutive.add(prof)
     
     frozen_profs = set()
-    prof_phase_split = {}  # {prof: (n_first, start_second)}
-    memo_alt_days = {}     # {memo_id: set(days)}
+    prof_phase_split = {}
+    memo_alt_days = {}
+    profs_accept_18 = set()  # أساتذة يقبلون توقيت 18:00
 
     if not df_prof_exc.empty:
         for _, row in df_prof_exc.iterrows():
@@ -1967,6 +1984,12 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
                 try:
                     prof_phase_split[prof] = (int(n_first), start_second)
                 except: pass
+            late = str(row.get("يقبل 18:00","")).strip()
+            if late.lower() in ["نعم","yes","1","true"]:
+                profs_accept_18.add(prof)
+            accepts_18 = str(row.get("يقبل 18:00","")).strip()
+            if accepts_18.lower() in ["نعم","yes","1","true"]:
+                profs_accept_18.add(prof)
 
     # استثناءات الأيام البديلة للمذكرات
     if not df_memo_exc.empty:
@@ -1976,7 +1999,7 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             if mid and alt and alt not in ["","nan"]:
                 memo_alt_days[mid] = set([d.strip() for d in alt.split(",") if d.strip()])
 
-    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days
+    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days, profs_accept_18, profs_accept_18
 
 
 def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, slots_per_day):
@@ -2014,8 +2037,8 @@ def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_ba
     # تعارض: أيام ممنوعة وأيام مسموحة متناقضة لنفس الأستاذ
     if not df_prof_exc.empty:
         _dc = build_constraints(pd.DataFrame(), df_prof_exc, slots_per_day)
-        prof_banned_days2 = _dc[2]
-        prof_allowed_days2 = _dc[6]
+        prof_banned_days2 = _dc[2] if len(_dc) > 2 else {}
+        prof_allowed_days2 = _dc[6] if len(_dc) > 6 else {}
     else:
         prof_banned_days2 = {}
         prof_allowed_days2 = {}
@@ -2356,7 +2379,11 @@ elif st.session_state.user_type == "student":
             is_extended = ah_val == "2"     # تمديد استثنائي → إيداع صامت بدون رسالة
 
             # ── موعد المناقشة في الصدارة ──
-            if def_date_m and def_date_m not in ["","nan"]:
+            # عمود نشر البرنامج — يتحكم في ظهور الموعد للطالب
+            _pub_status = str(memo_info.get("نشر البرنامج","")).strip()
+            _show_schedule = _pub_status.lower() in ["نعم","yes","1","true"]
+
+            if _show_schedule and def_date_m and def_date_m not in ["","nan"]:
                 st.markdown(f'''<div style="background:linear-gradient(135deg,#0a1f12,#0f2d1a);
                     border:2px solid rgba(16,185,129,0.5);border-radius:16px;
                     padding:20px 24px;margin-bottom:18px;text-align:center;">
@@ -2367,6 +2394,16 @@ elif st.session_state.user_type == "student":
                              <span style="color:#ffffff;font-weight:700;font-size:1.1rem;">{def_time_m if def_time_m and def_time_m not in ["","nan"] else "—"}</span></div>
                         <div><span style="color:#6EE7B7;font-size:0.82rem;">🏛️ القاعة</span><br>
                              <span style="color:#ffffff;font-weight:700;font-size:1.1rem;">{def_room_m if def_room_m and def_room_m not in ["","nan"] else "—"}</span></div>
+                    </div>
+                </div>''', unsafe_allow_html=True)
+            elif not _show_schedule and def_date_m and def_date_m not in ["","nan"]:
+                st.markdown('''<div style="background:linear-gradient(135deg,#0f1f2d,#1a2f3d);
+                    border:2px solid rgba(245,158,11,0.4);border-radius:16px;
+                    padding:20px 24px;margin-bottom:18px;text-align:center;">
+                    <div style="font-size:1.4rem;margin-bottom:10px;">📅</div>
+                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">المناقشات ستنطلق ابتداءً من 31 ماي 2026</div>
+                    <div style="font-size:0.88rem;color:#CBD5E1;line-height:1.7;">
+                        يُرجى متابعة فضائك على المنصة باستمرار للاطلاع على موعد مناقشتك فور تحديده.
                     </div>
                 </div>''', unsafe_allow_html=True)
             else:
@@ -2939,6 +2976,7 @@ elif st.session_state.user_type == "professor":
                                     break
 
                         has_date = jdate and jdate not in ["","nan"]
+                        j_published = str(jm.get("نشر البرنامج","")).strip() == "نعم"
                         has_time = jtime and jtime not in ["","nan"]
                         has_room = jroom and jroom not in ["","nan"]
                         has_link = jlink and jlink not in ["","nan"]
@@ -3467,6 +3505,8 @@ elif st.session_state.user_type == "admin":
                                         "يوم واحد": "نعم" if ai_oneday else "",
                                         "أيام متتالية": "",
                                         "مجمّد": "نعم" if ai_frozen else "",
+                                        "يقبل 18:00": "",
+                                        "يقبل 18:00": "",
                                         "عدد مناقشات الفترة الأولى": "",
                                         "بداية الفترة الثانية": "",
                                     })
@@ -3498,6 +3538,8 @@ elif st.session_state.user_type == "admin":
                             exc_prof_oneday = st.checkbox("📅 يوم واحد فقط", key="exc_prof_oneday")
                             exc_prof_consec = st.checkbox("📅 أيام متتالية", key="exc_prof_consec")
                             exc_prof_frozen = st.checkbox("🔒 تجميد كلي (لا يُبرمج حتى إشعار آخر)", key="exc_prof_frozen")
+                            exc_prof_late = st.checkbox("🌙 يقبل توقيت 18:00", key="exc_prof_late")
+                            exc_prof_18 = st.checkbox("🌙 يقبل توقيت 18:00", key="exc_prof_18")
                             st.markdown("**تقسيم على فترتين:**")
                             exc_prof_n_first = st.number_input("عدد مناقشات الفترة الأولى", min_value=0, max_value=20, value=0, key="exc_prof_n_first")
                             exc_prof_start2 = st.selectbox("بداية الفترة الثانية", ["—"]+gen_days_j, key="exc_prof_start2")
@@ -3513,6 +3555,8 @@ elif st.session_state.user_type == "admin":
                                     "يوم واحد": "نعم" if exc_prof_oneday else "",
                                     "أيام متتالية": "نعم" if exc_prof_consec else "",
                                     "مجمّد": "نعم" if exc_prof_frozen else "",
+                                    "يقبل 18:00": "نعم" if exc_prof_late else "",
+                                    "يقبل 18:00": "نعم" if exc_prof_18 else "",
                                     "عدد مناقشات الفترة الأولى": str(exc_prof_n_first) if exc_prof_n_first > 0 else "",
                                     "بداية الفترة الثانية": exc_prof_start2 if exc_prof_start2 != "—" else "",
                                 })
@@ -3533,7 +3577,7 @@ elif st.session_state.user_type == "admin":
                             # قراءة الاستثناءات وفحص التعارضات أولاً
                             _df_memo_exc = load_memo_exceptions()
                             _df_prof_exc = load_prof_exceptions()
-                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days = build_constraints(
+                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18 = build_constraints(
                                 _df_memo_exc, _df_prof_exc, gen_slots_j
                             )
                             # دمج قيود التوقيت اليومي
@@ -3548,7 +3592,7 @@ elif st.session_state.user_type == "admin":
                                 st.stop()
                             else:
                                 with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
-                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days = build_constraints(
+                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18 = build_constraints(
                                         _df_memo_exc, _df_prof_exc, gen_slots_j
                                     )
                                     schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j = run_smart_schedule(
@@ -3560,7 +3604,8 @@ elif st.session_state.user_type == "admin":
                                         prof_allowed_days=_allow_days, prof_consecutive=_consec,
                                         frozen_profs=_frozen, prof_phase_split=_phase,
                                         memo_alt_days=_alt_days,
-                                        day_time_limits=_day_limits if _days_from_sheet else {}
+                                        day_time_limits=_day_limits if _days_from_sheet else {},
+                                        profs_accept_18=_acc18
                                     )
                                     st.session_state["j_schedule"] = schedule_j
                                     st.session_state["j_score"] = quality_j
