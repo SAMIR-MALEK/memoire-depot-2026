@@ -1129,8 +1129,8 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
                              fixed_slots=None, memo_date_limits=None, prof_banned_days=None,
                              prof_not_before=None, prof_not_after=None, prof_one_day=None,
                              prof_allowed_days=None, prof_consecutive=None,
-                       frozen_profs=None, prof_phase_split=None,
-                       memo_alt_days=None):
+                             frozen_profs=None, prof_phase_split=None,
+                             memo_alt_days=None, day_time_limits=None):
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
     prof_banned_days = prof_banned_days or {}
@@ -2002,9 +2002,13 @@ def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_ba
             conflicts.append(f"⚠️ المذكرة **{memo_id}** لها أقرب تاريخ **{earliest}** أكبر من أبعد تاريخ **{latest}**")
 
     # تعارض: أيام ممنوعة وأيام مسموحة متناقضة لنفس الأستاذ
-    _, _, prof_banned_days2, _, _, _, prof_allowed_days2, _ = build_constraints(
-        pd.DataFrame(), df_prof_exc, slots_per_day
-    ) if not df_prof_exc.empty else ({},{},{},{},{},set(),{},set())
+    if not df_prof_exc.empty:
+        _dc = build_constraints(pd.DataFrame(), df_prof_exc, slots_per_day)
+        prof_banned_days2 = _dc[2]
+        prof_allowed_days2 = _dc[6]
+    else:
+        prof_banned_days2 = {}
+        prof_allowed_days2 = {}
     for prof, allowed in prof_allowed_days2.items():
         banned = prof_banned_days2.get(prof, set())
         overlap = allowed & banned
@@ -3338,70 +3342,58 @@ elif st.session_state.user_type == "admin":
                                             # استخراج التاريخ من رقم + شهر
                                             def extract_dates(text, month_hint=None):
                                                 dates = []
+                                                text_l = text  # لا نستخدم lower مع العربية
                                                 for month_name, month_num in months.items():
-                                                    if month_name not in text.lower(): continue
-                                                    # نمط: أرقام مفصولة بـ "و" قبل الشهر
-                                                    # مثال: "6 و3 و7 جوان" أو "يوم 6 و 03 و 7 جوان"
-                                                    seg = text.lower().split(month_name)[0]
-                                                    nums = _re.findall(r'\b(\d{1,2})\b', seg[-60:])
-                                                    for n in nums:
-                                                        try:
+                                                    if month_name not in text_l: continue
+                                                    parts = text_l.split(month_name)
+                                                    # أرقام قبل الشهر
+                                                    seg_before = parts[0][-80:]
+                                                    nums_before = _re.findall(r"\b(\d{1,2})\b", seg_before)
+                                                    for n in nums_before:
+                                                        day = int(n)
+                                                        if 1 <= day <= 31:
+                                                            dates.append(f"2026-{month_num:02d}-{day:02d}")
+                                                    # أرقام بعد الشهر
+                                                    if len(parts) > 1:
+                                                        seg_after = parts[1][:80]
+                                                        nums_after = _re.findall(r"\b(\d{1,2})\b", seg_after)
+                                                        for n in nums_after:
                                                             day = int(n)
                                                             if 1 <= day <= 31:
-                                                                d = f"2026-{month_num:02d}-{day:02d}"
-                                                                dates.append(d)
-                                                        except: pass
-                                                    # نمط: شهر ثم أرقام
-                                                    seg2 = text.lower().split(month_name)[-1]
-                                                    nums2 = _re.findall(r'\b(\d{1,2})\b', seg2[:60])
-                                                    for n in nums2:
-                                                        try:
-                                                            day = int(n)
-                                                            if 1 <= day <= 31:
-                                                                d = f"2026-{month_num:02d}-{day:02d}"
-                                                                dates.append(d)
-                                                        except: pass
+                                                                dates.append(f"2026-{month_num:02d}-{day:02d}")
                                                 return list(set(dates))
 
                                             all_days = set(available_days) if available_days else set()
 
                                             # التجميد الكلي
-                                            frozen_keywords = ["إلى إشعار آخر","إلى إشعار","عدم برمجته","عدم برمجتي","لا تبرمج"]
+                                            frozen_keywords = ["إلى إشعار آخر","إلى إشعار","عدم برمجته","عدم برمجتي","لا تبرمج","عدم برمجتك"]
                                             if any(kw in msg for kw in frozen_keywords):
                                                 result["مجمد"] = True
                                                 result["ملاحظات"] = "تجميد كلي مطلوب"
                                                 return result
 
-                                            # جمل الأيام الممنوعة
-                                            banned_patterns = [
-                                                r'مديرليش.*?(?=برمجلي|$)',
-                                                r'ماتبرمجنيش.*?(?=برمجلي|$)',
-                                                r'لا تبرمجني.*?(?=برمجلي|$)',
-                                                r'عدم برمجت[يه].*?(?=برمجلي|$)',
-                                                r'مانكونش.*?(?=برمجلي|$)',
-                                                r'غايب.*?(?=برمجلي|$)',
-                                            ]
-                                            for pat in banned_patterns:
-                                                for m in _re.finditer(pat, msg, _re.DOTALL):
-                                                    result["أيام_ممنوعة"].extend(extract_dates(m.group()))
-
                                             # جمل الأيام المسموحة
-                                            allowed_patterns = [
-                                                r'برمجلي.*?(?=مديرليش|ماتبرمج|$)',
-                                                r'نحب.*?(?=مديرليش|ماتبرمج|$)',
-                                                r'يمكن.*?(?=مديرليش|ماتبرمج|$)',
-                                            ]
-                                            for pat in allowed_patterns:
-                                                for m in _re.finditer(pat, msg, _re.DOTALL):
-                                                    result["أيام_مسموحة_فقط"].extend(extract_dates(m.group()))
+                                            allowed_triggers = ["برمجلي","برمجني","نحب","اختار"]
+                                            banned_triggers = ["مديرليش","ماتبرمجنيش","ماتبرمج","لا تبرمج","مانكونش"]
+                                            # قسّم النص على الكلمات المفتاحية
+                                            _segments = _re.split(r"(مديرليش|ماتبرمجنيش|ماتبرمج|لا تبرمج|مانكونش|برمجلي|برمجني)", msg)
+                                            _current_mode = "مسموح"  # default
+                                            for _seg in _segments:
+                                                if any(kw in _seg for kw in banned_triggers): _current_mode = "ممنوع"
+                                                elif any(kw in _seg for kw in allowed_triggers): _current_mode = "مسموح"
+                                                else:
+                                                    _dates = extract_dates(_seg)
+                                                    if _current_mode == "ممنوع":
+                                                        result["أيام_ممنوعة"].extend(_dates)
+                                                    else:
+                                                        result["أيام_مسموحة_فقط"].extend(_dates)
 
-                                            # إذا لم نجد بالجمل، استخرج كل التواريخ وقارن
+                                            # إذا لم نجد شيئاً، استخرج كل التواريخ
                                             if not result["أيام_ممنوعة"] and not result["أيام_مسموحة_فقط"]:
                                                 all_dates = extract_dates(msg)
-                                                # تحقق من السياق
-                                                if any(kw in msg for kw in ["مديرليش","ماتبرمج","ممنوع","لا يوم"]):
+                                                if any(kw in msg for kw in ["مديرليش","ماتبرمج","لا يوم"]):
                                                     result["أيام_ممنوعة"] = all_dates
-                                                elif any(kw in msg for kw in ["برمجلي","في يوم","أيام"]):
+                                                else:
                                                     result["أيام_مسموحة_فقط"] = all_dates
 
                                             # التوقيت
