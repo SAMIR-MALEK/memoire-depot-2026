@@ -1141,6 +1141,7 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
     prof_consecutive = prof_consecutive or set()
     prof_phase_split = prof_phase_split or {}
     memo_alt_days = memo_alt_days or {}
+    day_time_limits = day_time_limits or {}
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
     """
     الخوارزمية الرئيسية — تبدأ بالأستاذ وليس بالمذكرة
@@ -1172,6 +1173,12 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
         """هل يمكن وضع المذكرة في هذه الخانة؟"""
         if (day, slot, room) in occupied:
             return False
+
+        # تحقق من قيود التوقيت اليومي (صباح/مساء)
+        if day in day_time_limits:
+            from_t, to_t = day_time_limits[day]
+            if from_t and slot_to_idx.get(slot,0) < slot_to_idx.get(from_t,0): return False
+            if to_t and slot_to_idx.get(slot,99) > slot_to_idx.get(to_t,99): return False
 
         # تحقق من حدود التاريخ للمذكرة
         if memo_id in memo_date_limits:
@@ -2003,6 +2010,66 @@ def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_ba
             conflicts.append(f"⚠️ الأستاذ **{prof}**: الأيام {overlap} موجودة في الممنوعة والمسموحة معاً")
 
     return conflicts
+
+
+@st.cache_data(ttl=60)
+def load_schedule_days():
+    """قراءة أيام الجدولة من الشيت"""
+    try:
+        result = sheets_service.spreadsheets().values().get(
+            spreadsheetId=MEMOS_SHEET_ID,
+            range="الأيام!A1:D1000"
+        ).execute()
+        values = result.get('values', [])
+        if not values or len(values) < 2: return [], {}
+        headers = values[0]
+        days = []
+        day_time_limits = {}  # day -> (from_slot, to_slot)
+        for row in values[1:]:
+            if not row or not row[0].strip(): continue
+            date = row[0].strip()
+            note = row[1].strip() if len(row) > 1 else ""
+            from_t = row[2].strip() if len(row) > 2 else ""
+            to_t = row[3].strip() if len(row) > 3 else ""
+            if note:  # أي ملاحظة = يوم محذوف
+                continue
+            days.append(date)
+            if from_t or to_t:
+                day_time_limits[date] = (from_t or None, to_t or None)
+        return days, day_time_limits
+    except Exception as e:
+        logger.error(f"خطأ أيام الجدولة: {e}")
+        return [], {}
+
+@st.cache_data(ttl=60)
+def load_schedule_slots():
+    """قراءة التوقيتات من الشيت"""
+    try:
+        result = sheets_service.spreadsheets().values().get(
+            spreadsheetId=MEMOS_SHEET_ID,
+            range="التوقيت!A1:A100"
+        ).execute()
+        values = result.get('values', [])
+        slots = [row[0].strip() for row in values[1:] if row and row[0].strip()]
+        return slots
+    except Exception as e:
+        logger.error(f"خطأ التوقيتات: {e}")
+        return []
+
+@st.cache_data(ttl=60)
+def load_schedule_rooms():
+    """قراءة القاعات من الشيت"""
+    try:
+        result = sheets_service.spreadsheets().values().get(
+            spreadsheetId=MEMOS_SHEET_ID,
+            range="القاعات!A1:A100"
+        ).execute()
+        values = result.get('values', [])
+        rooms = [row[0].strip() for row in values[1:] if row and row[0].strip()]
+        return rooms
+    except Exception as e:
+        logger.error(f"خطأ القاعات: {e}")
+        return []
 
 
 df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
@@ -3120,30 +3187,62 @@ elif st.session_state.user_type == "admin":
             else:
                 st.markdown("---")
                 st.markdown("### ⚙️ إعداد معطيات الجدولة")
+                # قراءة الإعدادات من الشيت
+                _days_from_sheet, _day_limits = load_schedule_days()
+                _slots_from_sheet = load_schedule_slots()
+                _rooms_from_sheet = load_schedule_rooms()
+
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
                     st.markdown("**📆 الأيام**")
-                    num_days_j = st.number_input("عدد أيام المناقشات", min_value=3, max_value=20, value=10, key="j_ndays")
-                    base_date_j = st.date_input("تاريخ البداية", value=date.today(), key="j_basedate")
-                    import datetime as _dt
-                    gen_days_j = []
-                    d_j = base_date_j
-                    while len(gen_days_j) < num_days_j:
-                        if d_j.weekday() not in [4,5]: gen_days_j.append(d_j.strftime("%Y-%m-%d"))
-                        d_j += _dt.timedelta(days=1)
-                    st.info(f"الأيام: {' | '.join(gen_days_j[:5])}{'...' if len(gen_days_j)>5 else ''}")
+                    if _days_from_sheet:
+                        st.success(f"✅ {len(_days_from_sheet)} يوم مُحمَّل من الشيت")
+                        gen_days_j = _days_from_sheet
+                        with st.expander("👁️ عرض الأيام", expanded=False):
+                            st.write(" | ".join(gen_days_j))
+                    else:
+                        st.warning("⚠️ لا توجد أيام في شيت 'الأيام' — أدخلها يدوياً")
+                        import datetime as _dt
+                        num_days_j = st.number_input("عدد الأيام", min_value=3, max_value=20, value=10, key="j_ndays")
+                        base_date_j = st.date_input("تاريخ البداية", value=date.today(), key="j_basedate")
+                        gen_days_j = []
+                        d_j = base_date_j
+                        while len(gen_days_j) < num_days_j:
+                            if d_j.weekday() not in [4,5]: gen_days_j.append(d_j.strftime("%Y-%m-%d"))
+                            d_j += _dt.timedelta(days=1)
 
                 with col_p2:
                     st.markdown("**🕐 التوقيتات والقاعات**")
-                    slots_txt = st.text_area("التوقيتات (سطر لكل توقيت)","09:30\n11:30\n14:00\n16:00",height=110,key="j_slots_txt")
-                    rooms_txt = st.text_area("القاعات (سطر لكل قاعة)","\n".join([f"قاعة {i+1:02d}" for i in range(10)]),height=130,key="j_rooms_txt")
-                    gen_slots_j = [s.strip() for s in slots_txt.strip().split("\n") if s.strip()]
-                    gen_rooms_j = [r.strip() for r in rooms_txt.strip().split("\n") if r.strip()]
+                    if _slots_from_sheet:
+                        st.success(f"✅ {len(_slots_from_sheet)} توقيت مُحمَّل")
+                        gen_slots_j = _slots_from_sheet
+                        with st.expander("👁️ التوقيتات", expanded=False):
+                            st.write(" | ".join(gen_slots_j))
+                    else:
+                        st.warning("⚠️ أدخل التوقيتات يدوياً")
+                        slots_txt = st.text_area("التوقيتات","09:30\n11:30\n14:00\n16:00",height=100,key="j_slots_txt")
+                        gen_slots_j = [s.strip() for s in slots_txt.strip().split("\n") if s.strip()]
+
+                    if _rooms_from_sheet:
+                        st.success(f"✅ {len(_rooms_from_sheet)} قاعة مُحمَّلة")
+                        gen_rooms_j = _rooms_from_sheet
+                        with st.expander("👁️ القاعات", expanded=False):
+                            st.write(" | ".join(gen_rooms_j))
+                    else:
+                        st.warning("⚠️ أدخل القاعات يدوياً")
+                        rooms_txt = st.text_area("القاعات","\n".join([f"قاعة {i+1:02d}" for i in range(10)]),height=120,key="j_rooms_txt")
+                        gen_rooms_j = [r.strip() for r in rooms_txt.strip().split("\n") if r.strip()]
+
                     capacity = len(gen_days_j)*len(gen_slots_j)*len(gen_rooms_j)
                     cap_color = "#10B981" if capacity >= total_ready_j else "#EF4444"
                     st.markdown(f'''<div style="background:rgba(47,111,126,0.1);border:1px solid #2F6F7E;border-radius:10px;padding:10px 14px;margin-top:8px;">
                         الطاقة: <strong style="color:{cap_color};">{capacity} خانة</strong> لـ <strong style="color:#FFD700;">{total_ready_j} مذكرة</strong>
                     </div>''', unsafe_allow_html=True)
+                
+                # زر تحديث الإعدادات
+                if st.button("🔄 تحديث من الشيت", key="refresh_settings", use_container_width=False):
+                    st.cache_data.clear()
+                    st.rerun()
 
                 st.markdown("---")
 
@@ -3255,6 +3354,8 @@ elif st.session_state.user_type == "admin":
                             _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days = build_constraints(
                                 _df_memo_exc, _df_prof_exc, gen_slots_j
                             )
+                            # دمج قيود التوقيت اليومي
+                            _day_time_limits = _days_from_sheet and _day_limits or {}
                             _conflicts = detect_constraint_conflicts(
                                 ready_memos_j, _fixed, _date_lim, _ban_days, _not_bef, _not_aft, gen_slots_j
                             )
