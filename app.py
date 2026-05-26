@@ -1438,7 +1438,9 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
 def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_consecutive=3, improve=True,
                        fixed_slots=None, memo_date_limits=None, prof_banned_days=None,
                        prof_not_before=None, prof_not_after=None, prof_one_day=None,
-                       prof_allowed_days=None, prof_consecutive=None):
+                       prof_allowed_days=None, prof_consecutive=None,
+                       frozen_profs=None, prof_phase_split=None,
+                       memo_alt_days=None, day_time_limits=None):
     """الدالة الرئيسية للجدولة الذكية"""
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
@@ -1469,7 +1471,7 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
         prof_not_after=prof_not_after, prof_one_day=prof_one_day,
         prof_allowed_days=prof_allowed_days, prof_consecutive=prof_consecutive,
         frozen_profs=frozen_profs, prof_phase_split=prof_phase_split,
-        memo_alt_days=memo_alt_days
+        memo_alt_days=memo_alt_days, day_time_limits=day_time_limits or {}
     )
     
     # المرحلة 2: تحسين الجدول
@@ -3336,31 +3338,29 @@ elif st.session_state.user_type == "admin":
                                             # استخراج التاريخ من رقم + شهر
                                             def extract_dates(text, month_hint=None):
                                                 dates = []
-                                                # ابحث عن نمط: رقم + شهر
                                                 for month_name, month_num in months.items():
-                                                    pattern = rf'(\d{{1,2}})\s*(?:و\s*(\d{{1,2}})\s*)?(?:و\s*(\d{{1,2}})\s*)?{month_name}'
-                                                    for m in _re.finditer(pattern, text):
-                                                        for g in m.groups():
-                                                            if g:
-                                                                try:
-                                                                    day = int(g)
-                                                                    if 1 <= day <= 31:
-                                                                        d = f"2026-{month_num:02d}-{day:02d}"
-                                                                        if d in available_days or not available_days:
-                                                                            dates.append(d)
-                                                                except: pass
-                                                    # أيضاً: شهر + أرقام
-                                                    pattern2 = rf'{month_name}\s*(\d{{1,2}})(?:\s*[وو,،]\s*(\d{{1,2}}))*'
-                                                    for m in _re.finditer(pattern2, text):
-                                                        for g in m.groups():
-                                                            if g:
-                                                                try:
-                                                                    day = int(g)
-                                                                    if 1 <= day <= 31:
-                                                                        d = f"2026-{month_num:02d}-{day:02d}"
-                                                                        if d in available_days or not available_days:
-                                                                            dates.append(d)
-                                                                except: pass
+                                                    if month_name not in text.lower(): continue
+                                                    # نمط: أرقام مفصولة بـ "و" قبل الشهر
+                                                    # مثال: "6 و3 و7 جوان" أو "يوم 6 و 03 و 7 جوان"
+                                                    seg = text.lower().split(month_name)[0]
+                                                    nums = _re.findall(r'\b(\d{1,2})\b', seg[-60:])
+                                                    for n in nums:
+                                                        try:
+                                                            day = int(n)
+                                                            if 1 <= day <= 31:
+                                                                d = f"2026-{month_num:02d}-{day:02d}"
+                                                                dates.append(d)
+                                                        except: pass
+                                                    # نمط: شهر ثم أرقام
+                                                    seg2 = text.lower().split(month_name)[-1]
+                                                    nums2 = _re.findall(r'\b(\d{1,2})\b', seg2[:60])
+                                                    for n in nums2:
+                                                        try:
+                                                            day = int(n)
+                                                            if 1 <= day <= 31:
+                                                                d = f"2026-{month_num:02d}-{day:02d}"
+                                                                dates.append(d)
+                                                        except: pass
                                                 return list(set(dates))
 
                                             all_days = set(available_days) if available_days else set()
@@ -3557,7 +3557,8 @@ elif st.session_state.user_type == "admin":
                                         prof_not_after=_not_aft, prof_one_day=_one_day,
                                         prof_allowed_days=_allow_days, prof_consecutive=_consec,
                                         frozen_profs=_frozen, prof_phase_split=_phase,
-                                        memo_alt_days=_alt_days
+                                        memo_alt_days=_alt_days,
+                                        day_time_limits=_day_limits if _days_from_sheet else {}
                                     )
                                     st.session_state["j_schedule"] = schedule_j
                                     st.session_state["j_score"] = quality_j
