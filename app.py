@@ -3309,58 +3309,122 @@ elif st.session_state.user_type == "admin":
                             if ai_msg.strip():
                                 with st.spinner("🧠 جاري التحليل..."):
                                     try:
-                                        import json as _json
-                                        _days_ref = gen_days_j if gen_days_j else []
-                                        _days_str = ", ".join(_days_ref[:20]) if _days_ref else "أيام جوان 2026"
-                                        _slots_str = ", ".join(_slots_from_sheet) if _slots_from_sheet else "09:30, 11:30, 14:00, 16:00"
+                                        import re as _re
 
-                                        _prompt = f"""أنت مساعد لاستخراج قيود الجدولة من رسائل الأساتذة الجزائريين.
-الأيام المتاحة للجدولة: {_days_str}
-التوقيتات المتاحة: {_slots_str}
+                                        def _parse_prof_message(msg, available_days):
+                                            """محلل محلي للرسائل بالدارجة والعربية"""
+                                            result = {
+                                                "اسم_الأستاذ": "",
+                                                "أيام_ممنوعة": [],
+                                                "أيام_مسموحة_فقط": [],
+                                                "لا_قبل": "",
+                                                "لا_بعد": "",
+                                                "يوم_واحد": False,
+                                                "مجمد": False,
+                                                "ملاحظات": ""
+                                            }
 
-الرسالة: {ai_msg.strip()}
+                                            msg_lower = msg.lower()
 
-استخرج المعلومات التالية بالضبط وأجب بـ JSON فقط بدون أي نص آخر:
-{{
-  "اسم_الأستاذ": "الاسم الكامل أو فارغ إذا لم يُذكر",
-  "أيام_ممنوعة": ["2026-06-01", ...] أو [],
-  "أيام_مسموحة_فقط": ["2026-06-03", ...] أو [],
-  "لا_قبل": "09:30" أو "",
-  "لا_بعد": "14:00" أو "",
-  "يوم_واحد": false,
-  "مجمد": false,
-  "ملاحظات": "أي معلومات إضافية مهمة"
-}}
+                                            # خريطة الأشهر
+                                            months = {
+                                                "جانفي":1,"فيفري":2,"مارس":3,"أفريل":4,"ماي":5,"mai":5,
+                                                "جوان":6,"juin":6,"جويلية":7,"أوت":8,"سبتمبر":9,
+                                                "أكتوبر":10,"نوفمبر":11,"ديسمبر":12
+                                            }
 
-ملاحظات مهمة:
-- "تاوعي" = خاصتي = مناقشاتي
-- "مديرليش" = لا تضع لي = أيام ممنوعة
-- "برمجلي في" = أيام مسموحة فقط
-- "ماتبرمجنيش" = أيام ممنوعة
-- "جوان" = juin = شهر 06
-- "ماي" = mai = شهر 05
-- الأرقام المذكورة هي أيام الشهر
-- "عدم برمجته إلى إشعار آخر" = مجمد = true
-- حوّل كل التواريخ لصيغة YYYY-MM-DD"""
+                                            # استخراج التاريخ من رقم + شهر
+                                            def extract_dates(text, month_hint=None):
+                                                dates = []
+                                                # ابحث عن نمط: رقم + شهر
+                                                for month_name, month_num in months.items():
+                                                    pattern = rf'(\d{{1,2}})\s*(?:و\s*(\d{{1,2}})\s*)?(?:و\s*(\d{{1,2}})\s*)?{month_name}'
+                                                    for m in _re.finditer(pattern, text):
+                                                        for g in m.groups():
+                                                            if g:
+                                                                try:
+                                                                    day = int(g)
+                                                                    if 1 <= day <= 31:
+                                                                        d = f"2026-{month_num:02d}-{day:02d}"
+                                                                        if d in available_days or not available_days:
+                                                                            dates.append(d)
+                                                                except: pass
+                                                    # أيضاً: شهر + أرقام
+                                                    pattern2 = rf'{month_name}\s*(\d{{1,2}})(?:\s*[وو,،]\s*(\d{{1,2}}))*'
+                                                    for m in _re.finditer(pattern2, text):
+                                                        for g in m.groups():
+                                                            if g:
+                                                                try:
+                                                                    day = int(g)
+                                                                    if 1 <= day <= 31:
+                                                                        d = f"2026-{month_num:02d}-{day:02d}"
+                                                                        if d in available_days or not available_days:
+                                                                            dates.append(d)
+                                                                except: pass
+                                                return list(set(dates))
 
-                                        _response = __import__('urllib.request', fromlist=['urlopen']).urlopen(
-                                            __import__('urllib.request', fromlist=['Request']).Request(
-                                                "https://api.anthropic.com/v1/messages",
-                                                data=_json.dumps({
-                                                    "model": "claude-sonnet-4-20250514",
-                                                    "max_tokens": 1000,
-                                                    "messages": [{"role": "user", "content": _prompt}]
-                                                }).encode(),
-                                                headers={"Content-Type": "application/json"},
-                                                method="POST"
-                                            )
-                                        )
-                                        _result = _json.loads(_response.read().decode())
-                                        _text = _result["content"][0]["text"].strip()
-                                        # تنظيف JSON
-                                        if "```" in _text:
-                                            _text = _text.split("```")[1].replace("json","").strip()
-                                        _extracted = _json.loads(_text)
+                                            all_days = set(available_days) if available_days else set()
+
+                                            # التجميد الكلي
+                                            frozen_keywords = ["إلى إشعار آخر","إلى إشعار","عدم برمجته","عدم برمجتي","لا تبرمج"]
+                                            if any(kw in msg for kw in frozen_keywords):
+                                                result["مجمد"] = True
+                                                result["ملاحظات"] = "تجميد كلي مطلوب"
+                                                return result
+
+                                            # جمل الأيام الممنوعة
+                                            banned_patterns = [
+                                                r'مديرليش.*?(?=برمجلي|$)',
+                                                r'ماتبرمجنيش.*?(?=برمجلي|$)',
+                                                r'لا تبرمجني.*?(?=برمجلي|$)',
+                                                r'عدم برمجت[يه].*?(?=برمجلي|$)',
+                                                r'مانكونش.*?(?=برمجلي|$)',
+                                                r'غايب.*?(?=برمجلي|$)',
+                                            ]
+                                            for pat in banned_patterns:
+                                                for m in _re.finditer(pat, msg, _re.DOTALL):
+                                                    result["أيام_ممنوعة"].extend(extract_dates(m.group()))
+
+                                            # جمل الأيام المسموحة
+                                            allowed_patterns = [
+                                                r'برمجلي.*?(?=مديرليش|ماتبرمج|$)',
+                                                r'نحب.*?(?=مديرليش|ماتبرمج|$)',
+                                                r'يمكن.*?(?=مديرليش|ماتبرمج|$)',
+                                            ]
+                                            for pat in allowed_patterns:
+                                                for m in _re.finditer(pat, msg, _re.DOTALL):
+                                                    result["أيام_مسموحة_فقط"].extend(extract_dates(m.group()))
+
+                                            # إذا لم نجد بالجمل، استخرج كل التواريخ وقارن
+                                            if not result["أيام_ممنوعة"] and not result["أيام_مسموحة_فقط"]:
+                                                all_dates = extract_dates(msg)
+                                                # تحقق من السياق
+                                                if any(kw in msg for kw in ["مديرليش","ماتبرمج","ممنوع","لا يوم"]):
+                                                    result["أيام_ممنوعة"] = all_dates
+                                                elif any(kw in msg for kw in ["برمجلي","في يوم","أيام"]):
+                                                    result["أيام_مسموحة_فقط"] = all_dates
+
+                                            # التوقيت
+                                            time_match = _re.search(r'(\d{1,2})[h:h]\s*(\d{0,2})', msg)
+                                            if time_match:
+                                                h = int(time_match.group(1))
+                                                mn = time_match.group(2) or "00"
+                                                t_str = f"{h:02d}:{mn.zfill(2)}"
+                                                if any(kw in msg for kw in ["ابتداء","من الساعة","بعد","après"]):
+                                                    result["لا_قبل"] = t_str
+                                                elif any(kw in msg for kw in ["قبل","avant","حتى"]):
+                                                    result["لا_بعد"] = t_str
+
+                                            # إزالة التكرار
+                                            result["أيام_ممنوعة"] = sorted(set(result["أيام_ممنوعة"]))
+                                            result["أيام_مسموحة_فقط"] = sorted(set(result["أيام_مسموحة_فقط"]) - set(result["أيام_ممنوعة"]))
+
+                                            if not result["ملاحظات"]:
+                                                result["ملاحظات"] = "راجع النتيجة قبل الحفظ"
+
+                                            return result
+
+                                        _extracted = _parse_prof_message(ai_msg.strip(), gen_days_j)
                                         st.session_state["ai_extracted"] = _extracted
                                     except Exception as _ae:
                                         st.error(f"❌ خطأ في الاستخراج: {str(_ae)}")
