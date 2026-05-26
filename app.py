@@ -3299,6 +3299,122 @@ elif st.session_state.user_type == "admin":
                         else:
                             st.info("لا توجد استثناءات أساتذة بعد")
 
+                        # ── استخراج تلقائي بالذكاء الاصطناعي ──
+                        st.markdown("---")
+                        st.markdown("**🤖 استخراج تلقائي من رسالة الأستاذ (دارجة أو عربية):**")
+                        ai_msg = st.text_area("الصق رسالة الأستاذ هنا:", height=120, key="ai_exc_msg",
+                            placeholder="مثال: برمجلي المناقشات تاوعي يوم 6 و3 جوان مديرليش مناقشات 31 ماي...")
+
+                        if st.button("🤖 استخراج الاستثناءات", key="ai_extract_btn", use_container_width=True):
+                            if ai_msg.strip():
+                                with st.spinner("🧠 جاري التحليل..."):
+                                    try:
+                                        import json as _json
+                                        _days_ref = gen_days_j if gen_days_j else []
+                                        _days_str = ", ".join(_days_ref[:20]) if _days_ref else "أيام جوان 2026"
+                                        _slots_str = ", ".join(_slots_from_sheet) if _slots_from_sheet else "09:30, 11:30, 14:00, 16:00"
+
+                                        _prompt = f"""أنت مساعد لاستخراج قيود الجدولة من رسائل الأساتذة الجزائريين.
+الأيام المتاحة للجدولة: {_days_str}
+التوقيتات المتاحة: {_slots_str}
+
+الرسالة: {ai_msg.strip()}
+
+استخرج المعلومات التالية بالضبط وأجب بـ JSON فقط بدون أي نص آخر:
+{{
+  "اسم_الأستاذ": "الاسم الكامل أو فارغ إذا لم يُذكر",
+  "أيام_ممنوعة": ["2026-06-01", ...] أو [],
+  "أيام_مسموحة_فقط": ["2026-06-03", ...] أو [],
+  "لا_قبل": "09:30" أو "",
+  "لا_بعد": "14:00" أو "",
+  "يوم_واحد": false,
+  "مجمد": false,
+  "ملاحظات": "أي معلومات إضافية مهمة"
+}}
+
+ملاحظات مهمة:
+- "تاوعي" = خاصتي = مناقشاتي
+- "مديرليش" = لا تضع لي = أيام ممنوعة
+- "برمجلي في" = أيام مسموحة فقط
+- "ماتبرمجنيش" = أيام ممنوعة
+- "جوان" = juin = شهر 06
+- "ماي" = mai = شهر 05
+- الأرقام المذكورة هي أيام الشهر
+- "عدم برمجته إلى إشعار آخر" = مجمد = true
+- حوّل كل التواريخ لصيغة YYYY-MM-DD"""
+
+                                        _response = __import__('urllib.request', fromlist=['urlopen']).urlopen(
+                                            __import__('urllib.request', fromlist=['Request']).Request(
+                                                "https://api.anthropic.com/v1/messages",
+                                                data=_json.dumps({
+                                                    "model": "claude-sonnet-4-20250514",
+                                                    "max_tokens": 1000,
+                                                    "messages": [{"role": "user", "content": _prompt}]
+                                                }).encode(),
+                                                headers={"Content-Type": "application/json"},
+                                                method="POST"
+                                            )
+                                        )
+                                        _result = _json.loads(_response.read().decode())
+                                        _text = _result["content"][0]["text"].strip()
+                                        # تنظيف JSON
+                                        if "```" in _text:
+                                            _text = _text.split("```")[1].replace("json","").strip()
+                                        _extracted = _json.loads(_text)
+                                        st.session_state["ai_extracted"] = _extracted
+                                    except Exception as _ae:
+                                        st.error(f"❌ خطأ في الاستخراج: {str(_ae)}")
+
+                        # عرض النتيجة المستخرجة للمراجعة
+                        if "ai_extracted" in st.session_state:
+                            _ext = st.session_state["ai_extracted"]
+                            st.markdown("**📋 النتيجة المستخرجة — راجع قبل الحفظ:**")
+
+                            ai_col1, ai_col2 = st.columns(2)
+                            with ai_col1:
+                                ai_prof = st.text_input("اسم الأستاذ", value=_ext.get("اسم_الأستاذ",""), key="ai_prof_name")
+                                ai_banned = st.multiselect("أيام ممنوعة", gen_days_j,
+                                    default=[d for d in _ext.get("أيام_ممنوعة",[]) if d in gen_days_j], key="ai_banned")
+                                ai_allowed = st.multiselect("أيام مسموحة فقط", gen_days_j,
+                                    default=[d for d in _ext.get("أيام_مسموحة_فقط",[]) if d in gen_days_j], key="ai_allowed")
+                            with ai_col2:
+                                ai_before = st.selectbox("لا قبل", ["—"]+(_slots_from_sheet or ["09:30","11:30","14:00","16:00"]),
+                                    index=(["—"]+(_slots_from_sheet or [])).index(_ext.get("لا_قبل","—")) if _ext.get("لا_قبل","") in (["—"]+(_slots_from_sheet or [])) else 0,
+                                    key="ai_before")
+                                ai_after = st.selectbox("لا بعد", ["—"]+(_slots_from_sheet or ["09:30","11:30","14:00","16:00"]),
+                                    index=(["—"]+(_slots_from_sheet or [])).index(_ext.get("لا_بعد","—")) if _ext.get("لا_بعد","") in (["—"]+(_slots_from_sheet or [])) else 0,
+                                    key="ai_after")
+                                ai_oneday = st.checkbox("يوم واحد فقط", value=bool(_ext.get("يوم_واحد", False)), key="ai_oneday")
+                                ai_frozen = st.checkbox("تجميد كلي", value=bool(_ext.get("مجمد", False)), key="ai_frozen")
+
+                            if _ext.get("ملاحظات"):
+                                st.info(f"💡 ملاحظات الذكاء الاصطناعي: {_ext['ملاحظات']}")
+
+                            if st.button("💾 حفظ الاستثناء المستخرج", type="primary", use_container_width=True, key="ai_save_btn"):
+                                if ai_prof.strip():
+                                    _ok = save_prof_exception({
+                                        "اسم الأستاذ": ai_prof.strip(),
+                                        "أيام ممنوعة": ",".join(ai_banned),
+                                        "أيام مسموحة فقط": ",".join(ai_allowed),
+                                        "لا قبل": ai_before if ai_before != "—" else "",
+                                        "لا بعد": ai_after if ai_after != "—" else "",
+                                        "يوم واحد": "نعم" if ai_oneday else "",
+                                        "أيام متتالية": "",
+                                        "مجمّد": "نعم" if ai_frozen else "",
+                                        "عدد مناقشات الفترة الأولى": "",
+                                        "بداية الفترة الثانية": "",
+                                    })
+                                    if _ok:
+                                        st.success("✅ تم الحفظ!")
+                                        del st.session_state["ai_extracted"]
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ فشل الحفظ")
+                                else:
+                                    st.error("❌ أدخل اسم الأستاذ")
+
+                        st.markdown("---")
                         st.markdown("**➕ إضافة استثناء أستاذ:**")
                         ex_p1, ex_p2 = st.columns(2)
                         with ex_p1:
