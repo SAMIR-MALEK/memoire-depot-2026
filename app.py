@@ -1131,7 +1131,8 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
                              prof_allowed_days=None, prof_consecutive=None,
                              frozen_profs=None, prof_phase_split=None,
                              memo_alt_days=None, day_time_limits=None,
-                             profs_accept_18=None):
+                             profs_accept_18=None,
+                             profs_cluster_days=None):
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
     prof_banned_days = prof_banned_days or {}
@@ -1144,6 +1145,8 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
     memo_alt_days = memo_alt_days or {}
     day_time_limits = day_time_limits or {}
     profs_accept_18 = profs_accept_18 or set()
+    profs_cluster_days = profs_cluster_days or set()
+    profs_cluster_days = profs_cluster_days or set()
     LATE_SLOT = "18:00"
     profs_accept_18 = profs_accept_18 or set()
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
@@ -1186,6 +1189,11 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
         if (day, slot, room) in occupied:
             return _reject(f"القاعة {room} مشغولة {day} {slot}")
 
+        # لا بعد 16:00 للجميع — إلا من يقبل 18:00
+        if slot > "16:00":
+            _members_late = memo_members.get(memo_id, set())
+            _non_acc = _members_late - profs_accept_18
+            if _non_acc: return _reject(f"توقيت {slot} بعد 16:00 — غير مقبول من: {', '.join(_non_acc)}")
         if slot == LATE_SLOT:
             members_check = memo_members.get(memo_id, set())
             non_acc = members_check - profs_accept_18
@@ -1428,7 +1436,16 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
                     lonely_memos.append((prof, day, memos[0]))
         
         if not lonely_memos:
-            break
+            # تحقق من أيام منعزلة متعددة
+            multi_lonely = []
+            for prof, days_dict in prog.items():
+                solo_days = [d for d, ms in days_dict.items() if len(ms)==1]
+                if len(solo_days) > 1:
+                    for d in solo_days[1:]:  # ابقِ الأول فقط
+                        multi_lonely.append((prof, d, days_dict[d][0]))
+            if not multi_lonely:
+                break
+            lonely_memos = multi_lonely
         
         random.shuffle(lonely_memos)
         prof, lonely_day, lonely_memo = lonely_memos[0]
@@ -1504,7 +1521,8 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
         prof_allowed_days=prof_allowed_days, prof_consecutive=prof_consecutive,
         frozen_profs=frozen_profs, prof_phase_split=prof_phase_split,
         memo_alt_days=memo_alt_days, day_time_limits=day_time_limits or {},
-        profs_accept_18=profs_accept_18
+        profs_accept_18=profs_accept_18,
+        profs_cluster_days=profs_cluster_days
     )
     
     # المرحلة 2: تحسين الجدول
@@ -1825,7 +1843,7 @@ def load_prof_exceptions():
     try:
         result = sheets_service.spreadsheets().values().get(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A1:K1000"
+            range="استثناءات_أساتذة!A1:L1000"
         ).execute()
         values = result.get('values', [])
         if not values or len(values) < 2: return pd.DataFrame()
@@ -1874,11 +1892,12 @@ def save_prof_exception(row_data):
             str(row_data.get("مجمّد","")),
             str(row_data.get("عدد مناقشات الفترة الأولى","")),
             str(row_data.get("بداية الفترة الثانية","")),
-            str(row_data.get("يقبل 18:00",""))
+            str(row_data.get("يقبل 18:00","")),
+            str(row_data.get("تجميع الأيام",""))
         ]]
         sheets_service.spreadsheets().values().append(
             spreadsheetId=MEMOS_SHEET_ID,
-            range="استثناءات_أساتذة!A:K",
+            range="استثناءات_أساتذة!A:L",
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
             body={"values": values}
@@ -1977,7 +1996,8 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
     frozen_profs = set()
     prof_phase_split = {}
     memo_alt_days = {}
-    profs_accept_18 = set()  # أساتذة يقبلون توقيت 18:00
+    profs_accept_18 = set()
+    profs_cluster_days = set()  # أساتذة يفضلون تجميع الأيام
 
     if not df_prof_exc.empty:
         for _, row in df_prof_exc.iterrows():
@@ -1995,9 +2015,9 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             late = str(row.get("يقبل 18:00","")).strip()
             if late.lower() in ["نعم","yes","1","true"]:
                 profs_accept_18.add(prof)
-            accepts_18 = str(row.get("يقبل 18:00","")).strip()
-            if accepts_18.lower() in ["نعم","yes","1","true"]:
-                profs_accept_18.add(prof)
+            cluster = str(row.get("تجميع الأيام","")).strip()
+            if cluster.lower() in ["نعم","yes","1","true"]:
+                profs_cluster_days.add(prof)
 
     # استثناءات الأيام البديلة للمذكرات
     if not df_memo_exc.empty:
@@ -2007,7 +2027,7 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             if mid and alt and alt not in ["","nan"]:
                 memo_alt_days[mid] = set([d.strip() for d in alt.split(",") if d.strip()])
 
-    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days, profs_accept_18
+    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days, profs_accept_18, profs_cluster_days
 
 
 def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, slots_per_day):
@@ -2044,7 +2064,7 @@ def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_ba
 
     # تعارض: أيام ممنوعة وأيام مسموحة متناقضة لنفس الأستاذ
     if not df_prof_exc.empty:
-        _dc = build_constraints(pd.DataFrame(), df_prof_exc, slots_per_day)
+        _dc = list(build_constraints(pd.DataFrame(), df_prof_exc, slots_per_day))
         prof_banned_days2 = _dc[2] if len(_dc) > 2 else {}
         prof_allowed_days2 = _dc[6] if len(_dc) > 6 else {}
     else:
@@ -2117,6 +2137,76 @@ def load_schedule_rooms():
     except Exception as e:
         logger.error(f"خطأ القاعات: {e}")
         return []
+
+
+def validate_schedule(schedule, memo_members, days, slots_per_day):
+    """
+    تقرير تحقق شامل من صحة الجدول
+    يكتشف كل الانتهاكات
+    """
+    violations = []
+    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
+    
+    # بناء برنامج كل أستاذ
+    prof_program = {}  # prof -> {day -> [slots]}
+    day_slot_room = {}  # (day,slot,room) -> [memo_ids]
+    
+    for mid, slot_val in schedule.items():
+        if not slot_val: continue
+        day, slot, room = slot_val
+        # تعارض القاعة
+        key = (day, slot, room)
+        day_slot_room.setdefault(key, []).append(mid)
+        # برنامج الأستاذ
+        for prof in memo_members.get(mid, set()):
+            prof_program.setdefault(prof, {}).setdefault(day, []).append(slot)
+    
+    # 1. تعارض القاعة
+    for (day, slot, room), memos in day_slot_room.items():
+        if len(memos) > 1:
+            violations.append(f"🔴 تعارض قاعة: {room} في {day} {slot} — مذكرات: {', '.join(memos)}")
+    
+    for prof, days_dict in prof_program.items():
+        day_counts = {d: len(slots) for d, slots in days_dict.items()}
+        
+        # 2. تجاوز 3 مذكرات/يوم
+        for day, count in day_counts.items():
+            if count > 3:
+                violations.append(f"🔴 {prof}: {count} مذكرات في {day} (الحد 3)")
+        
+        # 3. تعارض في نفس التوقيت
+        for day, slots in days_dict.items():
+            if len(slots) != len(set(slots)):
+                violations.append(f"🔴 {prof}: تعارض توقيتات في {day}")
+        
+        # 4. أكثر من يوم منعزل (يوم بمناقشة واحدة)
+        lonely_days = [d for d, cnt in day_counts.items() if cnt == 1]
+        if len(lonely_days) > 1:
+            violations.append(f"🟡 {prof}: {len(lonely_days)} أيام منعزلة ({', '.join(sorted(lonely_days))})")
+        
+        # 5. أكثر من 3 أيام متتالية
+        sorted_days = sorted(days_dict.keys())
+        consec = 1
+        max_consec = 1
+        for i in range(1, len(sorted_days)):
+            d1, d2 = sorted_days[i-1], sorted_days[i]
+            # تحقق التتالي (يومان متجاوران)
+            try:
+                from datetime import datetime, timedelta
+                dt1 = datetime.strptime(d1, "%Y-%m-%d")
+                dt2 = datetime.strptime(d2, "%Y-%m-%d")
+                diff = (dt2 - dt1).days
+                # تجاهل عطلة الجمعة والسبت
+                if diff <= 3:
+                    consec += 1
+                    max_consec = max(max_consec, consec)
+                else:
+                    consec = 1
+            except: pass
+        if max_consec > 3:
+            violations.append(f"🟡 {prof}: {max_consec} أيام متتالية")
+    
+    return violations
 
 
 df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
@@ -3594,6 +3684,7 @@ elif st.session_state.user_type == "admin":
                             exc_prof_after = st.selectbox("⏰ لا بعد (توقيت)", ["—"]+gen_slots_j, key="exc_prof_after")
                             exc_prof_oneday = st.checkbox("📅 يوم واحد فقط", key="exc_prof_oneday")
                             exc_prof_consec = st.checkbox("📅 أيام متتالية", key="exc_prof_consec")
+                            exc_prof_cluster = st.checkbox("🏠 تجميع الأيام (يسكن بعيداً)", key="exc_prof_cluster")
                             exc_prof_frozen = st.checkbox("🔒 تجميد كلي (لا يُبرمج حتى إشعار آخر)", key="exc_prof_frozen")
                             exc_prof_late = st.checkbox("🌙 يقبل توقيت 18:00", key="exc_prof_late")
                             exc_prof_18 = st.checkbox("🌙 يقبل توقيت 18:00", key="exc_prof_18")
@@ -3611,6 +3702,7 @@ elif st.session_state.user_type == "admin":
                                     "لا بعد": exc_prof_after if exc_prof_after != "—" else "",
                                     "يوم واحد": "نعم" if exc_prof_oneday else "",
                                     "أيام متتالية": "نعم" if exc_prof_consec else "",
+                                    "تجميع الأيام": "نعم" if exc_prof_cluster else "",
                                     "مجمّد": "نعم" if exc_prof_frozen else "",
                                     "يقبل 18:00": "نعم" if exc_prof_late else "",
                                     "يقبل 18:00": "نعم" if exc_prof_18 else "",
@@ -3625,6 +3717,17 @@ elif st.session_state.user_type == "admin":
                                 st.error("❌ اختر اسم الأستاذ")
 
                 st.markdown("---")
+                # بذرة التوليد — تغييرها يعطي جدولاً مختلفاً
+                _seed = st.session_state.get("j_seed", 42)
+                c_seed1, c_seed2 = st.columns([3,1])
+                with c_seed1:
+                    st.caption(f"🎲 بذرة التوليد الحالية: **{_seed}**")
+                with c_seed2:
+                    if st.button("🎲 بذرة جديدة", key="j_new_seed"):
+                        import random as _rnd
+                        st.session_state["j_seed"] = _rnd.randint(1, 9999)
+                        st.rerun()
+
                 c_g1, c_g2, c_g3 = st.columns(3)
                 with c_g1:
                     if st.button("🚀 توليد الجدول الذكي", type="primary", use_container_width=True, key="j_generate"):
@@ -3634,7 +3737,7 @@ elif st.session_state.user_type == "admin":
                             # قراءة الاستثناءات وفحص التعارضات أولاً
                             _df_memo_exc = load_memo_exceptions()
                             _df_prof_exc = load_prof_exceptions()
-                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18 = build_constraints(
+                            _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
                                 _df_memo_exc, _df_prof_exc, gen_slots_j
                             )
                             # دمج قيود التوقيت اليومي
@@ -3649,9 +3752,10 @@ elif st.session_state.user_type == "admin":
                                 st.stop()
                             else:
                                 with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
-                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18 = build_constraints(
+                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
                                         _df_memo_exc, _df_prof_exc, gen_slots_j
                                     )
+                                    import random as _rnd2; _rnd2.seed(st.session_state.get("j_seed", 42))
                                     schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j, rej_log_j = run_smart_schedule(
                                         ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
                                         max_per_day=3, max_consecutive=3, improve=True,
@@ -3662,7 +3766,8 @@ elif st.session_state.user_type == "admin":
                                         frozen_profs=_frozen, prof_phase_split=_phase,
                                         memo_alt_days=_alt_days,
                                         day_time_limits=_day_limits if _days_from_sheet else {},
-                                        profs_accept_18=_acc18
+                                        profs_accept_18=_acc18,
+                                        profs_cluster_days=_cluster
                                     )
                                     st.session_state["j_schedule"] = schedule_j
                                     st.session_state["j_score"] = quality_j
@@ -3715,6 +3820,8 @@ elif st.session_state.user_type == "admin":
                     </div>''', unsafe_allow_html=True)
 
                     sched_rows_j = schedule_to_rows(j_sched, ready_memos_j)
+                    # ترتيب زمني
+                    sched_rows_j = sorted(sched_rows_j, key=lambda r: (r.get("اليوم","9999"), r.get("التوقيت","99:99"), r.get("القاعة","")))
                     df_sched_j = pd.DataFrame(sched_rows_j)
 
                     t_grid, t_prof, t_unpl_tab = st.tabs(["📋 الجدول الكامل","👨‍🏫 حسب الأستاذ","⚠️ غير مجدولة"])
@@ -3806,6 +3913,27 @@ elif st.session_state.user_type == "admin":
 
                     st.markdown("---")
                     # تأكيد واعتماد
+                    # ── تقرير التحقق ──
+                    st.markdown("---")
+                    with st.expander("🔍 تقرير التحقق من الجدول", expanded=True):
+                        _violations = validate_schedule(
+                            st.session_state["j_schedule"],
+                            st.session_state.get("j_memo_members", {}),
+                            st.session_state.get("j_days_list", gen_days_j),
+                            st.session_state.get("j_slots_list", gen_slots_j)
+                        )
+                        if not _violations:
+                            st.success("✅ الجدول سليم — لا انتهاكات")
+                        else:
+                            red = [v for v in _violations if v.startswith("🔴")]
+                            yellow = [v for v in _violations if v.startswith("🟡")]
+                            if red:
+                                st.error(f"🔴 {len(red)} انتهاك حرج:")
+                                for v in red: st.markdown(f"- {v}")
+                            if yellow:
+                                st.warning(f"🟡 {len(yellow)} تنبيه:")
+                                for v in yellow: st.markdown(f"- {v}")
+
                     # ── زر الحفظ بدون نشر ──
                     st.markdown("---")
                     col_save1, col_save2 = st.columns(2)
