@@ -2122,6 +2122,23 @@ def _validate_hard_constraints(sched, memo_members, max_per_day=3):
             prof_day[(prof, day)] = prof_day.get((prof, day), 0) + 1
             if prof_day[(prof, day)] > max_per_day:
                 violations.append(f"🔴 {prof} تجاوز {max_per_day} في {day}")
+
+    # ── قيد صارم: لا أكثر من يوم منعزل واحد (إذا المجموع >= 3) ──
+    prof_day_slots = {}
+    for mid, sv in sched.items():
+        if not sv: continue
+        day = sv[0]
+        for prof in memo_members.get(mid, set()):
+            prof_day_slots.setdefault(prof, {})
+            prof_day_slots[prof][day] = prof_day_slots[prof].get(day, 0) + 1
+
+    for prof, day_counts in prof_day_slots.items():
+        total_p = sum(day_counts.values())
+        if total_p < 3: continue  # استثناء: أقل من 3 مناقشات
+        lonely_days = [d for d, c in day_counts.items() if c == 1]
+        if len(lonely_days) > 2:
+            violations.append(f"🔴 {prof}: {len(lonely_days)} أيام منعزلة — الحد المسموح يومان")
+
     return list(set(violations))
 
 
