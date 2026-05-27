@@ -372,7 +372,7 @@ def load_students():
 @st.cache_data(ttl=60)
 def load_memos():
     try:
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AI1000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AJ1000").execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         headers = values[0]; rows = values[1:]
@@ -1172,59 +1172,67 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
     prof_busy = {}
     # عدد مناقشات الأستاذ في اليوم: (prof, day) -> count
     prof_day_count = {}
+    # تتبع أسباب رفض المذكرات
+    rejection_log = {}
+    # تتبع أسباب رفض المذكرات: memo_id -> [reasons]
+    rejection_log = {}
     
-    def can_place(memo_id, day, slot, room):
+    def can_place(memo_id, day, slot, room, log=False):
         """هل يمكن وضع المذكرة في هذه الخانة؟"""
-        if (day, slot, room) in occupied:
+        def _reject(reason):
+            if log: rejection_log.setdefault(memo_id, set()).add(reason)
             return False
 
-        # تحقق من توقيت 18:00 — يُسمح فقط إذا كل أعضاء اللجنة موافقون
+        if (day, slot, room) in occupied:
+            return _reject(f"القاعة {room} مشغولة {day} {slot}")
+
         if slot == LATE_SLOT:
             members_check = memo_members.get(memo_id, set())
-            if not members_check.issubset(profs_accept_18):
-                return False
+            non_acc = members_check - profs_accept_18
+            if non_acc: return _reject(f"18:00 غير مقبول من: {', '.join(non_acc)}")
 
-        # تحقق من قيود التوقيت اليومي (صباح/مساء)
         if day in day_time_limits:
             from_t, to_t = day_time_limits[day]
-            if from_t and slot_to_idx.get(slot,0) < slot_to_idx.get(from_t,0): return False
-            if to_t and slot_to_idx.get(slot,99) > slot_to_idx.get(to_t,99): return False
+            if from_t and slot_to_idx.get(slot,0) < slot_to_idx.get(from_t,0):
+                return _reject(f"{day}: {slot} قبل الحد {from_t}")
+            if to_t and slot_to_idx.get(slot,99) > slot_to_idx.get(to_t,99):
+                return _reject(f"{day}: {slot} بعد الحد {to_t}")
 
-        # تحقق من حدود التاريخ للمذكرة
         if memo_id in memo_date_limits:
             earliest, latest = memo_date_limits[memo_id]
-            if earliest and day < earliest: return False
-            if latest and day > latest: return False
-        # أيام بديلة: المذكرة لا تُبرمج إلا في هذه الأيام
+            if earliest and day < earliest: return _reject(f"لا قبل {earliest}")
+            if latest and day > latest: return _reject(f"لا بعد {latest}")
+
         if memo_id in memo_alt_days and memo_alt_days[memo_id]:
-            if day not in memo_alt_days[memo_id]: return False
+            if day not in memo_alt_days[memo_id]:
+                return _reject(f"{day} ليس من الأيام البديلة")
 
         members = memo_members.get(memo_id, set())
         for prof in members:
-            # تعارض في نفس التوقيت
             if (day, slot, prof) in prof_busy:
-                return False
-            # الحد الأقصى 3 مناقشات في اليوم
+                return _reject(f"{prof} مشغول {day} {slot}")
             if prof_day_count.get((prof, day), 0) >= 3:
-                return False
-            # أيام ممنوعة للأستاذ
+                return _reject(f"{prof} بلغ الحد الأقصى 3 في {day}")
             if day in prof_banned_days.get(prof, set()):
-                return False
-            # أيام مسموحة فقط — إذا حُدّدت، لا يُقبل أي يوم خارجها
+                return _reject(f"{day} ممنوع على {prof}")
             if prof in prof_allowed_days and prof_allowed_days[prof]:
                 if day not in prof_allowed_days[prof]:
-                    return False
-            # توقيت 18:00 — فقط إذا كل أعضاء اللجنة يقبلونه
+                    return _reject(f"{day} غير مسموح لـ{prof} (مسموح: {','.join(sorted(prof_allowed_days[prof]))})")
             if slot == "18:00" and prof not in profs_accept_18:
-                return False
-            # لا قبل توقيت معين
+                return _reject(f"{prof} لا يقبل 18:00")
             if prof in prof_not_before:
-                if slot_to_idx.get(slot, 0) < slot_to_idx.get(prof_not_before[prof], 0):
-                    return False
-            # لا بعد توقيت معين
+                if slot_to_idx.get(slot,0) < slot_to_idx.get(prof_not_before[prof],0):
+                    return _reject(f"{prof} لا يحضر قبل {prof_not_before[prof]}")
             if prof in prof_not_after:
-                if slot_to_idx.get(slot, 99) > slot_to_idx.get(prof_not_after[prof], 99):
-                    return False
+                if slot_to_idx.get(slot,99) > slot_to_idx.get(prof_not_after[prof],99):
+                    return _reject(f"{prof} لا يحضر بعد {prof_not_after[prof]}")
+            if prof in prof_phase_split:
+                n_first, start_second = prof_phase_split[prof]
+                cur = prof_first_phase_count.get(prof, 0)
+                if cur < n_first:
+                    if day >= start_second: return _reject(f"{prof} في الفترة الأولى — {day} في الثانية")
+                else:
+                    if day < start_second: return _reject(f"{prof} في الفترة الثانية — {day} في الأولى")
         return True
     
     def place_memo(memo_id, day, slot, room):
@@ -1329,7 +1337,7 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
         if memo not in schedule:
             schedule[memo] = None
     
-    return schedule, memo_members
+    return schedule, memo_members, rejection_log
 
 def calc_schedule_quality(schedule, memo_members, days, slots_per_day):
     """حساب جودة الجدول من منظور الأستاذ"""
@@ -1488,7 +1496,7 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
             _st.warning(f"⚠️ {len(_frozen_memos)} مذكرة استُثنيت بسبب أستاذ مجمّد: {', '.join(sorted(_frozen_memos)[:10])}")
 
     # المرحلة 1: Professor-First Scheduling مع الاستثناءات
-    schedule, memo_members = professor_first_schedule(
+    schedule, memo_members, _rej_log = professor_first_schedule(
         df_memos, days, slots_per_day, rooms, max_per_day, max_consecutive,
         fixed_slots=fixed_slots, memo_date_limits=memo_date_limits,
         prof_banned_days=prof_banned_days, prof_not_before=prof_not_before,
@@ -1508,7 +1516,7 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
         schedule, memo_members, days, slots_per_day
     )
     
-    return schedule, quality, placed, unplaced, idle, total_days, memo_members
+    return schedule, quality, placed, unplaced, idle, total_days, memo_members, _rej_log
 
 def schedule_to_rows(schedule, df_memos):
     """تحويل الجدول لصفوف عرض"""
@@ -2925,11 +2933,19 @@ elif st.session_state.user_type == "professor":
                                 masks.append(mm)
                     if masks:
                         jury_memos = pd.concat(masks).drop_duplicates(subset=["رقم المذكرة"])
-                        col_pub = "منشور" if "منشور" in jury_memos.columns else ("AD" if "AD" in jury_memos.columns else None)
+                        # البحث عن عمود نشر البرنامج ثم AD ثم منشور
+                        # عمود نشر البرنامج فقط — لا AD ولا منشور
+                        col_pub = "نشر البرنامج" if "نشر البرنامج" in jury_memos.columns else None
                         if col_pub:
                             is_pub = jury_memos[col_pub].astype(str).str.strip() == "نعم"
                             is_sup = jury_memos["الصفة"] == "مشرف"
+                            # المشرف يرى مذكراته دائماً
+                            # الرئيس والمناقش: فقط إذا نشر البرنامج = نعم
                             jury_memos = jury_memos[is_pub | is_sup]
+                        else:
+                            # إذا لم يوجد عمود نشر → لا يرى الرئيس والمناقش شيئاً
+                            is_sup = jury_memos["الصفة"] == "مشرف"
+                            jury_memos = jury_memos[is_sup]
 
                 if jury_memos.empty:
                     st.info("⏳ لا توجد مناقشات منشورة تخصك حالياً.")
@@ -3008,7 +3024,7 @@ elif st.session_state.user_type == "professor":
                         else:
                             preview_btn = '<span style="background:rgba(245,158,11,0.15);color:#F59E0B;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⏳ في انتظار موافقة المشرف</span>'
 
-                        if has_date:
+                        if has_date and j_published:
                             schedule_line = f'''<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;">
                                 <span style="color:#10B981;font-weight:700;font-size:0.85rem;">📅 {jdate}</span>
                                 <span style="color:#94A3B8;font-size:0.85rem;">🕐 {jtime if has_time else "—"}</span>
@@ -3612,7 +3628,7 @@ elif st.session_state.user_type == "admin":
                                     _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18 = build_constraints(
                                         _df_memo_exc, _df_prof_exc, gen_slots_j
                                     )
-                                    schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j = run_smart_schedule(
+                                    schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j, rej_log_j = run_smart_schedule(
                                         ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
                                         max_per_day=3, max_consecutive=3, improve=True,
                                         fixed_slots=_fixed, memo_date_limits=_date_lim,
@@ -3631,6 +3647,7 @@ elif st.session_state.user_type == "admin":
                                     st.session_state["j_days_list"] = gen_days_j
                                     st.session_state["j_rooms_list"] = gen_rooms_j
                                     st.session_state["j_memo_members"] = memo_members_j
+                                    st.session_state["j_rej_log"] = rej_log_j
                                 st.success(f"✅ مجدول: {placed_j}/{placed_j+unplaced_j} | غير مجدول: {unplaced_j} | جودة: {quality_j}%")
                                 st.rerun()
                 with c_g2:
@@ -3750,27 +3767,18 @@ elif st.session_state.user_type == "admin":
                             st.warning(f"⚠️ {len(unpl_list)} مذكرة لم تُجدَّل")
                             # تحليل سبب عدم الجدولة لكل مذكرة
                             memo_map_unpl = {str(r["رقم المذكرة"]): r for _, r in ready_memos_j.iterrows()}
+                            _rej_log_disp = st.session_state.get("j_rej_log", {})
                             for u in unpl_list:
-                                mid = u["رقم المذكرة"]
-                                row_u = memo_map_unpl.get(str(mid), {})
-                                reasons = []
-                                # تحقق من الأسباب
-                                members_u = set()
-                                for col in ["المشرف","الرئيس","المناقش1","المناقش2"]:
-                                    v = str(u.get(col,"")).strip()
-                                    if v and v not in ["","nan"]: members_u.add(v)
-                                # أستاذ مجمّد؟
-                                frozen_in = members_u & (_frozen if "_frozen" in dir() else set())
-                                if frozen_in: reasons.append(f"أستاذ مجمّد: {', '.join(frozen_in)}")
-                                # كل الأيام ممنوعة؟
-                                for p in members_u:
-                                    banned = _ban_days.get(p, set()) if "_ban_days" in dir() else set()
-                                    allowed = _allow_days.get(p, set()) if "_allow_days" in dir() else set()
-                                    if allowed and not (set(gen_days_j) - banned) & allowed:
-                                        reasons.append(f"لا يوجد يوم مناسب للأستاذ {p}")
-                                if not reasons: reasons.append("الطاقة ممتلئة أو تعارض في التوقيتات")
-                                reason_str = " | ".join(reasons)
-                                st.markdown(f"- **{mid}** — {u.get('العنوان','')[:40]} → 🔍 _{reason_str}_")
+                                mid = str(u["رقم المذكرة"])
+                                reasons = _rej_log_disp.get(mid, set())
+                                if reasons:
+                                    # اختر أكثر الأسباب فائدة (الأولى مختلفة)
+                                    unique_reasons = list(reasons)[:3]
+                                    reason_str = " | ".join(unique_reasons)
+                                else:
+                                    reason_str = "الطاقة ممتلئة أو لا توجد خانة مناسبة"
+                                st.markdown(f"- **{mid}** — {u.get('العنوان','')[:40]}")
+                                st.caption(f"  🔍 السبب: {reason_str}")
 
                     st.markdown("---")
                     # تأكيد واعتماد
