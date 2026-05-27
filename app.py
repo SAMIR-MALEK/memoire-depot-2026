@@ -2187,7 +2187,8 @@ def validate_schedule(schedule, memo_members, days, slots_per_day):
         # 4. أكثر من يوم منعزل — فقط إذا المجموع >= 3
         total_sessions = sum(day_counts.values())
         lonely_days = [d for d, cnt in day_counts.items() if cnt == 1]
-        if len(lonely_days) > 1 and total_sessions >= 3:
+        # لا تنبيه إذا المجموع <= 2 (طبيعي) أو إذا يوم منعزل واحد فقط
+        if len(lonely_days) > 1 and total_sessions > 2 and len(lonely_days) < total_sessions:
             violations.append(f"🟡 {prof}: {len(lonely_days)} أيام منعزلة ({', '.join(sorted(lonely_days))})")
         
         # 5. أكثر من 3 أيام متتالية
