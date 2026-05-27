@@ -2215,11 +2215,21 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
         order = memo_ids[:]
         random.shuffle(order)
 
+        # الفترات الزمنية — نبدأ بالأيام المبكرة
+        _cutoff = "2026-06-07"
+        _early = [d for d in days if d < _cutoff]
+        _late  = [d for d in days if d >= _cutoff]
+        # 85% احتمال اختيار يوم مبكر
+        _weighted_days = _early * 5 + _late  # الأيام المبكرة بوزن أكبر
+
         for memo in order:
             if memo in scheduled: continue
-            # ترتيب عشوائي للأيام والتوقيتات
-            d_order = days[:]
-            random.shuffle(d_order)
+            # ترتيب يفضل الأيام المبكرة
+            if random.random() < 0.85 and _early:
+                d_order = _early[:] + _late[:]
+            else:
+                d_order = days[:]
+            random.shuffle(d_order[:len(_early)])  # خلط الأيام المبكرة فيما بينها
             placed = False
             for day in d_order:
                 if placed: break
@@ -2242,6 +2252,11 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
 
         return schedule
 
+    # ── الفترات الزمنية ──
+    CUTOFF_DATE = "2026-06-07"  # تاريخ البكالوريا
+    early_days = [d for d in days if d < CUTOFF_DATE]   # 31 ماي → 6 جوان
+    late_days  = [d for d in days if d >= CUTOFF_DATE]  # 7 جوان فصاعداً
+
     # ── دالة الـ Fitness ──
     def fitness(schedule):
         violations = _validate_hard_constraints(schedule, memo_members)
@@ -2255,6 +2270,48 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
 
         # Soft scores
         soft = _compute_soft_score(schedule, memo_members, slot_to_idx, days, slots_per_day, rooms)
+
+        # ── مكافأة الجدولة في الفترة المبكرة (قبل 7 جوان) ──
+        early_placed = sum(1 for sv in schedule.values() if sv and sv[0] < CUTOFF_DATE)
+        early_ratio = early_placed / max(placed, 1)
+        # نكافئ بقوة إذا 80%+ في الفترة المبكرة
+        if early_ratio >= 0.85: early_bonus = 500
+        elif early_ratio >= 0.80: early_bonus = 300
+        elif early_ratio >= 0.70: early_bonus = 100
+        else: early_bonus = -200  # عقوبة إذا أقل من 70%
+        soft += early_bonus
+
+        # ── عقوبة الأيام المتتالية > 3 ──
+        from datetime import datetime as _dt
+        prof_days_sched = {}
+        for mid, sv in schedule.items():
+            if not sv: continue
+            day = sv[0]
+            for prof in memo_members.get(mid, set()):
+                prof_days_sched.setdefault(prof, set()).add(day)
+        for prof, pdays in prof_days_sched.items():
+            sorted_d = sorted(pdays)
+            consec = 1
+            for i in range(1, len(sorted_d)):
+                try:
+                    d1 = _dt.strptime(sorted_d[i-1], "%Y-%m-%d")
+                    d2 = _dt.strptime(sorted_d[i], "%Y-%m-%d")
+                    if (d2-d1).days <= 3: consec += 1
+                    else: consec = 1
+                    if consec > 3: soft -= 50 * (consec - 3)  # عقوبة صارمة
+                except: pass
+
+        # ── عقوبة الأيام المنعزلة > 1 ──
+        for prof, pdays in prof_days_sched.items():
+            day_counts = {}
+            for mid, sv in schedule.items():
+                if not sv or sv[0] not in pdays: continue
+                if prof not in memo_members.get(mid, set()): continue
+                day_counts[sv[0]] = day_counts.get(sv[0], 0) + 1
+            total_p = sum(day_counts.values())
+            if total_p >= 3:
+                lonely = sum(1 for d, c in day_counts.items() if c == 1)
+                if lonely > 1: soft -= 80 * (lonely - 1)  # عقوبة صارمة
 
         return placement_score + soft
 
