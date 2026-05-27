@@ -2094,14 +2094,130 @@ def algo_smart_fair(df_memos, days, slots_per_day, rooms, constraints):
 # ================================================================
 # 🏆 Smart Fair Scheduling Optimizer (SFSO)
 # ================================================================
+
+# ================================================================
+# 🏆 Smart Fair Scheduling Optimizer v2 — Feasibility First
+# ================================================================
+class SchedulingError(Exception):
+    pass
+
+def _validate_hard_constraints(sched, memo_members, max_per_day=3):
+    """
+    التحقق الصارم من القيود الحرجة
+    يُرجع قائمة الانتهاكات الحرجة
+    """
+    violations = []
+    prof_slot = {}   # (day, slot, prof) -> memo_id
+    room_slot = {}   # (day, slot, room) -> memo_id
+    memo_count = {}  # memo_id -> count
+    prof_day  = {}   # (prof, day) -> count
+
+    for mid, sv in sched.items():
+        if not sv: continue
+        day, slot, room = sv
+
+        # 1. المذكرة تُبرمج مرة واحدة فقط
+        memo_count[mid] = memo_count.get(mid, 0) + 1
+        if memo_count[mid] > 1:
+            violations.append(f"🔴 المذكرة {mid} مبرمجة أكثر من مرة")
+
+        # 2. القاعة لا تستعمل مرتين
+        key_r = (day, slot, room)
+        if key_r in room_slot:
+            violations.append(f"🔴 تعارض قاعة: {room} في {day} {slot}")
+        room_slot[key_r] = mid
+
+        for prof in memo_members.get(mid, set()):
+            # 3. الأستاذ لا يناقش جلستين في نفس الوقت
+            key_p = (day, slot, prof)
+            if key_p in prof_slot:
+                violations.append(f"🔴 تعارض: {prof} في {day} {slot}")
+            prof_slot[key_p] = mid
+
+            # 4. الحد اليومي
+            prof_day[(prof, day)] = prof_day.get((prof, day), 0) + 1
+            if prof_day[(prof, day)] > max_per_day:
+                violations.append(f"🔴 {prof} تجاوز {max_per_day} في {day}")
+
+    return list(set(violations))  # إزالة المكررات
+
+
+def _compute_soft_score(sched, memo_members, slot_to_idx, days, slots_per_day, rooms):
+    """
+    حساب النقاط للقيود الناعمة فقط — يُستدعى بعد التحقق من Feasibility
+    """
+    import math
+    from datetime import datetime
+
+    prof_slots_by_day = {}  # prof -> {day -> [slot_idx]}
+    prof_days = {}          # prof -> set(days)
+    total_by_prof = {}
+
+    for mid, sv in sched.items():
+        if not sv: continue
+        day, slot, room = sv
+        for prof in memo_members.get(mid, set()):
+            prof_slots_by_day.setdefault(prof, {}).setdefault(day, []).append(
+                slot_to_idx.get(slot, 0))
+            prof_days.setdefault(prof, set()).add(day)
+            total_by_prof[prof] = total_by_prof.get(prof, 0) + 1
+
+    score = 0.0
+
+    # fairness_score
+    if total_by_prof:
+        vals = list(total_by_prof.values())
+        mean = sum(vals) / len(vals)
+        std = math.sqrt(sum((v-mean)**2 for v in vals)/len(vals)) if len(vals)>1 else 0
+        score += max(0, 100 - std * 8)
+
+    for prof, days_dict in prof_slots_by_day.items():
+        total_p = total_by_prof.get(prof, 0)
+
+        for day, slot_indices in days_dict.items():
+            # gaps_penalty
+            if len(slot_indices) > 1:
+                si = sorted(slot_indices)
+                gaps = sum(si[i+1]-si[i]-1 for i in range(len(si)-1))
+                score -= gaps * 5
+
+        # consecutive_days_penalty
+        sorted_d = sorted(prof_days.get(prof, set()))
+        consec = 1; max_c = 1
+        for i in range(1, len(sorted_d)):
+            try:
+                d1 = datetime.strptime(sorted_d[i-1], "%Y-%m-%d")
+                d2 = datetime.strptime(sorted_d[i], "%Y-%m-%d")
+                diff = (d2-d1).days
+                if diff <= 3: consec += 1; max_c = max(max_c, consec)
+                else: consec = 1
+            except: pass
+        if max_c > 3: score -= (max_c-3) * 15
+
+        # isolated_days_penalty — أكثر من يوم منعزل إذا المجموع >= 3
+        if total_p >= 3:
+            lonely = sum(1 for d, si in days_dict.items() if len(si)==1)
+            if lonely > 1: score -= (lonely-1) * 10
+
+        # professor_comfort_score — أقل أيام أفضل
+        n_days = len(prof_days.get(prof, set()))
+        score += max(0, 20 - n_days * 2)
+
+    # room_efficiency_score
+    used = sum(1 for sv in sched.values() if sv)
+    cap = len(days) * len(slots_per_day) * len(rooms)
+    if cap > 0: score += (used/cap) * 30
+
+    return score
+
+
 def smart_fair_schedule_optimizer(df_memos, days, slots_per_day, rooms, constraints):
     """
-    Smart Fair Scheduling Optimizer
-    المرحلة 1: توليد schedule صالح يحترم كل القيود
-    المرحلة 2: تحسين بـ score formula للعدالة والراحة
+    Smart Fair Scheduling Optimizer v2
+    المبدأ: Feasibility First — ثم Optimization فقط
     """
     import random, math
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, \
     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, \
@@ -2111,147 +2227,141 @@ def smart_fair_schedule_optimizer(df_memos, days, slots_per_day, rooms, constrai
     memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
 
-    # ── دالة الـ Score ──
-    def compute_score(sched, memo_mbrs):
-        slot_groups = {}   # prof -> {day -> [slot_indices]}
-        day_counts  = {}   # prof -> {day -> count}
-        total_by_prof = {} # prof -> total
+    def _build_feasible_schedule(seed_offset=0):
+        """بناء جدول صالح 100% — يستخدم can_place الموحدة"""
+        random.seed(42 + seed_offset)
+        schedule, occupied, prof_busy, prof_day_count, prof_first_phase_count = {}, {}, {}, {}, {}
+        rej_log = {}
+        scheduled = set()
 
-        for mid, sv in sched.items():
-            if not sv: continue
-            day, slot, room = sv
-            for prof in memo_mbrs.get(mid, set()):
-                slot_groups.setdefault(prof, {}).setdefault(day, []).append(slot_to_idx.get(slot, 0))
-                day_counts.setdefault(prof, {})
-                day_counts[prof][day] = day_counts[prof].get(day, 0) + 1
-                total_by_prof[prof] = total_by_prof.get(prof, 0) + 1
+        can_place, _ = make_can_place(
+            occupied, prof_busy, prof_day_count, memo_members,
+            fixed_slots, memo_date_limits, prof_banned_days,
+            prof_not_before, prof_not_after, prof_allowed_days,
+            profs_accept_18, memo_alt_days, prof_phase_split,
+            prof_first_phase_count, slots_per_day, rej_log
+        )
+        place = make_place_fn(schedule, occupied, prof_busy, prof_day_count,
+                              memo_members, prof_first_phase_count, prof_phase_split)
 
-        score = 0.0
+        # Phase 0: Fixed slots
+        apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled)
 
-        # 1. fairness_score — انحراف معياري منخفض أفضل
-        if total_by_prof:
-            vals = list(total_by_prof.values())
-            mean = sum(vals) / len(vals)
-            std = math.sqrt(sum((v - mean)**2 for v in vals) / len(vals)) if len(vals) > 1 else 0
-            score += max(0, 50 - std * 5)
+        # Phase 1: الأثقل أولاً مع ترتيب عشوائي قابل للتكرار
+        sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
+        if seed_offset > 0:
+            random.shuffle(sorted_profs)
 
-        for prof, days_dict in day_counts.items():
-            for day, cnt in days_dict.items():
-                # 2. overload_penalty — أكثر من 3 في اليوم
-                if cnt > 3: score -= (cnt - 3) * 20
-                # 3. gaps_penalty — فجوات بين الحصص
-                slots_in_day = sorted(slot_groups.get(prof, {}).get(day, []))
-                if len(slots_in_day) > 1:
-                    gaps = sum(slots_in_day[i+1] - slots_in_day[i] - 1
-                               for i in range(len(slots_in_day)-1))
-                    score -= gaps * 3
+        for prof, pmemos in sorted_profs:
+            unsch = [m for m in pmemos if m not in scheduled]
+            if not unsch: continue
+            # أنشئ ترتيباً يفضل الأيام التي فيها الأستاذ بالفعل
+            prof_days_used = set(sv[0] for m,sv in schedule.items() if sv and
+                                  prof in memo_members.get(m,set()))
+            days_ordered = sorted(days, key=lambda d: (
+                0 if d in prof_days_used else 1,
+                d in prof_banned_days.get(prof, set()),
+                d
+            ))
+            for memo in unsch:
+                placed = False
+                for day in days_ordered:
+                    if placed: break
+                    for slot in slots_per_day:
+                        if placed: break
+                        for room in rooms:
+                            if can_place(memo, day, slot, room, log=True):
+                                place(memo, day, slot, room)
+                                scheduled.add(memo)
+                                placed = True; break
 
-            # 4. consecutive_days_penalty
-            sorted_days = sorted(days_dict.keys())
-            consec = 1; max_c = 1
-            for i in range(1, len(sorted_days)):
-                try:
-                    d1 = datetime.strptime(sorted_days[i-1], "%Y-%m-%d")
-                    d2 = datetime.strptime(sorted_days[i], "%Y-%m-%d")
-                    if (d2 - d1).days <= 3: consec += 1; max_c = max(max_c, consec)
-                    else: consec = 1
-                except: pass
-            if max_c > 3: score -= (max_c - 3) * 10
+        # Phase 2: المتبقية
+        for memo in memo_ids:
+            if memo in scheduled: continue
+            for day in days:
+                for slot in slots_per_day:
+                    for room in rooms:
+                        if can_place(memo, day, slot, room, log=True):
+                            place(memo, day, slot, room)
+                            scheduled.add(memo); break
+                    else: continue; break
+                else: continue; break
 
-            # 5. professor_comfort_score — مجموعة في أيام أقل
-            score += max(0, 10 - len(days_dict) * 0.5)
+        for memo in memo_ids:
+            if memo not in schedule: schedule[memo] = None
 
-        # 6. room_efficiency_score
-        occupied_slots = sum(1 for sv in sched.values() if sv)
-        total_capacity = len(days) * len(slots_per_day) * len(rooms)
-        if total_capacity > 0:
-            efficiency = occupied_slots / total_capacity
-            score += efficiency * 20
+        return schedule, rej_log
 
-        return score
+    # ── المرحلة 1: بناء جدول صالح مع retry ──
+    best_feasible = None
+    best_rej_log = {}
+    MAX_RETRIES = 5
 
-    # ── المرحلة 1: توليد حل أولي صالح (نستخدم algo_blocks) ──
-    best_schedule, memo_mbrs_out, rej_log = algo_blocks(
-        df_memos, days, slots_per_day, rooms, constraints
-    )
-    best_score = compute_score(best_schedule, memo_mbrs_out)
+    for attempt in range(MAX_RETRIES):
+        sched, rej = _build_feasible_schedule(seed_offset=attempt * 7)
+        violations = _validate_hard_constraints(sched, memo_members)
+        critical = [v for v in violations if v.startswith("🔴")]
+        if not critical:
+            best_feasible = sched
+            best_rej_log = rej
+            break
+        # إذا فشل — سجّل وجرب مرة أخرى
 
-    # ── المرحلة 2: تحسين بـ Simulated Annealing ──
-    current = dict(best_schedule)
-    current_score = best_score
+    if best_feasible is None:
+        # لم نجد حلاً صالحاً — أرجع آخر محاولة مع تحذير
+        import streamlit as _st
+        _st.error("⚠️ SFSO: لم يُمكن توليد جدول خالٍ من التعارضات بعد 5 محاولات. راجع القيود.")
+        best_feasible = sched
+        best_rej_log = rej
 
-    # بناء بنية للتحقق السريع
-    def rebuild_occupied(sched):
-        occ = {}
-        pb = {}
-        pdc = {}
-        for mid, sv in sched.items():
-            if not sv: continue
-            day, slot, room = sv
-            occ[(day, slot, room)] = mid
-            for prof in memo_mbrs_out.get(mid, set()):
-                pb[(day, slot, prof)] = mid
-                pdc[(prof, day)] = pdc.get((prof, day), 0) + 1
-        return occ, pb, pdc
+    # ── المرحلة 2: تحسين Simulated Annealing على الجدول الصالح ──
+    current = dict(best_feasible)
+    best_score = _compute_soft_score(current, memo_members, slot_to_idx, days, slots_per_day, rooms)
+    best_sched = dict(current)
+    temperature = 80.0
 
-    def can_swap(sched, mid1, mid2):
-        """هل يمكن تبادل موعدي مذكرتين؟"""
-        sv1 = sched.get(mid1)
-        sv2 = sched.get(mid2)
-        if not sv1 or not sv2: return False
-        if sv1 == sv2: return False
-        # جرب المبادلة مؤقتاً
-        sched[mid1] = sv2; sched[mid2] = sv1
-        occ, pb, pdc = rebuild_occupied(sched)
-        valid = True
-        # تحقق من عدم التعارض
-        for mid, sv in [(mid1, sv2), (mid2, sv1)]:
-            if not sv: continue
-            day, slot, room = sv
-            if list(occ.values()).count(room) > 1 and occ.get((day,slot,room)) != mid:
-                valid = False; break
-            for prof in memo_mbrs_out.get(mid, set()):
-                busy_count = sum(1 for k,v in pb.items() if k[0]==day and k[1]==slot and k[2]==prof and v != mid)
-                if busy_count > 0: valid = False; break
-                if pdc.get((prof, day), 0) > 3: valid = False; break
-            if not valid: break
-        # أعد المبادلة
-        sched[mid1] = sv1; sched[mid2] = sv2
-        return valid
-
-    # تشغيل 200 محاولة تحسين
     scheduled_list = [m for m, sv in current.items() if sv]
-    temperature = 100.0
 
-    for iteration in range(200):
+    for iteration in range(300):
         if len(scheduled_list) < 2: break
-        # اختر مذكرتين عشوائيتين
         m1, m2 = random.sample(scheduled_list, 2)
-        if can_swap(current, m1, m2):
-            # جرب المبادلة
-            sv1, sv2 = current[m1], current[m2]
-            current[m1] = sv2; current[m2] = sv1
-            new_score = compute_score(current, memo_mbrs_out)
-            # Simulated Annealing: اقبل التحسين دائماً، وقد نقبل التراجع
-            delta = new_score - current_score
-            if delta > 0 or random.random() < math.exp(delta / max(temperature, 0.1)):
-                current_score = new_score
-                if new_score > best_score:
-                    best_score = new_score
-                    best_schedule = dict(current)
-            else:
-                # أعد الحال الأصلي
-                current[m1] = sv1; current[m2] = sv2
-        temperature *= 0.98  # تبريد تدريجي
+        sv1, sv2 = current.get(m1), current.get(m2)
+        if not sv1 or not sv2 or sv1 == sv2: continue
 
-    # أيضاً جرب تحسين بالـ Greedy بعد SA
-    improved = improve_schedule(best_schedule, memo_mbrs_out, days, slots_per_day, rooms, iterations=200)
-    improved_score = compute_score(improved, memo_mbrs_out)
-    if improved_score > best_score:
-        best_schedule = improved
-        best_score = improved_score
+        # جرب التبادل
+        current[m1] = sv2; current[m2] = sv1
 
-    return best_schedule, memo_mbrs_out, rej_log
+        # ── تحقق صارم من Hard Constraints بعد التبادل ──
+        violations_after = _validate_hard_constraints(current, memo_members)
+        critical_after = [v for v in violations_after if v.startswith("🔴")]
+
+        if critical_after:
+            # التبادل يخلق تعارضاً — ارفضه فوراً
+            current[m1] = sv1; current[m2] = sv2
+            continue
+
+        # الجدول صالح — احسب الـ score
+        new_score = _compute_soft_score(current, memo_members, slot_to_idx, days, slots_per_day, rooms)
+        delta = new_score - best_score
+
+        if delta > 0 or random.random() < math.exp(delta / max(temperature, 0.1)):
+            best_score = new_score
+            if new_score > _compute_soft_score(best_sched, memo_members, slot_to_idx, days, slots_per_day, rooms):
+                best_sched = dict(current)
+        else:
+            current[m1] = sv1; current[m2] = sv2
+
+        temperature *= 0.98
+
+    # ── التحقق النهائي قبل الإرجاع ──
+    final_violations = _validate_hard_constraints(best_sched, memo_members)
+    final_critical = [v for v in final_violations if v.startswith("🔴")]
+    if final_critical:
+        import streamlit as _st
+        _st.error(f"⚠️ SFSO: الجدول النهائي يحتوي {len(final_critical)} تعارضات حرجة — يُرجع الجدول الأولي الصالح")
+        best_sched = best_feasible
+
+    return best_sched, memo_members, best_rej_log
 
 
 def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, improve=True, seed=42):
