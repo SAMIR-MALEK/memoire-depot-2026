@@ -2318,7 +2318,7 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
                     if consec > 3: soft -= 50 * (consec - 3)  # عقوبة صارمة
                 except: pass
 
-        # ── عقوبة الأيام المنعزلة > 1 ──
+        # ── عقوبة الأيام المنعزلة ──
         for prof, pdays in prof_days_sched.items():
             day_counts = {}
             for mid, sv in schedule.items():
@@ -2328,7 +2328,10 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
             total_p = sum(day_counts.values())
             if total_p >= 3:
                 lonely = sum(1 for d, c in day_counts.items() if c == 1)
-                if lonely > 1: soft -= 80 * (lonely - 1)  # عقوبة صارمة
+                if lonely > 2:
+                    soft -= 500 * (lonely - 2)  # عقوبة حرجة جداً
+                elif lonely == 2:
+                    soft -= 50  # تنبيه فقط
 
         return placement_score + soft
 
@@ -3313,8 +3316,11 @@ def validate_schedule(schedule, memo_members, days, slots_per_day):
         # 4. أكثر من يوم منعزل — فقط إذا المجموع >= 3
         total_sessions = sum(day_counts.values())
         lonely_days = [d for d, cnt in day_counts.items() if cnt == 1]
-        # لا تنبيه إذا المجموع <= 2 (طبيعي) أو إذا يوم منعزل واحد فقط
-        if len(lonely_days) > 1 and total_sessions > 2 and len(lonely_days) < total_sessions:
+        if total_sessions >= 3 and len(lonely_days) > 2:
+            violations.append(f"🔴 {prof}: {len(lonely_days)} أيام منعزلة ({', '.join(sorted(lonely_days))}) — الحد المسموح يومان")
+        elif total_sessions >= 3 and len(lonely_days) == 2:
+            violations.append(f"🟡 {prof}: 2 أيام منعزلة ({', '.join(sorted(lonely_days))})")
+        if False and len(lonely_days) > 1 and total_sessions > 2 and len(lonely_days) < total_sessions:
             violations.append(f"🟡 {prof}: {len(lonely_days)} أيام منعزلة ({', '.join(sorted(lonely_days))})")
         
         # 5. أكثر من 3 أيام متتالية
