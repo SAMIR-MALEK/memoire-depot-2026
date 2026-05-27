@@ -1535,13 +1535,22 @@ def algo_blocks(df_memos, days, slots_per_day, rooms, constraints):
             prof_busy[(day, slot, prof)] = memo_id
             prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
 
-    # Phase 0: Fixed slots
+    # Phase 0: Fixed slots — تطبيق المواعيد المثبتة أولاً
     scheduled = set()
     for mid, (fd, fs, fr) in fixed_slots.items():
-        if fd in days and fs in slots_per_day:
-            r = fr if fr and fr in rooms else (rooms[0] if rooms else "")
-            if can_place_base(mid, fd, fs, r):
-                place(mid, fd, fs, r); scheduled.add(mid)
+        # تطبيع التوقيت والتاريخ
+        fd_norm = str(fd).strip()
+        fs_norm = str(fs).strip()
+        # تحقق أن اليوم والتوقيت موجودان
+        if fd_norm not in days: continue
+        if fs_norm not in slots_per_day: continue
+        # اختر القاعة — جرب كل القاعات إذا لم تُحدد
+        rooms_to_try = [fr] if fr and fr in rooms else rooms
+        for r in rooms_to_try:
+            if can_place_base(mid, fd_norm, fs_norm, r):
+                place(mid, fd_norm, fs_norm, r)
+                scheduled.add(mid)
+                break
 
     # Phase 1: Assign day-blocks per professor
     sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
@@ -1753,15 +1762,22 @@ def algo_greedy(df_memos, days, slots_per_day, rooms, constraints):
             prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
             prof_days_used.setdefault(prof, set()).add(day)
 
-    # Fixed slots
+    # Phase 0: Fixed slots
+    scheduled = set()
     for mid, (fd, fs, fr) in fixed_slots.items():
-        if fd in days and fs in slots_per_day:
-            r = fr if fr and fr in rooms else (rooms[0] if rooms else "")
-            if can_place_base(mid, fd, fs, r):
-                place(mid, fd, fs, r); scheduled.add(mid)
+        fd_norm = str(fd).strip(); fs_norm = str(fs).strip()
+        if fd_norm not in days or fs_norm not in slots_per_day: continue
+        for r in ([fr] if fr and fr in rooms else rooms):
+            if can_place_base(mid, fd_norm, fs_norm, r):
+                place(mid, fd_norm, fs_norm, r); scheduled.add(mid); break
 
     def best_day_for_memo(memo_id):
         """اليوم الذي يوجد فيه أكثر أعضاء اللجنة متاحين وغير مشغولين"""
+        # إذا كان للمذكرة موعد مثبت — استخدمه مباشرة
+        if memo_id in fixed_slots and memo_id in scheduled:
+            return fixed_slots[memo_id][0]
+        if memo_id in fixed_slots:
+            return fixed_slots[memo_id][0]
         members = memo_members.get(memo_id, set())
         best_day, best_score = None, -1
         for day in days:
