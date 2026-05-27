@@ -1999,7 +1999,7 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             if mid and alt and alt not in ["","nan"]:
                 memo_alt_days[mid] = set([d.strip() for d in alt.split(",") if d.strip()])
 
-    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days, profs_accept_18, profs_accept_18
+    return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days, profs_accept_18
 
 
 def detect_constraint_conflicts(df_memos, fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, slots_per_day):
