@@ -2096,6 +2096,82 @@ def algo_smart_fair(df_memos, days, slots_per_day, rooms, constraints):
 # ================================================================
 
 
+
+def _validate_hard_constraints(sched, memo_members, max_per_day=3):
+    """التحقق الصارم من القيود الحرجة"""
+    violations = []
+    prof_slot = {}
+    room_slot = {}
+    memo_count = {}
+    prof_day = {}
+    for mid, sv in sched.items():
+        if not sv: continue
+        day, slot, room = sv
+        memo_count[mid] = memo_count.get(mid, 0) + 1
+        if memo_count[mid] > 1:
+            violations.append(f"🔴 المذكرة {mid} مبرمجة أكثر من مرة")
+        key_r = (day, slot, room)
+        if key_r in room_slot:
+            violations.append(f"🔴 تعارض قاعة: {room} في {day} {slot}")
+        room_slot[key_r] = mid
+        for prof in memo_members.get(mid, set()):
+            key_p = (day, slot, prof)
+            if key_p in prof_slot:
+                violations.append(f"🔴 تعارض: {prof} في {day} {slot}")
+            prof_slot[key_p] = mid
+            prof_day[(prof, day)] = prof_day.get((prof, day), 0) + 1
+            if prof_day[(prof, day)] > max_per_day:
+                violations.append(f"🔴 {prof} تجاوز {max_per_day} في {day}")
+    return list(set(violations))
+
+
+def _compute_soft_score(sched, memo_members, slot_to_idx, days, slots_per_day, rooms):
+    """حساب النقاط للقيود الناعمة"""
+    import math
+    from datetime import datetime
+    prof_slots_by_day = {}
+    prof_days = {}
+    total_by_prof = {}
+    for mid, sv in sched.items():
+        if not sv: continue
+        day, slot, room = sv
+        for prof in memo_members.get(mid, set()):
+            prof_slots_by_day.setdefault(prof, {}).setdefault(day, []).append(slot_to_idx.get(slot, 0))
+            prof_days.setdefault(prof, set()).add(day)
+            total_by_prof[prof] = total_by_prof.get(prof, 0) + 1
+    score = 0.0
+    if total_by_prof:
+        vals = list(total_by_prof.values())
+        mean = sum(vals) / len(vals)
+        std = math.sqrt(sum((v-mean)**2 for v in vals)/len(vals)) if len(vals)>1 else 0
+        score += max(0, 100 - std * 8)
+    for prof, days_dict in prof_slots_by_day.items():
+        total_p = total_by_prof.get(prof, 0)
+        for day, slot_indices in days_dict.items():
+            if len(slot_indices) > 1:
+                si = sorted(slot_indices)
+                gaps = sum(si[i+1]-si[i]-1 for i in range(len(si)-1))
+                score -= gaps * 5
+        sorted_d = sorted(prof_days.get(prof, set()))
+        consec = 1; max_c = 1
+        for i in range(1, len(sorted_d)):
+            try:
+                d1 = datetime.strptime(sorted_d[i-1], "%Y-%m-%d")
+                d2 = datetime.strptime(sorted_d[i], "%Y-%m-%d")
+                if (d2-d1).days <= 3: consec += 1; max_c = max(max_c, consec)
+                else: consec = 1
+            except: pass
+        if max_c > 3: score -= (max_c-3) * 15
+        if total_p >= 3:
+            lonely = sum(1 for d, si in days_dict.items() if len(si)==1)
+            if lonely > 1: score -= (lonely-1) * 10
+        score += max(0, 20 - len(prof_days.get(prof, set())) * 2)
+    used = sum(1 for sv in sched.values() if sv)
+    cap = len(days) * len(slots_per_day) * len(rooms)
+    if cap > 0: score += (used/cap) * 30
+    return score
+
+
 # ================================================================
 # 🧬 GA + Tabu Search Optimizer
 # ================================================================
