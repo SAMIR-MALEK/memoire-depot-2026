@@ -2934,8 +2934,9 @@ elif st.session_state.user_type == "professor":
                     if masks:
                         jury_memos = pd.concat(masks).drop_duplicates(subset=["رقم المذكرة"])
                         # البحث عن عمود نشر البرنامج ثم AD ثم منشور
-                        # عمود نشر البرنامج فقط — لا AD ولا منشور
-                        col_pub = "نشر البرنامج" if "نشر البرنامج" in jury_memos.columns else None
+                        # AD = نشر المذكرة (يظهر البطاقة)
+                        # AI = نشر البرنامج (يظهر الموعد)
+                        col_pub = "منشور" if "منشور" in jury_memos.columns else ("AD" if "AD" in jury_memos.columns else None)
                         if col_pub:
                             is_pub = jury_memos[col_pub].astype(str).str.strip() == "نعم"
                             is_sup = jury_memos["الصفة"] == "مشرف"
