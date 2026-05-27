@@ -1436,12 +1436,14 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
                     lonely_memos.append((prof, day, memos[0]))
         
         if not lonely_memos:
-            # تحقق من أيام منعزلة متعددة
+            # تحقق من أيام منعزلة متعددة — فقط إذا المجموع >= 3
             multi_lonely = []
             for prof, days_dict in prog.items():
+                total_p = sum(len(ms) for ms in days_dict.values())
+                if total_p < 3: continue  # طبيعي إذا مجموعه أقل من 3
                 solo_days = [d for d, ms in days_dict.items() if len(ms)==1]
                 if len(solo_days) > 1:
-                    for d in solo_days[1:]:  # ابقِ الأول فقط
+                    for d in solo_days[1:]:
                         multi_lonely.append((prof, d, days_dict[d][0]))
             if not multi_lonely:
                 break
@@ -2182,9 +2184,10 @@ def validate_schedule(schedule, memo_members, days, slots_per_day):
             if len(slots) != len(set(slots)):
                 violations.append(f"🔴 {prof}: تعارض توقيتات في {day}")
         
-        # 4. أكثر من يوم منعزل (يوم بمناقشة واحدة)
+        # 4. أكثر من يوم منعزل — فقط إذا المجموع >= 3
+        total_sessions = sum(day_counts.values())
         lonely_days = [d for d, cnt in day_counts.items() if cnt == 1]
-        if len(lonely_days) > 1:
+        if len(lonely_days) > 1 and total_sessions >= 3:
             violations.append(f"🟡 {prof}: {len(lonely_days)} أيام منعزلة ({', '.join(sorted(lonely_days))})")
         
         # 5. أكثر من 3 أيام متتالية
