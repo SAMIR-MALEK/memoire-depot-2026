@@ -1489,7 +1489,7 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
                        prof_allowed_days=None, prof_consecutive=None,
                        frozen_profs=None, prof_phase_split=None,
                        memo_alt_days=None, day_time_limits=None,
-                       profs_accept_18=None):
+                       profs_accept_18=None, profs_cluster_days=None):
     """الدالة الرئيسية للجدولة الذكية"""
     fixed_slots = fixed_slots or {}
     memo_date_limits = memo_date_limits or {}
@@ -1502,6 +1502,9 @@ def run_smart_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3, max_
     frozen_profs = frozen_profs or set()
     prof_phase_split = prof_phase_split or {}
     memo_alt_days = memo_alt_days or {}
+    day_time_limits = day_time_limits or {}
+    profs_accept_18 = profs_accept_18 or set()
+    profs_cluster_days = profs_cluster_days or set()
 
     # تصفية المذكرات التي تحتوي أساتذة مجمّدين
     if frozen_profs:
