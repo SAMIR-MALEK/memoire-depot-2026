@@ -2267,9 +2267,12 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
         for memo in memo_ids:
             if memo not in schedule: schedule[memo] = None
 
+        # تحقق من الأيام المنعزلة
+        _lv = len([v for v in _validate_hard_constraints(schedule, memo_members) if "أيام منعزلة" in v and "🔴" in v])
+        schedule["__lonely_violations__"] = _lv
         return schedule
 
-    # ── الفترات الزمنية ──
+    # الفترات الزمنية
     CUTOFF_DATE = "2026-06-07"  # تاريخ البكالوريا
     early_days = [d for d in days if d < CUTOFF_DATE]   # 31 ماي → 6 جوان
     late_days  = [d for d in days if d >= CUTOFF_DATE]  # 7 جوان فصاعداً
@@ -2467,8 +2470,18 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
     # توليد الجيل الأول
     population = []
     for i in range(POPULATION_SIZE):
-        ind = generate_individual(seed=i * 13 + 7)
-        population.append(ind)
+        # حاول توليد جدول بلا أيام منعزلة زائدة
+        best_attempt = None
+        for attempt in range(5):
+            ind = generate_individual(seed=i * 13 + 7 + attempt * 97)
+            lonely_v = ind.pop("__lonely_violations__", 99)
+            if lonely_v == 0:
+                best_attempt = ind; break
+            if best_attempt is None or lonely_v < best_attempt.get("__lv__", 99):
+                ind["__lv__"] = lonely_v
+                best_attempt = ind
+        if "__lv__" in best_attempt: del best_attempt["__lv__"]
+        population.append(best_attempt)
         if streamlit_progress:
             streamlit_progress.progress(int((i+1)/POPULATION_SIZE * 30))
 
