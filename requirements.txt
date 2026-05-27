@@ -10,3 +10,4 @@ fpdf2
 PyMuPDF
 arabic-reshaper
 python-bidi
+ortools
