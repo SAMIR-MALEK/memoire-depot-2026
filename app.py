@@ -3219,13 +3219,30 @@ elif st.session_state.user_type == "admin":
                 def filled(val): return str(val).strip() not in ["","nan","None","—"]
                 return filled(row.get("الأستاذ","")) and filled(row.get("الرئيس","")) and filled(row.get("المناقش1","")) and filled(row.get("المناقش2",""))
 
-            sched_mode = st.radio("🎯 المذكرات المشمولة:", ["📋 المقبولة (قابلة للمناقشة)","📁 المودعة","📚 كل المذكرات (لها لجان)"], key="sched_mode_radio", horizontal=True)
-            if sched_mode.startswith("📋"):
-                ready_memos_j = df_memos_j[df_memos_j.apply(lambda r: str(r.get("حالة الإيداع","")).strip()=="قابلة للمناقشة" and has_jury(r), axis=1)].copy()
-            elif sched_mode.startswith("📁"):
-                ready_memos_j = df_memos_j[df_memos_j.apply(lambda r: str(r.get("تم الإيداع","")).strip()=="نعم" and has_jury(r), axis=1)].copy()
-            else:
-                ready_memos_j = df_memos_j[df_memos_j.apply(lambda r: has_jury(r), axis=1)].copy()
+            # المذكرات القابلة للجدولة:
+            # تُبرمج: كل ما ليس مرفوضاً وليس فارغاً (حتى لو ناقصة لجنة)
+            # لا تُبرمج: المرفوضة + التي لم يُودَع فيها (T فارغ)
+            def is_schedulable(r):
+                t = str(r.get("حالة الإيداع","")).strip()
+                # مرفوضة أو فارغة → لا
+                if t in ["مرفوضة","","nan"]: return False
+                return True
+
+            ready_memos_j = df_memos_j[df_memos_j.apply(is_schedulable, axis=1)].copy()
+
+            # إضافة عمود "سبب عدم الجدولة" للمذكرات الناقصة اللجنة
+            def get_missing_members(r):
+                missing = []
+                for col, role in [("الأستاذ","المشرف"),("الرئيس","الرئيس"),("المناقش1","المناقش1"),("المناقش2","المناقش2")]:
+                    v = str(r.get(col,"")).strip()
+                    if not v or v in ["","nan","—"]: missing.append(role)
+                return missing
+            ready_memos_j["أعضاء_ناقصة"] = ready_memos_j.apply(lambda r: ",".join(get_missing_members(r)), axis=1)
+            incomplete = ready_memos_j[ready_memos_j["أعضاء_ناقصة"] != ""]
+            if not incomplete.empty:
+                st.warning(f"⚠️ {len(incomplete)} مذكرة ناقصة اللجنة ستُبرمج بمن هو موجود")
+                with st.expander("👁️ المذكرات الناقصة"):
+                    st.dataframe(incomplete[["رقم المذكرة","أعضاء_ناقصة"]].rename(columns={"أعضاء_ناقصة":"الأعضاء الناقصون"}), use_container_width=True, hide_index=True)
 
             total_ready_j = len(ready_memos_j)
             already_sched = len(ready_memos_j[ready_memos_j["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"])]) if "تاريخ المناقشة" in ready_memos_j.columns else 0
@@ -3727,10 +3744,33 @@ elif st.session_state.user_type == "admin":
 
                     with t_unpl_tab:
                         unpl_list = [r for r in sched_rows_j if r["اليوم"]=="غير مجدول"]
-                        if not unpl_list: st.success("✅ جميع المذكرات مجدولة!")
+                        if not unpl_list:
+                            st.success("✅ جميع المذكرات مجدولة!")
                         else:
                             st.warning(f"⚠️ {len(unpl_list)} مذكرة لم تُجدَّل")
-                            for u in unpl_list: st.markdown(f"- **{u['رقم المذكرة']}** — {u.get('العنوان','')[:50]}")
+                            # تحليل سبب عدم الجدولة لكل مذكرة
+                            memo_map_unpl = {str(r["رقم المذكرة"]): r for _, r in ready_memos_j.iterrows()}
+                            for u in unpl_list:
+                                mid = u["رقم المذكرة"]
+                                row_u = memo_map_unpl.get(str(mid), {})
+                                reasons = []
+                                # تحقق من الأسباب
+                                members_u = set()
+                                for col in ["المشرف","الرئيس","المناقش1","المناقش2"]:
+                                    v = str(u.get(col,"")).strip()
+                                    if v and v not in ["","nan"]: members_u.add(v)
+                                # أستاذ مجمّد؟
+                                frozen_in = members_u & (_frozen if "_frozen" in dir() else set())
+                                if frozen_in: reasons.append(f"أستاذ مجمّد: {', '.join(frozen_in)}")
+                                # كل الأيام ممنوعة؟
+                                for p in members_u:
+                                    banned = _ban_days.get(p, set()) if "_ban_days" in dir() else set()
+                                    allowed = _allow_days.get(p, set()) if "_allow_days" in dir() else set()
+                                    if allowed and not (set(gen_days_j) - banned) & allowed:
+                                        reasons.append(f"لا يوجد يوم مناسب للأستاذ {p}")
+                                if not reasons: reasons.append("الطاقة ممتلئة أو تعارض في التوقيتات")
+                                reason_str = " | ".join(reasons)
+                                st.markdown(f"- **{mid}** — {u.get('العنوان','')[:40]} → 🔍 _{reason_str}_")
 
                     st.markdown("---")
                     # تأكيد واعتماد
