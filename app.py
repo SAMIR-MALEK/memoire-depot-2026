@@ -3774,7 +3774,23 @@ elif st.session_state.user_type == "admin":
 
                     st.markdown("---")
                     # تأكيد واعتماد
+                    # ── زر الحفظ بدون نشر ──
+                    st.markdown("---")
+                    col_save1, col_save2 = st.columns(2)
+                    with col_save1:
+                        if st.button("💾 حفظ في الشيت (بدون نشر)", use_container_width=True, key="j_save_no_publish"):
+                            with st.spinner("⏳ جاري الحفظ..."):
+                                _sched_to_save = st.session_state.get("j_schedule", {})
+                                ok_s, msg_s = save_full_schedule_to_sheets(_sched_to_save, ready_memos_j)
+                            if ok_s:
+                                st.success("✅ تم الحفظ في الشيت — لم يُنشر بعد. غيّر عمود 'نشر البرنامج' يدوياً عند الاعتماد.")
+                            else:
+                                st.error(msg_s)
+                    with col_save2:
+                        st.info("💡 لنشر البرنامج: غيّر عمود **'نشر البرنامج'** إلى **نعم** في الشيت")
+
                     if not conflicts_ui:
+                        st.markdown("---")
                         st.markdown('''<div style="background:linear-gradient(135deg,#0D2010,#0F2020);border:2px solid rgba(16,185,129,0.42);border-radius:18px;padding:20px 24px;margin:16px 0;">
                             <div style="font-size:1.1rem;font-weight:800;color:#10B981;margin-bottom:8px;">🎯 تأكيد واعتماد البرنامج النهائي</div>
                             <div style="color:#E2E8F0;font-size:0.85rem;">عند الضغط: ✅ حفظ في قاعدة البيانات + 📧 إيميل لكل أستاذ + 📱 إشعار للطلبة</div>
