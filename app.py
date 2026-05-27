@@ -3262,6 +3262,29 @@ elif st.session_state.user_type == "admin":
                     st.dataframe(incomplete[["رقم المذكرة","أعضاء_ناقصة"]].rename(columns={"أعضاء_ناقصة":"الأعضاء الناقصون"}), use_container_width=True, hide_index=True)
 
             total_ready_j = len(ready_memos_j)
+
+            # تحميل الجدول المحفوظ من الشيت تلقائياً عند أول فتح
+            if "j_schedule" not in st.session_state and not ready_memos_j.empty:
+                _saved_schedule = {}
+                _has_saved = False
+                _memo_members_saved = {}
+                _, _memo_members_saved = build_prof_memo_map(ready_memos_j)
+                for _, _r in ready_memos_j.iterrows():
+                    _mid = str(_r.get("رقم المذكرة","")).strip()
+                    _day = str(_r.get("تاريخ المناقشة","")).strip()
+                    _slot = str(_r.get("توقيت المناقشة","")).strip()
+                    _room = str(_r.get("القاعة","")).strip()
+                    if _day and _day not in ["","nan"] and _slot and _slot not in ["","nan"]:
+                        _saved_schedule[_mid] = (_day, _slot, _room if _room not in ["","nan"] else "")
+                        _has_saved = True
+                    else:
+                        _saved_schedule[_mid] = None
+                if _has_saved:
+                    st.session_state["j_schedule"] = _saved_schedule
+                    st.session_state["j_memo_members"] = _memo_members_saved
+                    st.session_state["j_rej_log"] = {}
+                    st.info(f"📂 تم تحميل الجدول المحفوظ من الشيت ({sum(1 for v in _saved_schedule.values() if v)} مذكرة مبرمجة)")
+
             already_sched = len(ready_memos_j[ready_memos_j["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"])]) if "تاريخ المناقشة" in ready_memos_j.columns else 0
 
             # KPIs
