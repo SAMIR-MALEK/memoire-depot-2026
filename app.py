@@ -1489,122 +1489,211 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
 # ================================================================
 # 🧠 خوارزمية 1: كتل الأساتذة (Professor Blocks)
 # ================================================================
+
+# ================================================================
+# 🔒 دالة مشتركة للتحقق من القيود — تُستخدم في كل الخوارزميات
+# ================================================================
+def make_can_place(occupied, prof_busy, prof_day_count, memo_members,
+                   fixed_slots, memo_date_limits, prof_banned_days,
+                   prof_not_before, prof_not_after, prof_allowed_days,
+                   profs_accept_18, memo_alt_days, prof_phase_split,
+                   prof_first_phase_count, slots_per_day, rejection_log=None):
+    """
+    تُنشئ دالة can_place مخصصة بكل القيود
+    تُرجع (can_place_fn, constraint_report)
+    """
+    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
+    LATE_SLOT = "18:00"
+    constraint_report = []  # سجل تطبيق القيود
+
+    def _reject(memo_id, reason):
+        if rejection_log is not None:
+            rejection_log.setdefault(str(memo_id), set()).add(reason)
+        return False
+
+    def can_place(memo_id, day, slot, room, log=True):
+        mid = str(memo_id)
+
+        # 1. القاعة مشغولة
+        if (day, slot, room) in occupied:
+            return _reject(mid, f"القاعة {room} مشغولة {day} {slot}") if log else False
+
+        # 2. لا بعد 16:00 للجميع إلا من يقبل 18:00
+        if slot > "16:00":
+            _members = memo_members.get(mid, set())
+            _non_acc = _members - profs_accept_18
+            if _non_acc:
+                return _reject(mid, f"توقيت {slot} بعد 16:00 — لا يقبله: {', '.join(sorted(_non_acc)[:2])}") if log else False
+
+        # 3. قيود التوقيت اليومي (من/إلى في شيت الأيام) — يُمرر من خارج
+        # (يُعالج في day_time_limits خارج هذه الدالة)
+
+        # 4. حدود تاريخ المذكرة
+        if mid in memo_date_limits:
+            earliest, latest = memo_date_limits[mid]
+            if earliest and day < earliest:
+                return _reject(mid, f"لا تُبرمج قبل {earliest}") if log else False
+            if latest and day > latest:
+                return _reject(mid, f"لا تُبرمج بعد {latest}") if log else False
+
+        # 5. الأيام البديلة
+        if mid in memo_alt_days and memo_alt_days[mid]:
+            if day not in memo_alt_days[mid]:
+                return _reject(mid, f"يوم {day} ليس من الأيام البديلة") if log else False
+
+        members = memo_members.get(mid, set())
+        for prof in members:
+            # 6. تعارض في نفس التوقيت
+            if (day, slot, prof) in prof_busy:
+                return _reject(mid, f"{prof} مشغول {day} {slot}") if log else False
+
+            # 7. الحد الأقصى 3 مناقشات/يوم
+            if prof_day_count.get((prof, day), 0) >= 3:
+                return _reject(mid, f"{prof} بلغ الحد 3 في {day}") if log else False
+
+            # 8. أيام ممنوعة
+            if day in prof_banned_days.get(prof, set()):
+                return _reject(mid, f"يوم {day} ممنوع على {prof}") if log else False
+
+            # 9. أيام مسموحة فقط
+            if prof in prof_allowed_days and prof_allowed_days[prof]:
+                if day not in prof_allowed_days[prof]:
+                    return _reject(mid, f"يوم {day} غير مسموح لـ{prof}") if log else False
+
+            # 10. لا قبل توقيت
+            if prof in prof_not_before:
+                if slot_to_idx.get(slot, 0) < slot_to_idx.get(prof_not_before[prof], 0):
+                    return _reject(mid, f"{prof} لا يحضر قبل {prof_not_before[prof]}") if log else False
+
+            # 11. لا بعد توقيت
+            if prof in prof_not_after:
+                if slot_to_idx.get(slot, 99) > slot_to_idx.get(prof_not_after[prof], 99):
+                    return _reject(mid, f"{prof} لا يحضر بعد {prof_not_after[prof]}") if log else False
+
+            # 12. تقسيم الفترتين
+            if prof in prof_phase_split:
+                n_first, start_second = prof_phase_split[prof]
+                cur = prof_first_phase_count.get(prof, 0)
+                if cur < n_first:
+                    if day >= start_second:
+                        return _reject(mid, f"{prof} لا يزال في الفترة الأولى") if log else False
+                else:
+                    if day < start_second:
+                        return _reject(mid, f"{prof} انتقل للفترة الثانية") if log else False
+
+        return True
+
+    return can_place, constraint_report
+
+
+def make_place_fn(schedule, occupied, prof_busy, prof_day_count, memo_members, prof_first_phase_count, prof_phase_split):
+    """دالة وضع المذكرة في الجدول"""
+    def place(memo_id, day, slot, room):
+        mid = str(memo_id)
+        schedule[mid] = (day, slot, room)
+        occupied[(day, slot, room)] = mid
+        for prof in memo_members.get(mid, set()):
+            prof_busy[(day, slot, prof)] = mid
+            prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
+            if prof in prof_phase_split:
+                prof_first_phase_count[prof] = prof_first_phase_count.get(prof, 0) + 1
+    return place
+
+
+def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled):
+    """تطبيق المواعيد المثبتة — مشترك بين كل الخوارزميات"""
+    applied = []
+    failed = []
+    for mid, slot_val in fixed_slots.items():
+        fd, fs, fr = slot_val
+        fd, fs = str(fd).strip(), str(fs).strip()
+        if fd not in days:
+            failed.append(f"المذكرة {mid}: يوم التثبيت {fd} غير موجود في الأيام")
+            continue
+        if fs not in slots_per_day:
+            failed.append(f"المذكرة {mid}: توقيت التثبيت {fs} غير موجود في التوقيتات")
+            continue
+        placed = False
+        for r in ([fr] if fr and fr in rooms else rooms):
+            if can_place(mid, fd, fs, r, log=False):
+                place(mid, fd, fs, r)
+                scheduled.add(mid)
+                applied.append(f"✅ المذكرة {mid} → {fd} {fs} {r}")
+                placed = True; break
+        if not placed:
+            failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} {fs} — تعارض")
+    return applied, failed
+
+
 def algo_blocks(df_memos, days, slots_per_day, rooms, constraints):
-    """
-    تخصص لكل أستاذ كتلة أيام متجاورة حسب عدد مناقشاته
-    الأستاذ بـ 6 مناقشات → يومان متجاوران (3+3)
-    """
+    """كتل الأساتذة — تجميع مضمون بأيام متجاورة"""
     import random
     fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split,     memo_alt_days, profs_accept_18, profs_cluster_days = constraints
 
     prof_memos_map, memo_members = build_prof_memo_map(df_memos)
     memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
-    LATE_SLOT = "18:00"
-    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
 
-    schedule = {}
-    occupied = {}
-    prof_busy = {}
-    prof_day_count = {}
+    schedule, occupied, prof_busy, prof_day_count, prof_first_phase_count = {}, {}, {}, {}, {}
     rejection_log = {}
-
-    def can_place_base(memo_id, day, slot, room):
-        if (day, slot, room) in occupied: return False
-        if slot > "16:00":
-            if memo_members.get(memo_id, set()) - profs_accept_18: return False
-        if memo_id in memo_date_limits:
-            e, l = memo_date_limits[memo_id]
-            if e and day < e: return False
-            if l and day > l: return False
-        if memo_id in memo_alt_days and memo_alt_days[memo_id]:
-            if day not in memo_alt_days[memo_id]: return False
-        for prof in memo_members.get(memo_id, set()):
-            if (day, slot, prof) in prof_busy: return False
-            if prof_day_count.get((prof, day), 0) >= 3: return False
-            if day in prof_banned_days.get(prof, set()): return False
-            if prof in prof_allowed_days and prof_allowed_days[prof]:
-                if day not in prof_allowed_days[prof]: return False
-            if prof in prof_not_before and slot_to_idx.get(slot,0) < slot_to_idx.get(prof_not_before[prof],0): return False
-            if prof in prof_not_after and slot_to_idx.get(slot,99) > slot_to_idx.get(prof_not_after[prof],99): return False
-        return True
-
-    def place(memo_id, day, slot, room):
-        schedule[memo_id] = (day, slot, room)
-        occupied[(day, slot, room)] = memo_id
-        for prof in memo_members.get(memo_id, set()):
-            prof_busy[(day, slot, prof)] = memo_id
-            prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
-
-    # Phase 0: Fixed slots — تطبيق المواعيد المثبتة أولاً
     scheduled = set()
-    for mid, (fd, fs, fr) in fixed_slots.items():
-        # تطبيع التوقيت والتاريخ
-        fd_norm = str(fd).strip()
-        fs_norm = str(fs).strip()
-        # تحقق أن اليوم والتوقيت موجودان
-        if fd_norm not in days: continue
-        if fs_norm not in slots_per_day: continue
-        # اختر القاعة — جرب كل القاعات إذا لم تُحدد
-        rooms_to_try = [fr] if fr and fr in rooms else rooms
-        for r in rooms_to_try:
-            if can_place_base(mid, fd_norm, fs_norm, r):
-                place(mid, fd_norm, fs_norm, r)
-                scheduled.add(mid)
-                break
 
-    # Phase 1: Assign day-blocks per professor
+    can_place, _ = make_can_place(occupied, prof_busy, prof_day_count, memo_members,
+        fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,
+        prof_allowed_days, profs_accept_18, memo_alt_days, prof_phase_split,
+        prof_first_phase_count, slots_per_day, rejection_log)
+    place = make_place_fn(schedule, occupied, prof_busy, prof_day_count, memo_members,
+        prof_first_phase_count, prof_phase_split)
+
+    applied, failed = apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled)
+    if failed:
+        import streamlit as _st
+        for f in failed: _st.warning(f)
+
     sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
-    valid_days = [d for d in days if d not in prof_banned_days.get("__all__", set())]
+    valid_days = days[:]
 
-    prof_assigned_days = {}  # prof -> [days]
+    prof_assigned_days = {}
     for prof, pmemos in sorted_profs:
         n = len([m for m in pmemos if m not in scheduled])
         if n == 0: continue
-        n_days_needed = max(1, (n + 2) // 3)  # ceil(n/3)
+        n_days_needed = max(1, (n + 2) // 3)
         banned = prof_banned_days.get(prof, set())
         allowed = prof_allowed_days.get(prof, set())
         cand_days = [d for d in valid_days if d not in banned and (not allowed or d in allowed)]
-        # اختر أيام متجاورة قدر الإمكان
         best_block = []
         for i in range(len(cand_days) - n_days_needed + 1):
             block = cand_days[i:i+n_days_needed]
             if len(block) == n_days_needed:
                 best_block = block; break
-        if not best_block:
-            best_block = cand_days[:n_days_needed]
-        prof_assigned_days[prof] = best_block
+        prof_assigned_days[prof] = best_block or cand_days[:n_days_needed]
 
-    # Phase 2: Place memos in assigned days
     for prof, pmemos in sorted_profs:
-        unscheduled_p = [m for m in pmemos if m not in scheduled]
-        if not unscheduled_p: continue
+        unsch = [m for m in pmemos if m not in scheduled]
+        if not unsch: continue
         assigned = prof_assigned_days.get(prof, valid_days)
         memo_idx = 0
         for day in assigned:
-            if memo_idx >= len(unscheduled_p): break
+            if memo_idx >= len(unsch): break
             for slot in slots_per_day:
-                if memo_idx >= len(unscheduled_p): break
-                memo = unscheduled_p[memo_idx]
+                if memo_idx >= len(unsch): break
+                memo = unsch[memo_idx]
                 for room in rooms:
-                    if can_place_base(memo, day, slot, room):
+                    if can_place(memo, day, slot, room):
                         place(memo, day, slot, room)
                         scheduled.add(memo); memo_idx += 1; break
 
-    # Phase 3: Remaining
     for memo in memo_ids:
         if memo in scheduled: continue
         placed = False
         for day in days:
             for slot in slots_per_day:
                 for room in rooms:
-                    if can_place_base(memo, day, slot, room):
+                    if can_place(memo, day, slot, room, log=True):
                         place(memo, day, slot, room)
                         scheduled.add(memo); placed = True; break
                 if placed: break
             if placed: break
-        if not placed:
-            schedule[memo] = None
-            rejection_log[memo] = {"لا توجد خانة متاحة مع القيود"}
+        if not placed: schedule[memo] = None
 
     for memo in memo_ids:
         if memo not in schedule: schedule[memo] = None
@@ -1612,99 +1701,63 @@ def algo_blocks(df_memos, days, slots_per_day, rooms, constraints):
     return schedule, memo_members, rejection_log
 
 
-# ================================================================
-# 🧠 خوارزمية 2: الجدول أولاً (Day-First)
-# ================================================================
 def algo_day_first(df_memos, days, slots_per_day, rooms, constraints):
-    """
-    نبني الجدول يوماً بيوم — كل يوم نملؤه بالمذكرات التي لا تتعارض
-    نعطي الأولوية للمذكرات التي أكثر أعضاؤها متاحون
-    """
+    """الجدول أولاً — يوم بيوم مع أولوية للمذكرات ذات الأعضاء المتاحين"""
     fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split,     memo_alt_days, profs_accept_18, profs_cluster_days = constraints
 
     prof_memos_map, memo_members = build_prof_memo_map(df_memos)
     memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
-    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
 
-    schedule = {}
-    occupied = {}
-    prof_busy = {}
-    prof_day_count = {}
+    schedule, occupied, prof_busy, prof_day_count, prof_first_phase_count = {}, {}, {}, {}, {}
     rejection_log = {}
     scheduled = set()
 
-    def can_place_base(memo_id, day, slot, room):
-        if (day, slot, room) in occupied: return False
-        if slot > "16:00":
-            if memo_members.get(memo_id, set()) - profs_accept_18: return False
-        if memo_id in memo_date_limits:
-            e, l = memo_date_limits[memo_id]
-            if e and day < e: return False
-            if l and day > l: return False
-        if memo_id in memo_alt_days and memo_alt_days[memo_id]:
-            if day not in memo_alt_days[memo_id]: return False
-        for prof in memo_members.get(memo_id, set()):
-            if (day, slot, prof) in prof_busy: return False
-            if prof_day_count.get((prof, day), 0) >= 3: return False
-            if day in prof_banned_days.get(prof, set()): return False
-            if prof in prof_allowed_days and prof_allowed_days[prof]:
-                if day not in prof_allowed_days[prof]: return False
-            if prof in prof_not_before and slot_to_idx.get(slot,0) < slot_to_idx.get(prof_not_before[prof],0): return False
-            if prof in prof_not_after and slot_to_idx.get(slot,99) > slot_to_idx.get(prof_not_after[prof],99): return False
-        return True
+    can_place, _ = make_can_place(occupied, prof_busy, prof_day_count, memo_members,
+        fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,
+        prof_allowed_days, profs_accept_18, memo_alt_days, prof_phase_split,
+        prof_first_phase_count, slots_per_day, rejection_log)
+    place = make_place_fn(schedule, occupied, prof_busy, prof_day_count, memo_members,
+        prof_first_phase_count, prof_phase_split)
 
-    def place(memo_id, day, slot, room):
-        schedule[memo_id] = (day, slot, room)
-        occupied[(day, slot, room)] = memo_id
-        for prof in memo_members.get(memo_id, set()):
-            prof_busy[(day, slot, prof)] = memo_id
-            prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
+    applied, failed = apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled)
+    if failed:
+        import streamlit as _st
+        for f in failed: _st.warning(f)
 
-    # Fixed slots first
-    for mid, (fd, fs, fr) in fixed_slots.items():
-        if fd in days and fs in slots_per_day:
-            r = fr if fr and fr in rooms else (rooms[0] if rooms else "")
-            if can_place_base(mid, fd, fs, r):
-                place(mid, fd, fs, r); scheduled.add(mid)
-
-    # Score memo for a given day (how many members are free)
     def score_memo_for_day(memo_id, day):
-        members = memo_members.get(memo_id, set())
+        members = memo_members.get(str(memo_id), set())
         if not members: return 0
-        free = sum(1 for p in members if day not in prof_banned_days.get(p, set())
-                   and (not prof_allowed_days.get(p) or day in prof_allowed_days.get(p,set())))
+        free = sum(1 for p in members
+            if day not in prof_banned_days.get(p, set())
+            and (not prof_allowed_days.get(p) or day in prof_allowed_days.get(p, set()))
+            and prof_day_count.get((p, day), 0) < 3)
         return free / len(members)
 
     remaining = [m for m in memo_ids if m not in scheduled]
-
     for day in days:
-        # رتب المذكرات حسب الأولوية في هذا اليوم
-        day_candidates = sorted(remaining, key=lambda m: -score_memo_for_day(m, day))
-        for memo in day_candidates:
+        day_cands = sorted(remaining, key=lambda m: -score_memo_for_day(m, day))
+        for memo in day_cands:
             if memo in scheduled: continue
             for slot in slots_per_day:
                 placed = False
                 for room in rooms:
-                    if can_place_base(memo, day, slot, room):
+                    if can_place(memo, day, slot, room):
                         place(memo, day, slot, room)
                         scheduled.add(memo); placed = True; break
                 if placed: break
         remaining = [m for m in memo_ids if m not in scheduled]
 
-    # Remaining unscheduled
     for memo in remaining:
         placed = False
         for day in days:
             for slot in slots_per_day:
                 for room in rooms:
-                    if can_place_base(memo, day, slot, room):
+                    if can_place(memo, day, slot, room, log=True):
                         place(memo, day, slot, room)
                         scheduled.add(memo); placed = True; break
                 if placed: break
             if placed: break
-        if not placed:
-            schedule[memo] = None
-            rejection_log[memo] = {"لا توجد خانة متاحة"}
+        if not placed: schedule[memo] = None
 
     for memo in memo_ids:
         if memo not in schedule: schedule[memo] = None
@@ -1712,98 +1765,66 @@ def algo_day_first(df_memos, days, slots_per_day, rooms, constraints):
     return schedule, memo_members, rejection_log
 
 
-# ================================================================
-# 🧠 خوارزمية 3: الأثقل أولاً + Greedy
-# ================================================================
 def algo_greedy(df_memos, days, slots_per_day, rooms, constraints):
-    """
-    الأساتذة الأثقل أولاً — لكل أستاذ نختار اليوم الذي فيه أكثر أعضاء لجنته متاحون
-    """
+    """الأثقل أولاً (Greedy) — يختار أفضل يوم لكل مذكرة"""
     import random
     fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split,     memo_alt_days, profs_accept_18, profs_cluster_days = constraints
 
     prof_memos_map, memo_members = build_prof_memo_map(df_memos)
     memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
-    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
 
-    schedule = {}
-    occupied = {}
-    prof_busy = {}
-    prof_day_count = {}
+    schedule, occupied, prof_busy, prof_day_count, prof_first_phase_count = {}, {}, {}, {}, {}
     prof_days_used = {}
     rejection_log = {}
     scheduled = set()
 
-    def can_place_base(memo_id, day, slot, room):
-        if (day, slot, room) in occupied: return False
-        if slot > "16:00":
-            if memo_members.get(memo_id, set()) - profs_accept_18: return False
-        if memo_id in memo_date_limits:
-            e, l = memo_date_limits[memo_id]
-            if e and day < e: return False
-            if l and day > l: return False
-        if memo_id in memo_alt_days and memo_alt_days[memo_id]:
-            if day not in memo_alt_days[memo_id]: return False
-        for prof in memo_members.get(memo_id, set()):
-            if (day, slot, prof) in prof_busy: return False
-            if prof_day_count.get((prof, day), 0) >= 3: return False
-            if day in prof_banned_days.get(prof, set()): return False
-            if prof in prof_allowed_days and prof_allowed_days[prof]:
-                if day not in prof_allowed_days[prof]: return False
-            if prof in prof_not_before and slot_to_idx.get(slot,0) < slot_to_idx.get(prof_not_before[prof],0): return False
-            if prof in prof_not_after and slot_to_idx.get(slot,99) > slot_to_idx.get(prof_not_after[prof],99): return False
-        return True
+    can_place, _ = make_can_place(occupied, prof_busy, prof_day_count, memo_members,
+        fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,
+        prof_allowed_days, profs_accept_18, memo_alt_days, prof_phase_split,
+        prof_first_phase_count, slots_per_day, rejection_log)
 
     def place(memo_id, day, slot, room):
-        schedule[memo_id] = (day, slot, room)
-        occupied[(day, slot, room)] = memo_id
-        for prof in memo_members.get(memo_id, set()):
-            prof_busy[(day, slot, prof)] = memo_id
+        mid = str(memo_id)
+        schedule[mid] = (day, slot, room)
+        occupied[(day, slot, room)] = mid
+        for prof in memo_members.get(mid, set()):
+            prof_busy[(day, slot, prof)] = mid
             prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
             prof_days_used.setdefault(prof, set()).add(day)
+            if prof in prof_phase_split:
+                prof_first_phase_count[prof] = prof_first_phase_count.get(prof, 0) + 1
 
-    # Phase 0: Fixed slots
-    scheduled = set()
-    for mid, (fd, fs, fr) in fixed_slots.items():
-        fd_norm = str(fd).strip(); fs_norm = str(fs).strip()
-        if fd_norm not in days or fs_norm not in slots_per_day: continue
-        for r in ([fr] if fr and fr in rooms else rooms):
-            if can_place_base(mid, fd_norm, fs_norm, r):
-                place(mid, fd_norm, fs_norm, r); scheduled.add(mid); break
+    applied, failed = apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled)
+    if failed:
+        import streamlit as _st
+        for f in failed: _st.warning(f)
 
     def best_day_for_memo(memo_id):
-        """اليوم الذي يوجد فيه أكثر أعضاء اللجنة متاحين وغير مشغولين"""
-        # إذا كان للمذكرة موعد مثبت — استخدمه مباشرة
-        if memo_id in fixed_slots and memo_id in scheduled:
-            return fixed_slots[memo_id][0]
-        if memo_id in fixed_slots:
-            return fixed_slots[memo_id][0]
-        members = memo_members.get(memo_id, set())
+        mid = str(memo_id)
+        if mid in fixed_slots and mid in scheduled:
+            return fixed_slots[mid][0]
+        members = memo_members.get(mid, set())
         best_day, best_score = None, -1
         for day in days:
-            if memo_id in memo_date_limits:
-                e, l = memo_date_limits[memo_id]
+            if mid in memo_date_limits:
+                e, l = memo_date_limits[mid]
                 if e and day < e: continue
                 if l and day > l: continue
-            if memo_id in memo_alt_days and memo_alt_days[memo_id]:
-                if day not in memo_alt_days[memo_id]: continue
-            # حساب الأعضاء المتاحين
-            available = 0
-            already_here = 0
+            if mid in memo_alt_days and memo_alt_days[mid]:
+                if day not in memo_alt_days[mid]: continue
+            available, already_here = 0, 0
             for p in members:
                 if day in prof_banned_days.get(p, set()): continue
                 if prof_allowed_days.get(p) and day not in prof_allowed_days[p]: continue
                 if prof_day_count.get((p, day), 0) >= 3: continue
                 available += 1
                 if day in prof_days_used.get(p, set()): already_here += 1
-            # نفضل الأيام التي فيها أعضاء موجودون بالفعل
             score = available * 2 + already_here * 3
             if score > best_score:
                 best_score = score; best_day = day
         return best_day
 
     sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
-
     for prof, pmemos in sorted_profs:
         unsch = [m for m in pmemos if m not in scheduled]
         random.shuffle(unsch)
@@ -1813,26 +1834,23 @@ def algo_greedy(df_memos, days, slots_per_day, rooms, constraints):
             for slot in slots_per_day:
                 placed = False
                 for room in rooms:
-                    if can_place_base(memo, best_day, slot, room):
+                    if can_place(memo, best_day, slot, room):
                         place(memo, best_day, slot, room)
                         scheduled.add(memo); placed = True; break
                 if placed: break
 
-    # Remaining
     for memo in memo_ids:
         if memo in scheduled: continue
         placed = False
         for day in days:
             for slot in slots_per_day:
                 for room in rooms:
-                    if can_place_base(memo, day, slot, room):
+                    if can_place(memo, day, slot, room, log=True):
                         place(memo, day, slot, room)
                         scheduled.add(memo); placed = True; break
                 if placed: break
             if placed: break
-        if not placed:
-            schedule[memo] = None
-            rejection_log[memo] = {"لا توجد خانة متاحة"}
+        if not placed: schedule[memo] = None
 
     for memo in memo_ids:
         if memo not in schedule: schedule[memo] = None
@@ -1844,6 +1862,17 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
     """تشغيل الخوارزمية المختارة"""
     import random
     random.seed(seed)
+
+    # ── تصفية المذكرات المجمّدة قبل أي شيء ──
+    fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split,     memo_alt_days, profs_accept_18, profs_cluster_days = constraints
+
+    if frozen_profs:
+        _, _all_members = build_prof_memo_map(df_memos)
+        _frozen_memos = {mid for mid, members in _all_members.items() if members & frozen_profs}
+        if _frozen_memos:
+            import streamlit as _st
+            _st.warning(f"🔒 {len(_frozen_memos)} مذكرة استُثنيت بسبب أساتذة مجمّدين: {', '.join(sorted(_frozen_memos)[:10])}")
+        df_memos = df_memos[~df_memos["رقم المذكرة"].astype(str).isin(_frozen_memos)].copy()
 
     if algo_name == "🧱 كتل الأساتذة":
         schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints)
@@ -4160,6 +4189,18 @@ elif st.session_state.user_type == "admin":
                                     st.session_state["j_rooms_list"] = gen_rooms_j
                                     st.session_state["j_memo_members"] = memo_members_j
                                     st.session_state["j_rej_log"] = rej_log_j
+                                    # ملخص القيود المطبقة
+                                    _cs = []
+                                    if _fixed: _cs.append(f"📌 {len(_fixed)} موعد مثبت")
+                                    if _ban_days: _cs.append(f"🚫 {len(_ban_days)} أستاذ أيام ممنوعة")
+                                    if _allow_days: _cs.append(f"✅ {len(_allow_days)} أستاذ أيام مسموحة فقط")
+                                    if _not_bef: _cs.append(f"⏰ {len(_not_bef)} لا قبل توقيت")
+                                    if _not_aft: _cs.append(f"⏰ {len(_not_aft)} لا بعد توقيت")
+                                    if _frozen: _cs.append(f"🔒 {len(_frozen)} أستاذ مجمّد")
+                                    if _acc18: _cs.append(f"🌙 {len(_acc18)} يقبل 18:00")
+                                    if _alt_days: _cs.append(f"📅 {len(_alt_days)} مذكرة أيام بديلة")
+                                    if _cluster: _cs.append(f"🏠 {len(_cluster)} أستاذ تجميع أيام")
+                                    st.session_state["j_constraints_summary"] = _cs
                                 st.success(f"✅ مجدول: {placed_j}/{placed_j+unplaced_j} | غير مجدول: {unplaced_j} | جودة: {quality_j}%")
                                 st.rerun()
                 with c_g2:
@@ -4296,6 +4337,12 @@ elif st.session_state.user_type == "admin":
 
                     st.markdown("---")
                     # تأكيد واعتماد
+                    # ── ملخص القيود المطبقة ──
+                    if st.session_state.get("j_constraints_summary"):
+                        with st.expander("📋 القيود المطبقة في هذا الجدول", expanded=False):
+                            for _c in st.session_state["j_constraints_summary"]:
+                                st.markdown(f"- {_c}")
+
                     # ── تقرير التحقق ──
                     st.markdown("---")
                     with st.expander("🔍 تقرير التحقق من الجدول", expanded=True):
