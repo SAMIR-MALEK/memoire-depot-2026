@@ -2095,128 +2095,17 @@ def algo_smart_fair(df_memos, days, slots_per_day, rooms, constraints):
 # 🏆 Smart Fair Scheduling Optimizer (SFSO)
 # ================================================================
 
+
 # ================================================================
-# 🏆 Smart Fair Scheduling Optimizer v2 — Feasibility First
+# 🧬 GA + Tabu Search Optimizer
 # ================================================================
-class SchedulingError(Exception):
-    pass
-
-def _validate_hard_constraints(sched, memo_members, max_per_day=3):
+def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streamlit_progress=None):
     """
-    التحقق الصارم من القيود الحرجة
-    يُرجع قائمة الانتهاكات الحرجة
+    Genetic Algorithm + Tabu Search
+    المرحلة 1: GA — توليد وتطوير أجيال من الجداول
+    المرحلة 2: Tabu Search — تحسين أفضل جدول
     """
-    violations = []
-    prof_slot = {}   # (day, slot, prof) -> memo_id
-    room_slot = {}   # (day, slot, room) -> memo_id
-    memo_count = {}  # memo_id -> count
-    prof_day  = {}   # (prof, day) -> count
-
-    for mid, sv in sched.items():
-        if not sv: continue
-        day, slot, room = sv
-
-        # 1. المذكرة تُبرمج مرة واحدة فقط
-        memo_count[mid] = memo_count.get(mid, 0) + 1
-        if memo_count[mid] > 1:
-            violations.append(f"🔴 المذكرة {mid} مبرمجة أكثر من مرة")
-
-        # 2. القاعة لا تستعمل مرتين
-        key_r = (day, slot, room)
-        if key_r in room_slot:
-            violations.append(f"🔴 تعارض قاعة: {room} في {day} {slot}")
-        room_slot[key_r] = mid
-
-        for prof in memo_members.get(mid, set()):
-            # 3. الأستاذ لا يناقش جلستين في نفس الوقت
-            key_p = (day, slot, prof)
-            if key_p in prof_slot:
-                violations.append(f"🔴 تعارض: {prof} في {day} {slot}")
-            prof_slot[key_p] = mid
-
-            # 4. الحد اليومي
-            prof_day[(prof, day)] = prof_day.get((prof, day), 0) + 1
-            if prof_day[(prof, day)] > max_per_day:
-                violations.append(f"🔴 {prof} تجاوز {max_per_day} في {day}")
-
-    return list(set(violations))  # إزالة المكررات
-
-
-def _compute_soft_score(sched, memo_members, slot_to_idx, days, slots_per_day, rooms):
-    """
-    حساب النقاط للقيود الناعمة فقط — يُستدعى بعد التحقق من Feasibility
-    """
-    import math
-    from datetime import datetime
-
-    prof_slots_by_day = {}  # prof -> {day -> [slot_idx]}
-    prof_days = {}          # prof -> set(days)
-    total_by_prof = {}
-
-    for mid, sv in sched.items():
-        if not sv: continue
-        day, slot, room = sv
-        for prof in memo_members.get(mid, set()):
-            prof_slots_by_day.setdefault(prof, {}).setdefault(day, []).append(
-                slot_to_idx.get(slot, 0))
-            prof_days.setdefault(prof, set()).add(day)
-            total_by_prof[prof] = total_by_prof.get(prof, 0) + 1
-
-    score = 0.0
-
-    # fairness_score
-    if total_by_prof:
-        vals = list(total_by_prof.values())
-        mean = sum(vals) / len(vals)
-        std = math.sqrt(sum((v-mean)**2 for v in vals)/len(vals)) if len(vals)>1 else 0
-        score += max(0, 100 - std * 8)
-
-    for prof, days_dict in prof_slots_by_day.items():
-        total_p = total_by_prof.get(prof, 0)
-
-        for day, slot_indices in days_dict.items():
-            # gaps_penalty
-            if len(slot_indices) > 1:
-                si = sorted(slot_indices)
-                gaps = sum(si[i+1]-si[i]-1 for i in range(len(si)-1))
-                score -= gaps * 5
-
-        # consecutive_days_penalty
-        sorted_d = sorted(prof_days.get(prof, set()))
-        consec = 1; max_c = 1
-        for i in range(1, len(sorted_d)):
-            try:
-                d1 = datetime.strptime(sorted_d[i-1], "%Y-%m-%d")
-                d2 = datetime.strptime(sorted_d[i], "%Y-%m-%d")
-                diff = (d2-d1).days
-                if diff <= 3: consec += 1; max_c = max(max_c, consec)
-                else: consec = 1
-            except: pass
-        if max_c > 3: score -= (max_c-3) * 15
-
-        # isolated_days_penalty — أكثر من يوم منعزل إذا المجموع >= 3
-        if total_p >= 3:
-            lonely = sum(1 for d, si in days_dict.items() if len(si)==1)
-            if lonely > 1: score -= (lonely-1) * 10
-
-        # professor_comfort_score — أقل أيام أفضل
-        n_days = len(prof_days.get(prof, set()))
-        score += max(0, 20 - n_days * 2)
-
-    # room_efficiency_score
-    used = sum(1 for sv in sched.values() if sv)
-    cap = len(days) * len(slots_per_day) * len(rooms)
-    if cap > 0: score += (used/cap) * 30
-
-    return score
-
-
-def smart_fair_schedule_optimizer(df_memos, days, slots_per_day, rooms, constraints):
-    """
-    Smart Fair Scheduling Optimizer v2
-    المبدأ: Feasibility First — ثم Optimization فقط
-    """
-    import random, math
+    import random, math, time
     from datetime import datetime
 
     fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, \
@@ -2227,11 +2116,11 @@ def smart_fair_schedule_optimizer(df_memos, days, slots_per_day, rooms, constrai
     memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
 
-    def _build_feasible_schedule(seed_offset=0):
-        """بناء جدول صالح 100% — يستخدم can_place الموحدة"""
-        random.seed(42 + seed_offset)
+    # ── دالة توليد جدول صالح (Individual) ──
+    def generate_individual(seed=None):
+        if seed is not None: random.seed(seed)
         schedule, occupied, prof_busy, prof_day_count, prof_first_phase_count = {}, {}, {}, {}, {}
-        rej_log = {}
+        rej = {}
         scheduled = set()
 
         can_place, _ = make_can_place(
@@ -2239,406 +2128,296 @@ def smart_fair_schedule_optimizer(df_memos, days, slots_per_day, rooms, constrai
             fixed_slots, memo_date_limits, prof_banned_days,
             prof_not_before, prof_not_after, prof_allowed_days,
             profs_accept_18, memo_alt_days, prof_phase_split,
-            prof_first_phase_count, slots_per_day, rej_log
+            prof_first_phase_count, slots_per_day, rej
         )
         place = make_place_fn(schedule, occupied, prof_busy, prof_day_count,
                               memo_members, prof_first_phase_count, prof_phase_split)
 
-        # Phase 0: Fixed slots
         apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled)
 
-        # Phase 1: الأثقل أولاً مع ترتيب عشوائي قابل للتكرار
-        sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
-        if seed_offset > 0:
-            random.shuffle(sorted_profs)
+        # ترتيب عشوائي للمذكرات
+        order = memo_ids[:]
+        random.shuffle(order)
 
-        for prof, pmemos in sorted_profs:
-            unsch = [m for m in pmemos if m not in scheduled]
-            if not unsch: continue
-            # أنشئ ترتيباً يفضل الأيام التي فيها الأستاذ بالفعل
-            prof_days_used = set(sv[0] for m,sv in schedule.items() if sv and
-                                  prof in memo_members.get(m,set()))
-            days_ordered = sorted(days, key=lambda d: (
-                0 if d in prof_days_used else 1,
-                d in prof_banned_days.get(prof, set()),
-                d
-            ))
-            for memo in unsch:
-                placed = False
-                for day in days_ordered:
-                    if placed: break
-                    for slot in slots_per_day:
-                        if placed: break
-                        for room in rooms:
-                            if can_place(memo, day, slot, room, log=True):
-                                place(memo, day, slot, room)
-                                scheduled.add(memo)
-                                placed = True; break
-
-        # Phase 2: المتبقية
-        for memo in memo_ids:
+        for memo in order:
             if memo in scheduled: continue
-            for day in days:
-                for slot in slots_per_day:
-                    for room in rooms:
-                        if can_place(memo, day, slot, room, log=True):
+            # ترتيب عشوائي للأيام والتوقيتات
+            d_order = days[:]
+            random.shuffle(d_order)
+            placed = False
+            for day in d_order:
+                if placed: break
+                s_order = slots_per_day[:]
+                random.shuffle(s_order)
+                for slot in s_order:
+                    if placed: break
+                    r_order = rooms[:]
+                    random.shuffle(r_order)
+                    for room in r_order:
+                        if can_place(memo, day, slot, room, log=False):
                             place(memo, day, slot, room)
-                            scheduled.add(memo); break
-                    else: continue; break
-                else: continue; break
+                            scheduled.add(memo)
+                            placed = True; break
+            if not placed:
+                schedule[memo] = None
 
         for memo in memo_ids:
             if memo not in schedule: schedule[memo] = None
 
-        return schedule, rej_log
+        return schedule
 
-    # ── المرحلة 1: بناء جدول صالح مع retry ──
-    best_feasible = None
-    best_rej_log = {}
-    MAX_RETRIES = 5
+    # ── دالة الـ Fitness ──
+    def fitness(schedule):
+        violations = _validate_hard_constraints(schedule, memo_members)
+        critical = len([v for v in violations if v.startswith("🔴")])
+        if critical > 0:
+            return -10000 * critical  # عقوبة شديدة
 
-    for attempt in range(MAX_RETRIES):
-        sched, rej = _build_feasible_schedule(seed_offset=attempt * 7)
-        violations = _validate_hard_constraints(sched, memo_members)
-        critical = [v for v in violations if v.startswith("🔴")]
-        if not critical:
-            best_feasible = sched
-            best_rej_log = rej
-            break
-        # إذا فشل — سجّل وجرب مرة أخرى
+        placed = sum(1 for sv in schedule.values() if sv)
+        total = len(schedule)
+        placement_score = (placed / total) * 1000 if total > 0 else 0
 
-    if best_feasible is None:
-        # لم نجد حلاً صالحاً — أرجع آخر محاولة مع تحذير
-        import streamlit as _st
-        _st.error("⚠️ SFSO: لم يُمكن توليد جدول خالٍ من التعارضات بعد 5 محاولات. راجع القيود.")
-        best_feasible = sched
-        best_rej_log = rej
+        # Soft scores
+        soft = _compute_soft_score(schedule, memo_members, slot_to_idx, days, slots_per_day, rooms)
 
-    # ── المرحلة 2: تحسين Simulated Annealing على الجدول الصالح ──
-    current = dict(best_feasible)
-    best_score = _compute_soft_score(current, memo_members, slot_to_idx, days, slots_per_day, rooms)
-    best_sched = dict(current)
-    temperature = 80.0
+        return placement_score + soft
 
-    scheduled_list = [m for m, sv in current.items() if sv]
+    # ── Crossover: دمج جدولين ──
+    def crossover(parent1, parent2):
+        child = {}
+        occupied_c = {}
+        prof_busy_c = {}
+        prof_day_c = {}
 
-    for iteration in range(300):
-        if len(scheduled_list) < 2: break
-        m1, m2 = random.sample(scheduled_list, 2)
-        sv1, sv2 = current.get(m1), current.get(m2)
-        if not sv1 or not sv2 or sv1 == sv2: continue
+        # لكل مذكرة — اختر من أي والد بناءً على الـ fitness المحلي
+        memos_shuffled = memo_ids[:]
+        random.shuffle(memos_shuffled)
+        cutpoint = len(memos_shuffled) // 2
 
-        # جرب التبادل
-        current[m1] = sv2; current[m2] = sv1
+        for i, mid in enumerate(memos_shuffled):
+            sv = parent1.get(mid) if i < cutpoint else parent2.get(mid)
+            if not sv:
+                child[mid] = None; continue
 
-        # ── تحقق صارم من Hard Constraints بعد التبادل ──
-        violations_after = _validate_hard_constraints(current, memo_members)
-        critical_after = [v for v in violations_after if v.startswith("🔴")]
+            day, slot, room = sv
+            # تحقق من عدم التعارض
+            conflict = False
+            if (day, slot, room) in occupied_c:
+                conflict = True
+            else:
+                for prof in memo_members.get(mid, set()):
+                    if (day, slot, prof) in prof_busy_c:
+                        conflict = True; break
+                    if prof_day_c.get((prof, day), 0) >= 3:
+                        conflict = True; break
 
-        if critical_after:
-            # التبادل يخلق تعارضاً — ارفضه فوراً
-            current[m1] = sv1; current[m2] = sv2
-            continue
+            if not conflict:
+                child[mid] = sv
+                occupied_c[(day, slot, room)] = mid
+                for prof in memo_members.get(mid, set()):
+                    prof_busy_c[(day, slot, prof)] = mid
+                    prof_day_c[(prof, day)] = prof_day_c.get((prof, day), 0) + 1
+            else:
+                child[mid] = None  # سيُعالج في repair
 
-        # الجدول صالح — احسب الـ score
-        new_score = _compute_soft_score(current, memo_members, slot_to_idx, days, slots_per_day, rooms)
-        delta = new_score - best_score
-
-        if delta > 0 or random.random() < math.exp(delta / max(temperature, 0.1)):
-            best_score = new_score
-            if new_score > _compute_soft_score(best_sched, memo_members, slot_to_idx, days, slots_per_day, rooms):
-                best_sched = dict(current)
-        else:
-            current[m1] = sv1; current[m2] = sv2
-
-        temperature *= 0.98
-
-    # ── التحقق النهائي قبل الإرجاع ──
-    final_violations = _validate_hard_constraints(best_sched, memo_members)
-    final_critical = [v for v in final_violations if v.startswith("🔴")]
-    if final_critical:
-        import streamlit as _st
-        _st.error(f"⚠️ SFSO: الجدول النهائي يحتوي {len(final_critical)} تعارضات حرجة — يُرجع الجدول الأولي الصالح")
-        best_sched = best_feasible
-
-    return best_sched, memo_members, best_rej_log
-
-
-
-# ================================================================
-# 🔷 Hierarchical CP-SAT Scheduler
-# ================================================================
-def hierarchical_cpsat_scheduler(df_memos, days, slots_per_day, rooms, constraints):
-    """
-    Hierarchical CP-SAT Scheduler — 4 مراحل:
-    1. Lock fixed assignments
-    2. CP-SAT feasible schedule (Hard Constraints)
-    3. Repair unscheduled memos
-    4. Optimize soft constraints
-    """
-    try:
-        from ortools.sat.python import cp_model
-    except ImportError:
-        import streamlit as _st
-        _st.error("❌ مكتبة ortools غير مثبتة. أضف ortools في requirements.txt")
-        return {}, {}, {}
-
-    import random
-    from datetime import datetime
-
-    fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, \
-    prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, \
-    memo_alt_days, profs_accept_18, profs_cluster_days = constraints
-
-    prof_memos_map, memo_members = build_prof_memo_map(df_memos)
-    memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
-    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
-    idx_to_slot = {i: s for s, i in slot_to_idx.items()}
-    LATE_SLOT = "18:00"
-
-    # ── الفهارس ──
-    D = len(days)
-    S = len(slots_per_day)
-    R = len(rooms)
-    M = len(memo_ids)
-    mid_to_idx = {m: i for i, m in enumerate(memo_ids)}
-    day_to_idx = {d: i for i, d in enumerate(days)}
-    room_to_idx = {r: i for i, r in enumerate(rooms)}
-    prof_list = sorted(set(p for members in memo_members.values() for p in members))
-    prof_to_idx = {p: i for i, p in enumerate(prof_list)}
-
-    # ── المرحلة 1: Lock fixed assignments ──
-    locked = {}  # mid -> (d_idx, s_idx, r_idx)
-    for mid, (fd, fs, fr) in fixed_slots.items():
-        if mid not in mid_to_idx: continue
-        fd, fs = str(fd).strip(), str(fs).strip()
-        if fd not in day_to_idx or fs not in slot_to_idx: continue
-        d_i = day_to_idx[fd]
-        s_i = slot_to_idx[fs]
-        r_i = room_to_idx.get(fr, 0) if fr and fr in room_to_idx else 0
-        locked[mid] = (d_i, s_i, r_i)
-
-    # ── المرحلة 2: CP-SAT Model ──
-    model = cp_model.CpModel()
-
-    # x[m][d][s][r] = 1 إذا بُرمجت المذكرة m في اليوم d التوقيت s القاعة r
-    x = {}
-    for mi, mid in enumerate(memo_ids):
-        x[mi] = {}
-        members = memo_members.get(mid, set())
-        for di, day in enumerate(days):
-            x[mi][di] = {}
-            # تحقق من قيود التاريخ للمذكرة
-            if mid in memo_date_limits:
-                e, l = memo_date_limits[mid]
-                if e and day < e: continue
-                if l and day > l: continue
-            # أيام بديلة
-            if mid in memo_alt_days and memo_alt_days[mid]:
-                if day not in memo_alt_days[mid]: continue
-            for si, slot in enumerate(slots_per_day):
-                x[mi][di][si] = {}
-                # لا بعد 16:00 إلا من يقبل 18:00
-                if slot > "16:00":
-                    non_acc = members - profs_accept_18
-                    if non_acc: continue
-                # قيود الأستاذ على التوقيت
-                prof_blocked = False
-                for prof in members:
-                    if prof in prof_not_before and si < slot_to_idx.get(prof_not_before[prof], 0):
-                        prof_blocked = True; break
-                    if prof in prof_not_after and si > slot_to_idx.get(prof_not_after[prof], 99):
-                        prof_blocked = True; break
-                if prof_blocked: continue
-                for ri, room in enumerate(rooms):
-                    # قيود الأستاذ على الأيام
-                    day_blocked = False
-                    for prof in members:
-                        if day in prof_banned_days.get(prof, set()):
-                            day_blocked = True; break
-                        if prof_allowed_days.get(prof) and day not in prof_allowed_days[prof]:
-                            day_blocked = True; break
-                    if day_blocked: continue
-                    x[mi][di][si][ri] = model.new_bool_var(f"x_{mi}_{di}_{si}_{ri}")
-
-    # Hard Constraint 1: كل مذكرة تُبرمج مرة واحدة بالضبط
-    for mi, mid in enumerate(memo_ids):
-        all_vars = [v for di in x[mi] for si in x[mi][di] for v in x[mi][di][si].values()]
-        if mid in locked:
-            di, si, ri = locked[mid]
-            if di in x[mi] and si in x[mi][di] and ri in x[mi][di][si]:
-                model.add(x[mi][di][si][ri] == 1)
-                for v in all_vars:
-                    if v != x[mi][di][si][ri]:
-                        model.add(v == 0)
-            continue
-        if all_vars:
-            model.add_exactly_one(all_vars)
-        else:
-            # لا توجد خانة صالحة — أضف متغير وهمي
-            pass
-
-    # Hard Constraint 2: القاعة لا تستعمل مرتين في نفس الوقت
-    for di in range(D):
-        for si in range(S):
-            for ri in range(R):
-                room_vars = []
-                for mi in range(M):
-                    if di in x[mi] and si in x[mi][di] and ri in x[mi][di][si]:
-                        room_vars.append(x[mi][di][si][ri])
-                if len(room_vars) > 1:
-                    model.add(sum(room_vars) <= 1)
-
-    # Hard Constraint 3: الأستاذ لا يناقش في نفس التوقيت
-    for pi, prof in enumerate(prof_list):
-        for di in range(D):
-            for si in range(S):
-                prof_vars = []
-                for mi, mid in enumerate(memo_ids):
-                    if prof not in memo_members.get(mid, set()): continue
-                    if di in x[mi] and si in x[mi][di]:
-                        for v in x[mi][di][si].values():
-                            prof_vars.append(v)
-                if len(prof_vars) > 1:
-                    model.add(sum(prof_vars) <= 1)
-
-    # Hard Constraint 4: الحد اليومي للأستاذ (3 مناقشات/يوم)
-    for pi, prof in enumerate(prof_list):
-        for di in range(D):
-            day_vars = []
-            for mi, mid in enumerate(memo_ids):
-                if prof not in memo_members.get(mid, set()): continue
-                if di in x[mi]:
-                    for si in x[mi][di]:
-                        for v in x[mi][di][si].values():
-                            day_vars.append(v)
-            if day_vars:
-                model.add(sum(day_vars) <= 3)
-
-    # Soft objective: وزّع المناقشات على أكثر عدد من الأيام لتقليل التركيز
-    # نكافئ استخدام أيام مختلفة لكل أستاذ
-    obj_terms = []
-    for pi, prof in enumerate(prof_list):
-        for di in range(D):
-            day_used = model.new_bool_var(f"du_{pi}_{di}")
-            day_vars_p = []
-            for mi, mid in enumerate(memo_ids):
-                if prof not in memo_members.get(mid, set()): continue
-                if di in x[mi]:
-                    for si in x[mi][di]:
-                        for v in x[mi][di][si].values():
-                            day_vars_p.append(v)
-            if day_vars_p:
-                model.add(sum(day_vars_p) >= 1).only_enforce_if(day_used)
-                model.add(sum(day_vars_p) == 0).only_enforce_if(day_used.negated())
-                # نكافئ اليوم المستخدم (نقلل الأيام المعزولة)
-                obj_terms.append(day_used)
-
-    if obj_terms:
-        model.minimize(sum(obj_terms))  # أقل عدد أيام = تجميع أفضل
-
-    # حل النموذج
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 300.0
-    solver.parameters.num_search_workers = 4  # استخدام خيوط متعددة
-    solver.parameters.log_search_progress = False
-    solver.parameters.cp_model_presolve = True
-    solver.parameters.linearization_level = 2
-    # hint: نبدأ من جدول أولي جيد (warm start)
-    # نستخدم algo_greedy كنقطة بداية
-    _hint_sched, _, _ = algo_greedy(df_memos, days, slots_per_day, rooms, constraints)
-    for mi, mid in enumerate(memo_ids):
-        sv = _hint_sched.get(mid)
-        if not sv: continue
-        hday, hslot, hroom = sv
-        hdi = day_to_idx.get(hday, -1)
-        hsi = slot_to_idx.get(hslot, -1)
-        hri = room_to_idx.get(hroom, -1)
-        if hdi in x[mi] and hsi in x[mi].get(hdi,{}) and hri in x[mi][hdi].get(hsi,{}):
-            model.add_hint(x[mi][hdi][hsi][hri], 1)
-
-    import streamlit as _st_prog
-    _st_prog.info("⏳ CP-SAT يعمل... قد يستغرق حتى 5 دقائق للحصول على الجدول الأمثل.")
-    status = solver.solve(model)
-
-    schedule = {}
-    rej_log = {}
-
-    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        for mi, mid in enumerate(memo_ids):
-            placed = False
-            for di in x[mi]:
-                if placed: break
-                for si in x[mi][di]:
-                    if placed: break
-                    for ri, v in x[mi][di][si].items():
-                        if solver.value(v) == 1:
-                            schedule[mid] = (days[di], slots_per_day[si], rooms[ri])
-                            placed = True; break
-            if not placed:
-                schedule[mid] = None
-                rej_log[mid] = {"لا توجد خانة صالحة وفق القيود"}
-    else:
-        import streamlit as _st
-        _st.warning("⚠️ CP-SAT: لم يجد حلاً صالحاً — تحقق من القيود")
-        for mid in memo_ids:
-            schedule[mid] = None
-            rej_log[mid] = {"CP-SAT: لا حل ممكن"}
-        return schedule, memo_members, rej_log
-
-    # ── المرحلة 3: Repair — برمجة المذكرات غير المجدولة ──
-    unscheduled = [mid for mid in memo_ids if not schedule.get(mid)]
-    if unscheduled:
-        occupied = {sv: mid for mid, sv in schedule.items() if sv}
-        prof_busy = {}
-        prof_day_count = {}
-        for mid, sv in schedule.items():
+        # Repair: برمجة المذكرات غير المجدولة
+        schedule_c = dict(child)
+        occupied_r, prof_busy_r, prof_day_r, ppc_r = {}, {}, {}, {}
+        for mid, sv in schedule_c.items():
             if not sv: continue
             day, slot, room = sv
+            occupied_r[(day, slot, room)] = mid
             for prof in memo_members.get(mid, set()):
-                prof_busy[(day, slot, prof)] = mid
-                prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
+                prof_busy_r[(day, slot, prof)] = mid
+                prof_day_r[(prof, day)] = prof_day_r.get((prof, day), 0) + 1
 
-        def can_place_repair(memo_id, day, slot, room):
-            if (day, slot, room) in {sv: True for sv in occupied}: return False
-            members = memo_members.get(memo_id, set())
-            if slot > "16:00" and members - profs_accept_18: return False
-            for prof in members:
-                if (day, slot, prof) in prof_busy: return False
-                if prof_day_count.get((prof, day), 0) >= 3: return False
-                if day in prof_banned_days.get(prof, set()): return False
-            return True
+        can_r, _ = make_can_place(occupied_r, prof_busy_r, prof_day_r, memo_members,
+            fixed_slots, memo_date_limits, prof_banned_days, prof_not_before,
+            prof_not_after, prof_allowed_days, profs_accept_18, memo_alt_days,
+            prof_phase_split, ppc_r, slots_per_day, None)
+        place_r = make_place_fn(schedule_c, occupied_r, prof_busy_r, prof_day_r,
+                                memo_members, ppc_r, prof_phase_split)
 
-        for mid in unscheduled:
+        for mid in memo_ids:
+            if schedule_c.get(mid): continue
             for day in days:
                 for slot in slots_per_day:
                     for room in rooms:
-                        if can_place_repair(mid, day, slot, room):
-                            schedule[mid] = (day, slot, room)
-                            occupied[(day, slot, room)] = mid
-                            for prof in memo_members.get(mid, set()):
-                                prof_busy[(day, slot, prof)] = mid
-                                prof_day_count[(prof, day)] = prof_day_count.get((prof, day), 0) + 1
-                            if mid in rej_log: del rej_log[mid]
-                            break
+                        if can_r(mid, day, slot, room, log=False):
+                            place_r(mid, day, slot, room); break
                     else: continue; break
                 else: continue; break
 
-    # ── المرحلة 4: Optimize soft constraints ──
-    violations_before = _validate_hard_constraints(schedule, memo_members)
-    critical = [v for v in violations_before if v.startswith("🔴")]
-    if not critical:
-        schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=200)
-        # تحقق نهائي بعد التحسين
-        final_v = _validate_hard_constraints(schedule, memo_members)
-        if any(v.startswith("🔴") for v in final_v):
-            import streamlit as _st
-            _st.warning("⚠️ التحسين أنتج تعارضاً — يُرجع الجدول الصالح قبل التحسين")
-    else:
-        import streamlit as _st
-        _st.error(f"⚠️ الجدول يحتوي {len(critical)} تعارض حرج — يُعرض كما هو")
+        for mid in memo_ids:
+            if mid not in schedule_c: schedule_c[mid] = None
 
-    return schedule, memo_members, rej_log
+        return schedule_c
+
+    # ── Mutation: تغيير عشوائي ──
+    def mutate(schedule, rate=0.05):
+        mutated = dict(schedule)
+        occupied_m = {sv: mid for mid, sv in mutated.items() if sv}
+        prof_busy_m = {}
+        prof_day_m = {}
+        for mid, sv in mutated.items():
+            if not sv: continue
+            day, slot, room = sv
+            for prof in memo_members.get(mid, set()):
+                prof_busy_m[(day, slot, prof)] = mid
+                prof_day_m[(prof, day)] = prof_day_m.get((prof, day), 0) + 1
+
+        for mid in memo_ids:
+            if random.random() > rate: continue
+            if mid in fixed_slots: continue  # لا نغير المثبتة
+            old_sv = mutated.get(mid)
+            if old_sv:
+                day, slot, room = old_sv
+                del occupied_m[old_sv]
+                for prof in memo_members.get(mid, set()):
+                    if (day, slot, prof) in prof_busy_m:
+                        del prof_busy_m[(day, slot, prof)]
+                    prof_day_m[(prof, day)] = max(0, prof_day_m.get((prof, day), 1) - 1)
+
+            can_m, _ = make_can_place(occupied_m, prof_busy_m, prof_day_m, memo_members,
+                fixed_slots, memo_date_limits, prof_banned_days, prof_not_before,
+                prof_not_after, prof_allowed_days, profs_accept_18, memo_alt_days,
+                prof_phase_split, {}, slots_per_day, None)
+
+            placed = False
+            d_order = days[:]; random.shuffle(d_order)
+            for day in d_order:
+                if placed: break
+                for slot in slots_per_day:
+                    if placed: break
+                    for room in rooms:
+                        if can_m(mid, day, slot, room, log=False):
+                            mutated[mid] = (day, slot, room)
+                            occupied_m[(day, slot, room)] = mid
+                            for prof in memo_members.get(mid, set()):
+                                prof_busy_m[(day, slot, prof)] = mid
+                                prof_day_m[(prof, day)] = prof_day_m.get((prof, day), 0) + 1
+                            placed = True; break
+            if not placed:
+                mutated[mid] = None
+
+        return mutated
+
+    # ── المرحلة 1: Genetic Algorithm ──
+    POPULATION_SIZE = 20
+    GENERATIONS = 30
+    ELITE_SIZE = 4
+    MUTATION_RATE = 0.08
+
+    if streamlit_progress:
+        streamlit_progress.text("🧬 المرحلة 1: توليد الجيل الأول...")
+
+    # توليد الجيل الأول
+    population = []
+    for i in range(POPULATION_SIZE):
+        ind = generate_individual(seed=i * 13 + 7)
+        population.append(ind)
+        if streamlit_progress:
+            streamlit_progress.progress(int((i+1)/POPULATION_SIZE * 30))
+
+    best_overall = max(population, key=fitness)
+    best_fitness = fitness(best_overall)
+
+    # تطوير الأجيال
+    for gen in range(GENERATIONS):
+        # تقييم الجيل
+        scored = sorted(population, key=fitness, reverse=True)
+        gen_best = scored[0]
+        gen_best_fit = fitness(gen_best)
+
+        if gen_best_fit > best_fitness:
+            best_fitness = gen_best_fit
+            best_overall = dict(gen_best)
+
+        if streamlit_progress:
+            placed_n = sum(1 for sv in best_overall.values() if sv)
+            streamlit_progress.text(f"🧬 الجيل {gen+1}/{GENERATIONS} | أفضل: {placed_n}/{len(memo_ids)} مجدول | fitness: {best_fitness:.0f}")
+            streamlit_progress.progress(30 + int((gen+1)/GENERATIONS * 40))
+
+        # Elite selection
+        new_pop = scored[:ELITE_SIZE]
+
+        # Crossover + Mutation
+        while len(new_pop) < POPULATION_SIZE:
+            p1, p2 = random.choices(scored[:10], k=2)
+            child = crossover(p1, p2)
+            child = mutate(child, rate=MUTATION_RATE)
+            new_pop.append(child)
+
+        population = new_pop
+
+    # ── المرحلة 2: Tabu Search على أفضل جدول ──
+    if streamlit_progress:
+        streamlit_progress.text("🔍 المرحلة 2: Tabu Search — تحسين أفضل جدول...")
+
+    current = dict(best_overall)
+    current_fit = best_fitness
+    tabu_list = set()  # تعقب المبادلات المزارة
+    TABU_SIZE = 50
+    TABU_ITERATIONS = 200
+
+    scheduled_list = [m for m, sv in current.items() if sv and m not in fixed_slots]
+
+    for it in range(TABU_ITERATIONS):
+        if streamlit_progress and it % 20 == 0:
+            placed_n = sum(1 for sv in current.values() if sv)
+            streamlit_progress.text(f"🔍 Tabu Iteration {it}/{TABU_ITERATIONS} | مجدول: {placed_n} | fitness: {current_fit:.0f}")
+            streamlit_progress.progress(70 + int(it/TABU_ITERATIONS * 25))
+
+        if len(scheduled_list) < 2: break
+
+        best_neighbor = None
+        best_neighbor_fit = -float("inf")
+        best_move = None
+
+        # استكشف جيرة المبادلة
+        candidates = random.sample(scheduled_list, min(20, len(scheduled_list)))
+        for i in range(len(candidates)):
+            for j in range(i+1, len(candidates)):
+                m1, m2 = candidates[i], candidates[j]
+                move = (m1, m2) if m1 < m2 else (m2, m1)
+                if move in tabu_list: continue
+
+                sv1, sv2 = current[m1], current[m2]
+                if not sv1 or not sv2: continue
+
+                # جرب المبادلة
+                current[m1] = sv2; current[m2] = sv1
+
+                # تحقق من Hard Constraints
+                v = _validate_hard_constraints(current, memo_members)
+                if not any(x.startswith("🔴") for x in v):
+                    nf = fitness(current)
+                    if nf > best_neighbor_fit:
+                        best_neighbor_fit = nf
+                        best_neighbor = (dict(current), nf)
+                        best_move = move
+
+                # أعد الحال
+                current[m1] = sv1; current[m2] = sv2
+
+        if best_neighbor:
+            current, current_fit = best_neighbor
+            tabu_list.add(best_move)
+            if len(tabu_list) > TABU_SIZE:
+                tabu_list.pop()
+            if current_fit > best_fitness:
+                best_fitness = current_fit
+                best_overall = dict(current)
+
+    if streamlit_progress:
+        placed_f = sum(1 for sv in best_overall.values() if sv)
+        streamlit_progress.text(f"✅ اكتمل! مجدول: {placed_f}/{len(memo_ids)} | fitness نهائي: {best_fitness:.0f}")
+        streamlit_progress.progress(100)
+
+    # rej_log
+    rej_log = {mid: {"لا توجد خانة متاحة مع القيود"} for mid, sv in best_overall.items() if not sv}
+
+    return best_overall, memo_members, rej_log
 
 
 def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, improve=True, seed=42):
@@ -2661,8 +2440,15 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints)
     elif algo_name == "📅 الجدول أولاً":
         schedule, memo_members, rej_log = algo_day_first(df_memos, days, slots_per_day, rooms, constraints)
-    elif algo_name == "🔷 Hierarchical CP-SAT":
-        schedule, memo_members, rej_log = hierarchical_cpsat_scheduler(df_memos, days, slots_per_day, rooms, constraints)
+    elif algo_name == "🧬 GA + Tabu Search":
+        import streamlit as _st_ga
+        _prog_container = _st_ga.empty()
+        _prog_bar = _st_ga.progress(0)
+        class _ProgHelper:
+            def text(self, t): _prog_container.text(t)
+            def progress(self, v): _prog_bar.progress(v)
+        schedule, memo_members, rej_log = ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streamlit_progress=_ProgHelper())
+        _prog_container.empty(); _prog_bar.empty()
         quality, placed, unplaced, idle, total_days, _ = calc_schedule_quality(schedule, memo_members, days, slots_per_day)
         return schedule, quality, placed, unplaced, idle, total_days, memo_members, rej_log
     else:  # Greedy
@@ -4927,7 +4713,7 @@ elif st.session_state.user_type == "admin":
 
                 algo_choice = st.radio(
                     "🧠 اختر الخوارزمية:",
-                    ["🧱 كتل الأساتذة", "📅 الجدول أولاً", "⚡ الأثقل أولاً (Greedy)", "🔷 Hierarchical CP-SAT"],
+                    ["🧱 كتل الأساتذة", "📅 الجدول أولاً", "⚡ الأثقل أولاً (Greedy)", "🧬 GA + Tabu Search"],
                     horizontal=True, key="algo_choice",
                     help="كتل: تجميع مضمون | الجدول أولاً: توزيع متوازن | Greedy: الأسرع"
                 )
