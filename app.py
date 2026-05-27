@@ -1858,6 +1858,238 @@ def algo_greedy(df_memos, days, slots_per_day, rooms, constraints):
     return schedule, memo_members, rejection_log
 
 
+
+# ================================================================
+# 🏆 Smart Fair Scheduling Optimizer
+# ================================================================
+def algo_smart_fair(df_memos, days, slots_per_day, rooms, constraints):
+    """
+    Smart Fair Scheduling Optimizer
+    المرحلة 1: توليد schedule صالح يحترم كل القيود
+    المرحلة 2: optimization بـ scoring function
+    """
+    import random
+    from itertools import combinations
+
+    fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, \
+    prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, \
+    memo_alt_days, profs_accept_18, profs_cluster_days = constraints
+
+    prof_memos_map, memo_members = build_prof_memo_map(df_memos)
+    memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
+    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
+    MAX_PER_DAY = 3
+
+    # ── Score Function ──
+    def compute_score(schedule, memo_members_map):
+        prof_program = {}  # prof -> {day -> [slot_idx]}
+        room_usage = {}    # (day, slot) -> count
+
+        for mid, sv in schedule.items():
+            if not sv: continue
+            day, slot, room = sv
+            slot_idx = slot_to_idx.get(slot, 0)
+            for prof in memo_members_map.get(mid, set()):
+                prof_program.setdefault(prof, {}).setdefault(day, []).append(slot_idx)
+            room_usage[(day, slot)] = room_usage.get((day, slot), 0) + 1
+
+        total_score = 0.0
+        prof_totals = {p: sum(len(s) for s in d.items()) for p, d in prof_program.items()
+                       for _ in [None]}
+
+        # 1. Fairness score — انحراف معياري منخفض = أفضل
+        if prof_program:
+            counts = [sum(len(slots) for slots in days_dict.values())
+                      for days_dict in prof_program.values()]
+            mean_c = sum(counts) / len(counts) if counts else 0
+            std_c = (sum((c - mean_c)**2 for c in counts) / len(counts))**0.5 if counts else 0
+            fairness_score = 100 / (1 + std_c)
+            total_score += fairness_score * 3  # وزن عالٍ
+
+        for prof, days_dict in prof_program.items():
+            sorted_days = sorted(days_dict.keys())
+
+            # 2. Overload penalty — تجاوز 3/يوم
+            for day, slots in days_dict.items():
+                if len(slots) > MAX_PER_DAY:
+                    total_score -= (len(slots) - MAX_PER_DAY) * 50
+
+            # 3. Consecutive days penalty
+            consec = 1; max_consec = 1
+            for i in range(1, len(sorted_days)):
+                try:
+                    from datetime import datetime
+                    d1 = datetime.strptime(sorted_days[i-1], "%Y-%m-%d")
+                    d2 = datetime.strptime(sorted_days[i], "%Y-%m-%d")
+                    diff = (d2 - d1).days
+                    if diff <= 3: consec += 1; max_consec = max(max_consec, consec)
+                    else: consec = 1
+                except: pass
+            if max_consec > 3:
+                total_score -= (max_consec - 3) * 20
+
+            # 4. Gaps penalty — فجوات كبيرة في اليوم
+            for day, slots in days_dict.items():
+                if len(slots) > 1:
+                    sorted_slots = sorted(slots)
+                    max_gap = max(sorted_slots[i+1] - sorted_slots[i]
+                                  for i in range(len(sorted_slots)-1))
+                    if max_gap > 1:
+                        total_score -= max_gap * 10
+
+            # 5. Professor comfort — مناقشات مجمعة في أقل أيام
+            n_days = len(days_dict)
+            total_sessions = sum(len(s) for s in days_dict.values())
+            if n_days > 0:
+                sessions_per_day = total_sessions / n_days
+                comfort_score = sessions_per_day * 15
+                total_score += comfort_score
+
+            # 6. Lonely days penalty — أيام منعزلة
+            if total_sessions >= 3:
+                lonely = sum(1 for d, s in days_dict.items() if len(s) == 1)
+                if lonely > 1:
+                    total_score -= (lonely - 1) * 25
+
+        # 7. Room efficiency
+        placed = sum(1 for sv in schedule.values() if sv)
+        capacity = len(days) * len(slots_per_day) * len(rooms)
+        if capacity > 0:
+            efficiency = placed / capacity
+            room_score = efficiency * 50
+            total_score += room_score
+
+        return total_score
+
+    # ── المرحلة 1: توليد schedule صالح ──
+    schedule, occupied, prof_busy, prof_day_count, prof_first_phase_count = {}, {}, {}, {}, {}
+    rejection_log = {}
+    scheduled = set()
+
+    can_place, _ = make_can_place(occupied, prof_busy, prof_day_count, memo_members,
+        fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,
+        prof_allowed_days, profs_accept_18, memo_alt_days, prof_phase_split,
+        prof_first_phase_count, slots_per_day, rejection_log)
+    place = make_place_fn(schedule, occupied, prof_busy, prof_day_count, memo_members,
+        prof_first_phase_count, prof_phase_split)
+
+    # Fixed slots
+    applied, failed = apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled)
+    if failed:
+        import streamlit as _st
+        for f in failed: _st.warning(f)
+
+    # ── نرتب المذكرات بذكاء: الأكثر قيوداً أولاً ──
+    def memo_priority(mid):
+        members = memo_members.get(mid, set())
+        constraints_count = 0
+        for p in members:
+            constraints_count += len(prof_banned_days.get(p, set()))
+            constraints_count += (1 if p in prof_allowed_days else 0) * 5
+            constraints_count += (1 if p in prof_not_before else 0) * 2
+            constraints_count += (1 if p in prof_not_after else 0) * 2
+        if mid in memo_alt_days and memo_alt_days[mid]: constraints_count += 10
+        if mid in memo_date_limits: constraints_count += 5
+        return -constraints_count  # الأكثر قيوداً أولاً
+
+    remaining = sorted([m for m in memo_ids if m not in scheduled], key=memo_priority)
+
+    # ── اختيار أفضل خانة لكل مذكرة (greedy مع scoring) ──
+    for memo in remaining:
+        best_slot = None
+        best_slot_score = -float('inf')
+
+        members = memo_members.get(memo, set())
+
+        for day in days:
+            for slot in slots_per_day:
+                for room in rooms:
+                    if not can_place(memo, day, slot, room, log=False):
+                        continue
+                    # احسب تأثير وضع هذه المذكرة هنا
+                    slot_score = 0
+
+                    # مكافأة إذا الأستاذ موجود بالفعل في هذا اليوم
+                    for p in members:
+                        if prof_day_count.get((p, day), 0) > 0:
+                            slot_score += 30  # يفضل التجميع
+                        # عقوبة إذا الأستاذ سيبلغ 3 في هذا اليوم
+                        if prof_day_count.get((p, day), 0) == 2:
+                            slot_score -= 5  # اليوم سيمتلئ
+
+                    # مكافأة إذا التوقيتات متتالية
+                    for p in members:
+                        existing_slots = [slot_to_idx.get(s, 0)
+                                          for (d, s, _), mid2 in [(sv, m) for m, sv in schedule.items() if sv]
+                                          if d == day]
+                        if existing_slots:
+                            min_gap = min(abs(slot_to_idx.get(slot, 0) - es) for es in existing_slots)
+                            if min_gap == 1: slot_score += 20  # متتالية
+                            elif min_gap > 2: slot_score -= 15  # فجوة
+
+                    # عقوبة على أيام منعزلة
+                    for p in members:
+                        days_with_sessions = [d for (d, s, r), mid2 in [(sv, m) for m, sv in schedule.items() if sv]
+                                              for pp in [memo_members.get(mid2, set())] if p in pp]
+                        if days_with_sessions and day not in days_with_sessions:
+                            slot_score -= 10  # يوم جديد = قد يكون منعزلاً
+
+                    if slot_score > best_slot_score:
+                        best_slot_score = slot_score
+                        best_slot = (day, slot, room)
+
+        if best_slot:
+            d, s, r = best_slot
+            place(memo, d, s, r)
+            scheduled.add(memo)
+        else:
+            schedule[memo] = None
+            rejection_log.setdefault(memo, set()).add("لا توجد خانة مناسبة مع جميع القيود")
+
+    for memo in memo_ids:
+        if memo not in schedule: schedule[memo] = None
+
+    # ── المرحلة 2: Tabu Search optimization ──
+    current_score = compute_score(schedule, memo_members)
+    best_schedule = dict(schedule)
+    best_score = current_score
+
+    placed_memos = [m for m, sv in schedule.items() if sv]
+
+    for iteration in range(200):
+        if len(placed_memos) < 2: break
+        m1, m2 = random.sample(placed_memos, 2)
+        sv1, sv2 = schedule[m1], schedule[m2]
+        if not sv1 or not sv2: continue
+
+        # جرب المبادلة
+        schedule[m1] = sv2; schedule[m2] = sv1
+
+        # تحقق صحة المبادلة (لا تعارض)
+        # بناء occupied مؤقت
+        test_occupied = {}
+        valid_swap = True
+        for m, sv in schedule.items():
+            if not sv: continue
+            if sv in test_occupied:
+                valid_swap = False; break
+            test_occupied[sv] = m
+
+        if valid_swap:
+            new_score = compute_score(schedule, memo_members)
+            if new_score > best_score:
+                best_score = new_score
+                best_schedule = dict(schedule)
+            elif new_score < current_score - 10:  # تراجع سيء
+                schedule[m1] = sv1; schedule[m2] = sv2  # تراجع
+            else:
+                current_score = new_score
+        else:
+            schedule[m1] = sv1; schedule[m2] = sv2  # تراجع
+
+    return best_schedule, memo_members, rejection_log
+
+
 def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, improve=True, seed=42):
     """تشغيل الخوارزمية المختارة"""
     import random
@@ -1878,6 +2110,8 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints)
     elif algo_name == "📅 الجدول أولاً":
         schedule, memo_members, rej_log = algo_day_first(df_memos, days, slots_per_day, rooms, constraints)
+    elif algo_name == "🏆 Smart Fair Optimizer":
+        schedule, memo_members, rej_log = algo_smart_fair(df_memos, days, slots_per_day, rooms, constraints)
     else:  # Greedy
         schedule, memo_members, rej_log = algo_greedy(df_memos, days, slots_per_day, rooms, constraints)
 
@@ -4140,7 +4374,7 @@ elif st.session_state.user_type == "admin":
 
                 algo_choice = st.radio(
                     "🧠 اختر الخوارزمية:",
-                    ["🧱 كتل الأساتذة", "📅 الجدول أولاً", "⚡ الأثقل أولاً (Greedy)"],
+                    ["🧱 كتل الأساتذة", "📅 الجدول أولاً", "⚡ الأثقل أولاً (Greedy)", "🏆 Smart Fair Optimizer"],
                     horizontal=True, key="algo_choice",
                     help="كتل: تجميع مضمون | الجدول أولاً: توزيع متوازن | Greedy: الأسرع"
                 )
