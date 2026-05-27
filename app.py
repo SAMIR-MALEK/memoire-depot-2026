@@ -2539,8 +2539,26 @@ def hierarchical_cpsat_scheduler(df_memos, days, slots_per_day, rooms, constrain
 
     # حل النموذج
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 30.0
-    solver.parameters.num_search_workers = 1
+    solver.parameters.max_time_in_seconds = 300.0
+    solver.parameters.num_search_workers = 4  # استخدام خيوط متعددة
+    solver.parameters.log_search_progress = False
+    solver.parameters.cp_model_presolve = True
+    solver.parameters.linearization_level = 2
+    # hint: نبدأ من جدول أولي جيد (warm start)
+    # نستخدم algo_greedy كنقطة بداية
+    _hint_sched, _, _ = algo_greedy(df_memos, days, slots_per_day, rooms, constraints)
+    for mi, mid in enumerate(memo_ids):
+        sv = _hint_sched.get(mid)
+        if not sv: continue
+        hday, hslot, hroom = sv
+        hdi = day_to_idx.get(hday, -1)
+        hsi = slot_to_idx.get(hslot, -1)
+        hri = room_to_idx.get(hroom, -1)
+        if hdi in x[mi] and hsi in x[mi].get(hdi,{}) and hri in x[mi][hdi].get(hsi,{}):
+            model.add_hint(x[mi][hdi][hsi][hri], 1)
+
+    import streamlit as _st_prog
+    _st_prog.info("⏳ CP-SAT يعمل... قد يستغرق حتى 5 دقائق للحصول على الجدول الأمثل.")
     status = solver.solve(model)
 
     schedule = {}
@@ -2643,10 +2661,6 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints)
     elif algo_name == "📅 الجدول أولاً":
         schedule, memo_members, rej_log = algo_day_first(df_memos, days, slots_per_day, rooms, constraints)
-    elif algo_name == "🏆 Smart Fair Optimizer":
-        schedule, memo_members, rej_log = smart_fair_schedule_optimizer(df_memos, days, slots_per_day, rooms, constraints)
-        quality, placed, unplaced, idle, total_days, _ = calc_schedule_quality(schedule, memo_members, days, slots_per_day)
-        return schedule, quality, placed, unplaced, idle, total_days, memo_members, rej_log
     elif algo_name == "🔷 Hierarchical CP-SAT":
         schedule, memo_members, rej_log = hierarchical_cpsat_scheduler(df_memos, days, slots_per_day, rooms, constraints)
         quality, placed, unplaced, idle, total_days, _ = calc_schedule_quality(schedule, memo_members, days, slots_per_day)
@@ -4913,7 +4927,7 @@ elif st.session_state.user_type == "admin":
 
                 algo_choice = st.radio(
                     "🧠 اختر الخوارزمية:",
-                    ["🧱 كتل الأساتذة", "📅 الجدول أولاً", "⚡ الأثقل أولاً (Greedy)", "🏆 Smart Fair Optimizer", "🔷 Hierarchical CP-SAT"],
+                    ["🧱 كتل الأساتذة", "📅 الجدول أولاً", "⚡ الأثقل أولاً (Greedy)", "🔷 Hierarchical CP-SAT"],
                     horizontal=True, key="algo_choice",
                     help="كتل: تجميع مضمون | الجدول أولاً: توزيع متوازن | Greedy: الأسرع"
                 )
