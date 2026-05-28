@@ -3427,10 +3427,17 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         full = "".join(r.text for r in p.runs)
         changed = any(old in full for old in mapping)
         if changed:
+            # احفظ خصائص أول run (bold, size, font)
+            first_run = p.runs[0]
+            was_bold = first_run.bold
+            was_size = first_run.font.size
             for old, new in mapping.items():
                 full = full.replace(old, new)
             for r in p.runs: r.text = ""
-            if p.runs: p.runs[0].text = full
+            if p.runs:
+                p.runs[0].text = full
+                if was_bold is not None: p.runs[0].bold = was_bold
+                if was_size: p.runs[0].font.size = was_size
 
     for p in doc.paragraphs:
         replace_in_para(p, replacements)
@@ -5560,10 +5567,27 @@ elif st.session_state.user_type == "admin":
 
                     with col_m1:
                         st.markdown("**📄 توليد محضر واحد:**")
-                        memo_list_m = scheduled_m["رقم المذكرة"].astype(str).tolist()
-                        sel_memo_m = st.selectbox("اختر المذكرة:", memo_list_m, key="sel_mahdar_memo")
+                        search_term = st.text_input("🔍 ابحث برقم المذكرة أو اسم المشرف أو اسم الطالب:", key="mahdar_search")
+                        if search_term.strip():
+                            _mask = (
+                                scheduled_m["رقم المذكرة"].astype(str).str.contains(search_term.strip(), case=False, na=False) |
+                                scheduled_m.get("الأستاذ", pd.Series()).astype(str).str.contains(search_term.strip(), case=False, na=False) |
+                                scheduled_m.get("الطالب الأول", pd.Series()).astype(str).str.contains(search_term.strip(), case=False, na=False) |
+                                scheduled_m.get("الطالب الثاني", pd.Series()).astype(str).str.contains(search_term.strip(), case=False, na=False)
+                            )
+                            filtered_m = scheduled_m[_mask]
+                        else:
+                            filtered_m = scheduled_m
+                        memo_list_m = filtered_m["رقم المذكرة"].astype(str).tolist()
+                        if not memo_list_m:
+                            st.warning("لا توجد نتائج")
+                            sel_memo_m = None
+                        else:
+                            sel_memo_m = st.selectbox("المذكرات:", memo_list_m,
+                                format_func=lambda x: f"{x} — {filtered_m[filtered_m['رقم المذكرة'].astype(str)==x]['الطالب الأول'].values[0] if len(filtered_m[filtered_m['رقم المذكرة'].astype(str)==x])>0 else ''}",
+                                key="sel_mahdar_memo")
                         if st.button("📄 توليد المحضر", type="primary", use_container_width=True, key="gen_one_mahdar"):
-                            row_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==sel_memo_m].iloc[0]
+                            row_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==str(sel_memo_m)].iloc[0]
                             seq = int(row_m["رقم_تسلسلي"])
                             memo_dict = row_m.to_dict()
                             # عنوان المذكرة عمود D
@@ -5589,12 +5613,34 @@ elif st.session_state.user_type == "admin":
                             docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                             fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
                             b64 = base64.b64encode(docx_bytes).decode()
-                            st.markdown(f'''<div style="text-align:center;margin:12px 0;">
-                                <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}"
-                                   download="{fname}"
-                                   style="background:#2F6F7E;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
-                                   📥 تحميل المحضر #{str(seq).zfill(3)}
-                                </a></div>''', unsafe_allow_html=True)
+                            _fmt = st.radio("صيغة التحميل:", ["📝 Word (DOCX)", "📄 PDF"], horizontal=True, key="mahdar_fmt")
+                            if _fmt == "📄 PDF":
+                                try:
+                                    import subprocess, tempfile, os
+                                    _tmp = tempfile.mkdtemp()
+                                    _docx_p = os.path.join(_tmp, fname)
+                                    with open(_docx_p, 'wb') as _f: _f.write(docx_bytes)
+                                    subprocess.run(['libreoffice','--headless','--convert-to','pdf','--outdir',_tmp,_docx_p], capture_output=True, timeout=30)
+                                    _pdf_p = _docx_p.replace('.docx','.pdf')
+                                    if os.path.exists(_pdf_p):
+                                        with open(_pdf_p,'rb') as _f: _pdf_b = _f.read()
+                                        b64_pdf = base64.b64encode(_pdf_b).decode()
+                                        st.markdown(f'''<div style="text-align:center;margin:12px 0;">
+                                            <a href="data:application/pdf;base64,{b64_pdf}" download="{fname.replace('.docx','.pdf')}"
+                                               style="background:#E53E3E;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
+                                               📄 تحميل PDF #{str(seq).zfill(3)}
+                                            </a></div>''', unsafe_allow_html=True)
+                                    else:
+                                        st.error("❌ فشل تحويل PDF")
+                                except Exception as _pe:
+                                    st.error(f"❌ {_pe}")
+                            else:
+                                st.markdown(f'''<div style="text-align:center;margin:12px 0;">
+                                    <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}"
+                                       download="{fname}"
+                                       style="background:#2F6F7E;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
+                                       📥 تحميل DOCX #{str(seq).zfill(3)}
+                                    </a></div>''', unsafe_allow_html=True)
 
                     with col_m2:
                         st.markdown("**📦 توليد كل المحاضر (ZIP):**")
