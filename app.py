@@ -5509,10 +5509,15 @@ elif st.session_state.user_type == "admin":
             # قاموس رقم ملف الطلبة من شيت الطلبة
             # الربط: رقم المذكرة (عمود F في شيت الطلبة) = رقم المذكرة (عمود C في شيت المذكرات)
             # قد يكون لمذكرة طالبان → صفان بنفس رقم المذكرة
+            def _norm_num(v):
+                """تحويل رقم لصيغة موحدة بدون .0"""
+                try: return str(int(float(str(v).strip())))
+                except: return str(v).strip()
+
             students_ids = {}  # رقم المذكرة -> [رقم_ملف_1, رقم_ملف_2]
             if not df_students_m.empty:
                 for _, sr in df_students_m.iterrows():
-                    memo_ref = str(sr.get("رقم المذكرة","")).strip()
+                    memo_ref = _norm_num(sr.get("رقم المذكرة",""))
                     if not memo_ref or memo_ref in ["","nan"]: continue
                     s_id = str(sr.get("رقم ملف الطالب","")).strip()
                     if s_id and s_id not in ["","nan"]:
@@ -5576,7 +5581,7 @@ elif st.session_state.user_type == "admin":
                             memo_dict["الطالب"]  = str(row_m.get("الطالب الأول","")).strip()
                             memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
                             # أرقام الملفات من شيت الطلبة
-                            _ids = students_ids.get(sel_memo_m, [])
+                            _ids = students_ids.get(_norm_num(sel_memo_m), [])
                             memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
                             memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
                             docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
@@ -5609,7 +5614,7 @@ elif st.session_state.user_type == "admin":
                                         memo_dict["رابط الملف"] = str(row_m.get("رابط الملف","")).strip()
                                         memo_dict["الطالب"]  = str(row_m.get("الطالب الأول","")).strip()
                                         memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
-                                        _ids = students_ids.get(_mnum, [])
+                                        _ids = students_ids.get(_norm_num(_mnum), [])
                                         memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
                                         memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
                                         docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
