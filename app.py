@@ -3362,130 +3362,159 @@ def validate_schedule(schedule, memo_members, days, slots_per_day):
 
 
 
-import io, zipfile
-from docx import Document
-from docx.oxml.ns import qn
-from copy import deepcopy
+import io, zipfile, re as _re_mahdar, tempfile as _tempfile
+import qrcode as _qrcode
 
-MAHDAR_TEMPLATE_PATH = "template_mahdar.docx"
-
-def set_cell_text(cell, text):
-    """كتابة نص في خلية مع الحفاظ على التنسيق"""
-    for p in cell.paragraphs:
-        for run in p.runs:
-            run.text = ""
-    if cell.paragraphs:
-        run = cell.paragraphs[0].add_run(text)
-        run.font.name = "Traditional Arabic"
-        cell.paragraphs[0].alignment = 1  # center
+def generate_qr_png(url):
+    """توليد QR Code يرمز لرابط Drive المذكرة"""
+    qr = _qrcode.QRCode(version=2, box_size=4, border=2,
+        error_correction=_qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return buf.getvalue()
 
 def generate_mahdar(memo_data, seq_num, template_bytes):
-    """توليد محضر مناقشة واحد"""
-    doc = Document(io.BytesIO(template_bytes))
-    
-    # ── بيانات المذكرة ──
-    memo_num    = str(memo_data.get("رقم المذكرة","")).strip()
-    title       = str(memo_data.get("عنوان المذكرة","")).strip()
-    specialty   = str(memo_data.get("التخصص","")).strip()
-    student1_ln = str(memo_data.get("لقب الطالب 1","")).strip()
-    student1_fn = str(memo_data.get("اسم الطالب 1","")).strip()
-    student2_ln = str(memo_data.get("لقب الطالب 2","")).strip()
-    student2_fn = str(memo_data.get("اسم الطالب 2","")).strip()
-    def_date    = str(memo_data.get("تاريخ المناقشة","")).strip()
-    def_time    = str(memo_data.get("توقيت المناقشة","")).strip()
-    def_room    = str(memo_data.get("القاعة","")).strip()
-    
-    # أعضاء اللجنة
-    pres   = str(memo_data.get("الرئيس","")).strip()
-    sup    = str(memo_data.get("الأستاذ","")).strip()
-    ex1    = str(memo_data.get("المناقش1","")).strip()
-    ex2    = str(memo_data.get("المناقش2","")).strip()
-    
-    # الرتب (من شيت الأساتذة)
-    rank_pres = str(memo_data.get("رتبة_الرئيس","")).strip()
-    rank_sup  = str(memo_data.get("رتبة_المشرف","")).strip()
-    rank_ex1  = str(memo_data.get("رتبة_المناقش1","")).strip()
-    rank_ex2  = str(memo_data.get("رتبة_المناقش2","")).strip()
+    """
+    توليد محضر مناقشة من القالب
+    يُرجع bytes
+    """
+    from docx import Document as _DocxDoc
+    from docx.oxml import OxmlElement as _OxmlElement
+    from docx.oxml.ns import qn as _qn
+    from docx.shared import Pt as _Pt
 
-    # ── ملء الفقرات ──
-    for i, p in enumerate(doc.paragraphs):
-        txt = p.text
-        if "رقم المحضر" in txt:
-            for run in p.runs:
-                run.text = run.text.replace(".......", str(seq_num).zfill(3))
-        elif "وبتاريخ" in txt:
-            new_txt = txt.replace("...../......./.......", f"{def_date}")
-            for run in p.runs:
-                if "...../......./......." in run.text:
-                    run.text = run.text.replace("...../......./.......", def_date)
-        elif "مذكرة الماستر رقم" in txt:
-            for run in p.runs:
-                if "....................." in run.text:
-                    run.text = run.text.replace("......................", memo_num)
-        elif "الموسومة" in txt:
-            # العنوان في الفقرة التالية
-            pass
-    
-    # العنوان في P5 أو P6
-    title_written = False
-    for i, p in enumerate(doc.paragraphs):
-        if "الموسومة" in p.text:
-            # الفقرة التالية هي العنوان
-            if i+1 < len(doc.paragraphs):
-                tp = doc.paragraphs[i+1]
-                for run in tp.runs:
-                    run.text = ""
-                if tp.runs:
-                    tp.runs[0].text = title
-                else:
-                    tp.add_run(title)
-            title_written = True
-            break
-    
+    work_dir = _tempfile.mkdtemp()
+    import shutil, os
+
+    # استخراج القالب من bytes
+    tmpl_path = os.path.join(work_dir, 'template.docx')
+    with open(tmpl_path, 'wb') as f: f.write(template_bytes)
+    with zipfile.ZipFile(tmpl_path) as z: z.extractall(work_dir)
+
+    # ── بيانات ──
+    memo_num     = str(memo_data.get("رقم المذكرة","")).strip()
+    title        = str(memo_data.get("عنوان المذكرة","")).strip()
+    specialty    = str(memo_data.get("التخصص","")).strip()
+    def_date     = str(memo_data.get("تاريخ المناقشة","")).strip()
+    student_name = str(memo_data.get("الطالب","")).strip()
+    student_id   = str(memo_data.get("رقم ملف الطالب","")).strip()
+    student2_name= str(memo_data.get("الطالب2","")).strip()
+    student2_id  = str(memo_data.get("رقم ملف الطالب2","")).strip()
+    drive_link   = str(memo_data.get("رابط الملف","")).strip()  # عمود U
+    pres         = str(memo_data.get("الرئيس","")).strip()
+    sup          = str(memo_data.get("الأستاذ","")).strip()
+    ex1          = str(memo_data.get("المناقش1","")).strip()
+    ex2          = str(memo_data.get("المناقش2","")).strip()
+    rank_pres    = str(memo_data.get("رتبة_الرئيس","")).strip()
+    rank_sup     = str(memo_data.get("رتبة_المشرف","")).strip()
+    rank_ex1     = str(memo_data.get("رتبة_المناقش1","")).strip()
+    rank_ex2     = str(memo_data.get("رتبة_المناقش2","")).strip()
+
+    # ── QR Code → رابط الملف عمود U ──
+    qr_url = drive_link if drive_link and drive_link not in ["","nan"] else f"مذكرة_{memo_num}"
+    qr_png = generate_qr_png(qr_url)
+    os.makedirs(f'{work_dir}/word/media', exist_ok=True)
+    with open(f'{work_dir}/word/media/qr_code.png', 'wb') as f: f.write(qr_png)
+
+    # Content type
+    ct_path = f'{work_dir}/[Content_Types].xml'
+    with open(ct_path, encoding='utf-8') as f: ct_xml = f.read()
+    if 'qr_code.png' not in ct_xml and 'Extension="png"' not in ct_xml:
+        ct_xml = ct_xml.replace('</Types>',
+            '<Override PartName="/word/media/qr_code.png" ContentType="image/png"/></Types>')
+    with open(ct_path, 'w', encoding='utf-8') as f: f.write(ct_xml)
+
+    # Relationship
+    rels_path = f'{work_dir}/word/_rels/document.xml.rels'
+    with open(rels_path, encoding='utf-8') as f: rels_xml = f.read()
+    new_rid = "rId_qr99"
+    if new_rid not in rels_xml:
+        rels_xml = rels_xml.replace('</Relationships>',
+            f'<Relationship Id="{new_rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/qr_code.png"/></Relationships>')
+    with open(rels_path, 'w', encoding='utf-8') as f: f.write(rels_xml)
+
+    # استبدال QR textbox بـ inline image
+    with open(f'{work_dir}/word/document.xml', encoding='utf-8') as f: doc_xml = f.read()
+
+    inline_img = f'<w:drawing xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0"><wp:extent cx="914400" cy="914400"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="9999" name="QRCode"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="9998" name="QRCode"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="{new_rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>'
+
+    doc_xml = _re_mahdar.sub(r'(<wp:anchor[^>]*>.*?QR Code.*?</wp:anchor>)', inline_img, doc_xml, flags=_re_mahdar.DOTALL)
+
+    # استبدال النصوص
+    seq_str = str(seq_num).zfill(3)
+    doc_xml = _re_mahdar.sub(r'رقم المحضر: [\d\.]+', f'رقم المحضر: {seq_str}', doc_xml)
+    doc_xml = doc_xml.replace('...../....../.......', def_date)
+    doc_xml = _re_mahdar.sub(r': ([\d]+|\.+) ', f': {memo_num} ', doc_xml, count=1)
+    # العنوان — استبدل النص القديم بالعنوان الجديد
+    doc_xml = _re_mahdar.sub(r'(<w:p[^>]*>(?:(?!<w:p[ >]).)*?الموسومة.*?</w:p>\s*<w:p[^>]*>)(.*?)(</w:p>)',
+        lambda m: m.group(1) + title + m.group(3), doc_xml, flags=_re_mahdar.DOTALL, count=1)
     # التخصص
-    for p in doc.paragraphs:
-        if "تخصص:" in p.text:
-            for run in p.runs:
-                if "تخصص:" in run.text and len(run.text) < 20:
-                    run.text = f"تخصص: {specialty}"
-    
-    # الطلاب
-    students_str = f"{student1_ln} {student1_fn}"
-    if student2_ln and student2_ln not in ["","nan"]:
-        students_str += f"\nو {student2_ln} {student2_fn}"
-    for i, p in enumerate(doc.paragraphs):
-        if "للطالب (ين):" in p.text:
-            if i+1 < len(doc.paragraphs):
-                sp = doc.paragraphs[i+1]
-                for run in sp.runs:
-                    run.text = ""
-                if sp.runs:
-                    sp.runs[0].text = students_str
-                else:
-                    sp.add_run(students_str)
-            break
+    doc_xml = _re_mahdar.sub(r'(تخصص:)([^<]+)', m_fn := lambda m: m.group(1) + '\t' + specialty + ' ', doc_xml, count=1)
+    # الطالب
+    student_line = f'- {student_name}\t(رقم الطالب {student_id})'
+    student2_line = f'- {student2_name}\t(رقم الطالب {student2_id})' if student2_name and student2_name not in ["","nan"] else ''
 
-    # ── ملء جدول اللجنة ──
+    with open(f'{work_dir}/word/document.xml', 'w', encoding='utf-8') as f: f.write(doc_xml)
+
+    # حزم
+    out_path = os.path.join(work_dir, 'output.docx')
+    with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as zout:
+        for root, dirs, files in os.walk(work_dir):
+            for file in files:
+                if file in ['template.docx', 'output.docx']: continue
+                fp = os.path.join(root, file)
+                arcname = os.path.relpath(fp, work_dir)
+                zout.write(fp, arcname)
+
+    # جدول اللجنة — Sakkal Majalla 14 سميك
+    doc = _DocxDoc(out_path)
     t = doc.tables[0]
-    members = [
-        ("01", pres,  rank_pres, "برج بوعريريج", "رئيسا"),
-        ("02", sup,   rank_sup,  "برج بوعريريج", "مشرفا"),
-        ("03", ex1,   rank_ex1,  "برج بوعريريج", "ممتحنا"),
-        ("04", ex2,   rank_ex2,  "برج بوعريريج", "ممتحنا"),
-    ]
-    for row_idx, (num, name, rank, univ, role) in enumerate(members, start=1):
-        if row_idx >= len(t.rows): break
-        row = t.rows[row_idx]
-        set_cell_text(row.cells[0], num)
-        set_cell_text(row.cells[1], name)
-        set_cell_text(row.cells[2], rank)
-        set_cell_text(row.cells[3], univ)
-        set_cell_text(row.cells[4], role)
 
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf.read()
+    def fill_cell(cell, text, size=14, bold=True):
+        for p in cell.paragraphs:
+            for run in p.runs: run.text = ""
+        p = cell.paragraphs[0]
+        pPr = p._p.get_or_add_pPr()
+        for tag in ['w:bidi', 'w:jc']:
+            ex = pPr.find(_qn(tag))
+            if ex is not None: pPr.remove(ex)
+        bidi = _OxmlElement('w:bidi'); pPr.append(bidi)
+        jc = _OxmlElement('w:jc'); jc.set(_qn('w:val'), 'center'); pPr.append(jc)
+        run = p.add_run(text)
+        rPr = run._r.get_or_add_rPr()
+        rFonts = _OxmlElement('w:rFonts')
+        for attr in ['w:ascii', 'w:hAnsi', 'w:cs', 'w:eastAsia']:
+            rFonts.set(_qn(attr), "Sakkal Majalla")
+        ex = rPr.find(_qn('w:rFonts'))
+        if ex is not None: rPr.remove(ex)
+        rPr.insert(0, rFonts)
+        run.font.size = _Pt(size)
+        run.font.bold = bold
+
+    members = [
+        ("01", pres,  rank_pres, "جامعة برج بوعريريج", "رئيساً"),
+        ("02", sup,   rank_sup,  "جامعة برج بوعريريج", "مشرفاً ومقرراً"),
+        ("03", ex1,   rank_ex1,  "جامعة برج بوعريريج", "ممتحناً"),
+        ("04", ex2,   rank_ex2,  "جامعة برج بوعريريج", "ممتحناً"),
+    ]
+    for ri, (num, name, rank, univ, role) in enumerate(members, 1):
+        if ri >= len(t.rows): break
+        row = t.rows[ri]
+        fill_cell(row.cells[0], num)
+        fill_cell(row.cells[1], name)
+        fill_cell(row.cells[2], rank)
+        fill_cell(row.cells[3], univ)
+        fill_cell(row.cells[4], role)
+
+    doc.save(out_path)
+
+    with open(out_path, 'rb') as f: result = f.read()
+    shutil.rmtree(work_dir)
+    return result
+
 
 df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
 if df_students.empty or df_memos.empty or df_prof_memos.empty:
@@ -5483,19 +5512,32 @@ elif st.session_state.user_type == "admin":
 
             df_memos_m = load_memos()
             df_profs_m = load_prof_memos()
+            df_students_m = load_students()
 
-            # بناء قاموس الرتب من شيت الأساتذة
+            # قاموس الرتب من شيت الأساتذة (عمود P)
             ranks_dict = {}
-            if not df_profs_m.empty and "الأستاذ" in df_profs_m.columns:
+            if not df_profs_m.empty:
                 rank_col = "الرتبة" if "الرتبة" in df_profs_m.columns else None
-                if rank_col:
+                name_col = "الأستاذ" if "الأستاذ" in df_profs_m.columns else None
+                if rank_col and name_col:
                     for _, pr in df_profs_m.iterrows():
-                        pname = str(pr.get("الأستاذ","")).strip()
+                        pname = str(pr.get(name_col,"")).strip()
                         prank = str(pr.get(rank_col,"")).strip()
-                        if pname and prank and pname not in ["","nan"]:
+                        if pname and pname not in ["","nan"]:
                             ranks_dict[pname] = prank
 
-            # المذكرات المبرمجة فقط
+            # قاموس بيانات الطلبة (رقم ملف الطالب عمود V، التخصص عمود G/E)
+            students_dict = {}  # رقم المذكرة -> {اسم, رقم ملف}
+            if not df_students_m.empty:
+                # عمود رقم ملف الطالب = V (الاسم في الشيت: "رقم ملف الطالب")
+                for _, sr in df_students_m.iterrows():
+                    memo_ref = str(sr.get("رقم المذكرة","")).strip()
+                    if not memo_ref or memo_ref in ["","nan"]: continue
+                    s_name = str(sr.get("الطالب","") or sr.get("اسم الطالب","")).strip()
+                    s_id   = str(sr.get("رقم ملف الطالب","")).strip()
+                    students_dict[memo_ref] = {"اسم": s_name, "رقم": s_id}
+
+            # المذكرات المبرمجة فقط — مرتبة حسب اليوم والتوقيت
             if "تاريخ المناقشة" in df_memos_m.columns:
                 scheduled_m = df_memos_m[
                     df_memos_m["تاريخ المناقشة"].astype(str).str.strip().apply(
@@ -5538,11 +5580,18 @@ elif st.session_state.user_type == "admin":
                             row_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==sel_memo_m].iloc[0]
                             seq = int(row_m["رقم_تسلسلي"])
                             memo_dict = row_m.to_dict()
-                            # إضافة الرتب
+                            # الرتب من شيت الأساتذة عمود P
                             memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
                             memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
                             memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
                             memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
+                            # بيانات الطالب من شيت الطلبة (رقم ملف الطالب عمود V)
+                            _s = students_dict.get(sel_memo_m, {})
+                            memo_dict["الطالب"] = _s.get("اسم", str(memo_dict.get("الطالب","")))
+                            memo_dict["رقم ملف الطالب"] = _s.get("رقم", "")
+                            # التخصص من عمود E في شيت المذكرات
+                            if "التخصص" not in memo_dict or not str(memo_dict.get("التخصص","")).strip():
+                                memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
                             docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                             fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
                             b64 = base64.b64encode(docx_bytes).decode()
@@ -5567,6 +5616,12 @@ elif st.session_state.user_type == "admin":
                                         memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
                                         memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
                                         memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
+                                        _mnum = str(row_m.get("رقم المذكرة","")).strip()
+                                        _s = students_dict.get(_mnum, {})
+                                        memo_dict["الطالب"] = _s.get("اسم", str(memo_dict.get("الطالب","")))
+                                        memo_dict["رقم ملف الطالب"] = _s.get("رقم", "")
+                                        if "التخصص" not in memo_dict or not str(memo_dict.get("التخصص","")).strip():
+                                            memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
                                         docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                                         mnum = str(row_m.get("رقم المذكرة","")).strip()
                                         fname = f"{str(seq).zfill(3)}_محضر_{mnum}.docx"
