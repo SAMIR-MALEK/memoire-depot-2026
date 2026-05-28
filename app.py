@@ -5582,6 +5582,8 @@ elif st.session_state.user_type == "admin":
                             memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
                             # أرقام الملفات من شيت الطلبة
                             _ids = students_ids.get(_norm_num(sel_memo_m), [])
+                            # debug
+                            st.caption(f"🔍 debug: sel={sel_memo_m} → norm={_norm_num(sel_memo_m)} | students_ids keys sample={list(students_ids.keys())[:5]} | ids={_ids}")
                             memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
                             memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
                             docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
