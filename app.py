@@ -3443,19 +3443,57 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
 
     doc_xml = _re_mahdar.sub(r'(<wp:anchor[^>]*>.*?QR Code.*?</wp:anchor>)', inline_img, doc_xml, flags=_re_mahdar.DOTALL)
 
-    # استبدال النصوص
+    # ── استبدال النصوص ──
     seq_str = str(seq_num).zfill(3)
-    doc_xml = _re_mahdar.sub(r'رقم المحضر: [\d\.]+', f'رقم المحضر: {seq_str}', doc_xml)
+
+    # رقم المحضر
+    doc_xml = _re_mahdar.sub(r'رقم المحضر:\s*[\w\.]+', f'رقم المحضر: {seq_str}', doc_xml)
+
+    # التاريخ
     doc_xml = doc_xml.replace('...../....../.......', def_date)
-    doc_xml = _re_mahdar.sub(r': ([\d]+|\.+) ', f': {memo_num} ', doc_xml, count=1)
-    # العنوان — استبدل النص القديم بالعنوان الجديد
-    doc_xml = _re_mahdar.sub(r'(<w:p[^>]*>(?:(?!<w:p[ >]).)*?الموسومة.*?</w:p>\s*<w:p[^>]*>)(.*?)(</w:p>)',
-        lambda m: m.group(1) + title + m.group(3), doc_xml, flags=_re_mahdar.DOTALL, count=1)
-    # التخصص
-    doc_xml = _re_mahdar.sub(r'(تخصص:)([^<]+)', m_fn := lambda m: m.group(1) + '\t' + specialty + ' ', doc_xml, count=1)
-    # الطالب
-    student_line = f'- {student_name}\t(رقم الطالب {student_id})'
-    student2_line = f'- {student2_name}\t(رقم الطالب {student2_id})' if student2_name and student2_name not in ["","nan"] else ''
+
+    # رقم المذكرة — ابحث عن النمط الموجود في القالب
+    doc_xml = _re_mahdar.sub(
+        r'(مذكرة الماستر رقم\s*:\s*)([^<\s]+)',
+        lambda m: m.group(1) + memo_num, doc_xml, count=1)
+
+    # عنوان المذكرة — الفقرة التي تلي "الموسومة" مباشرة
+    # نبحث عن محتوى <w:t> بعد "الموسومة" ونستبدله
+    def replace_title(xml, new_title):
+        idx = xml.find('الموسومة')
+        if idx == -1: return xml
+        # ابحث عن <w:t> التالية بعد "الموسومة"
+        p_end = xml.find('</w:p>', idx)
+        next_p_start = xml.find('<w:p ', p_end)
+        if next_p_start == -1: next_p_start = xml.find('<w:p>', p_end)
+        next_p_end = xml.find('</w:p>', next_p_start)
+        if next_p_end == -1: return xml
+        para_content = xml[next_p_start:next_p_end+6]
+        new_para = _re_mahdar.sub(r'(<w:t[^>]*>)[^<]*(</w:t>)',
+            lambda m: m.group(1) + new_title + m.group(2), para_content, count=1)
+        return xml[:next_p_start] + new_para + xml[next_p_end+6:]
+    doc_xml = replace_title(doc_xml, title)
+
+    # التخصص — ابحث عن النص بعد "تخصص:" واستبدله
+    doc_xml = _re_mahdar.sub(
+        r'(تخصص:)([^<]*)</w:t>',
+        lambda m: m.group(1) + specialty + '</w:t>', doc_xml, count=1)
+
+    # الطلاب — استبدل محتوى فقرة "للطالب (ين)"
+    def replace_student_line(xml, tag, name, sid):
+        idx = xml.find(tag)
+        if idx == -1: return xml
+        t_start = xml.rfind('<w:t', 0, idx)
+        t_end = xml.find('</w:t>', idx)
+        if t_start == -1 or t_end == -1: return xml
+        old_val = xml[t_start:t_end+6]
+        gt = old_val.find('>')
+        new_val = old_val[:gt+1] + f'- {name}\t(رقم الطالب {sid})' + '</w:t>'
+        return xml[:t_start] + new_val + xml[t_end+6:]
+
+    doc_xml = replace_student_line(doc_xml, 'الطالب 1', student_name, student_id)
+    if student2_name and student2_name not in ["","nan"]:
+        doc_xml = replace_student_line(doc_xml, 'الطالب 2', student2_name, student2_id)
 
     with open(f'{work_dir}/word/document.xml', 'w', encoding='utf-8') as f: f.write(doc_xml)
 
@@ -5526,15 +5564,21 @@ elif st.session_state.user_type == "admin":
                         if pname and pname not in ["","nan"]:
                             ranks_dict[pname] = prank
 
-            # قاموس بيانات الطلبة (رقم ملف الطالب عمود V، التخصص عمود G/E)
-            students_dict = {}  # رقم المذكرة -> {اسم, رقم ملف}
+            # قاموس بيانات الطلبة من شيت الطلبة
+            # رقم ملف الطالب = عمود V اسمه "رقم ملف الطالب"
+            students_dict = {}
             if not df_students_m.empty:
-                # عمود رقم ملف الطالب = V (الاسم في الشيت: "رقم ملف الطالب")
                 for _, sr in df_students_m.iterrows():
-                    memo_ref = str(sr.get("رقم المذكرة","")).strip()
+                    # نربط بالرقم التسلسلي أو رقم المذكرة
+                    memo_ref = str(sr.get("رقم المذكرة","") or sr.get("رقم","")).strip()
                     if not memo_ref or memo_ref in ["","nan"]: continue
-                    s_name = str(sr.get("الطالب","") or sr.get("اسم الطالب","")).strip()
-                    s_id   = str(sr.get("رقم ملف الطالب","")).strip()
+                    # اسم الطالب — ابحث عن العمود الصحيح
+                    s_name = ""
+                    for col in ["الطالب","اسم الطالب","الاسم واللقب","اللقب والاسم"]:
+                        val = str(sr.get(col,"")).strip()
+                        if val and val not in ["","nan"]:
+                            s_name = val; break
+                    s_id = str(sr.get("رقم ملف الطالب","")).strip()
                     students_dict[memo_ref] = {"اسم": s_name, "رقم": s_id}
 
             # المذكرات المبرمجة فقط — مرتبة حسب اليوم والتوقيت
@@ -5580,18 +5624,23 @@ elif st.session_state.user_type == "admin":
                             row_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==sel_memo_m].iloc[0]
                             seq = int(row_m["رقم_تسلسلي"])
                             memo_dict = row_m.to_dict()
+                            # عنوان المذكرة عمود D
+                            memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
+                            # التخصص عمود E
+                            memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
+                            # رابط الملف عمود U → QR
+                            memo_dict["رابط الملف"] = str(row_m.get("رابط الملف","")).strip()
                             # الرتب من شيت الأساتذة عمود P
                             memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
                             memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
                             memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
                             memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
-                            # بيانات الطالب من شيت الطلبة (رقم ملف الطالب عمود V)
+                            # بيانات الطالب من شيت الطلبة
                             _s = students_dict.get(sel_memo_m, {})
-                            memo_dict["الطالب"] = _s.get("اسم", str(memo_dict.get("الطالب","")))
+                            memo_dict["الطالب"] = _s.get("اسم", "")
                             memo_dict["رقم ملف الطالب"] = _s.get("رقم", "")
-                            # التخصص من عمود E في شيت المذكرات
-                            if "التخصص" not in memo_dict or not str(memo_dict.get("التخصص","")).strip():
-                                memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
+                            memo_dict["الطالب2"] = ""
+                            memo_dict["رقم ملف الطالب2"] = ""
                             docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                             fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
                             b64 = base64.b64encode(docx_bytes).decode()
@@ -5617,11 +5666,14 @@ elif st.session_state.user_type == "admin":
                                         memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
                                         memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
                                         _mnum = str(row_m.get("رقم المذكرة","")).strip()
+                                        memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
+                                        memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
+                                        memo_dict["رابط الملف"] = str(row_m.get("رابط الملف","")).strip()
                                         _s = students_dict.get(_mnum, {})
-                                        memo_dict["الطالب"] = _s.get("اسم", str(memo_dict.get("الطالب","")))
+                                        memo_dict["الطالب"] = _s.get("اسم", "")
                                         memo_dict["رقم ملف الطالب"] = _s.get("رقم", "")
-                                        if "التخصص" not in memo_dict or not str(memo_dict.get("التخصص","")).strip():
-                                            memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
+                                        memo_dict["الطالب2"] = ""
+                                        memo_dict["رقم ملف الطالب2"] = ""
                                         docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                                         mnum = str(row_m.get("رقم المذكرة","")).strip()
                                         fname = f"{str(seq).zfill(3)}_محضر_{mnum}.docx"
