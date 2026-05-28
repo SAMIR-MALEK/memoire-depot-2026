@@ -5506,22 +5506,17 @@ elif st.session_state.user_type == "admin":
                         if pname and pname not in ["","nan"]:
                             ranks_dict[pname] = prank
 
-            # قاموس بيانات الطلبة من شيت الطلبة
-            # رقم ملف الطالب = عمود V اسمه "رقم ملف الطالب"
-            students_dict = {}
+            # قاموس رقم ملف الطلبة من شيت الطلبة
+            # الربط: رقم المذكرة (عمود F في شيت الطلبة) = رقم المذكرة (عمود C في شيت المذكرات)
+            # قد يكون لمذكرة طالبان → صفان بنفس رقم المذكرة
+            students_ids = {}  # رقم المذكرة -> [رقم_ملف_1, رقم_ملف_2]
             if not df_students_m.empty:
                 for _, sr in df_students_m.iterrows():
-                    # نربط بالرقم التسلسلي أو رقم المذكرة
-                    memo_ref = str(sr.get("رقم المذكرة","") or sr.get("رقم","")).strip()
+                    memo_ref = str(sr.get("رقم المذكرة","")).strip()
                     if not memo_ref or memo_ref in ["","nan"]: continue
-                    # اسم الطالب — ابحث عن العمود الصحيح
-                    s_name = ""
-                    for col in ["الطالب","اسم الطالب","الاسم واللقب","اللقب والاسم"]:
-                        val = str(sr.get(col,"")).strip()
-                        if val and val not in ["","nan"]:
-                            s_name = val; break
                     s_id = str(sr.get("رقم ملف الطالب","")).strip()
-                    students_dict[memo_ref] = {"اسم": s_name, "رقم": s_id}
+                    if s_id and s_id not in ["","nan"]:
+                        students_ids.setdefault(memo_ref, []).append(s_id)
 
             # المذكرات المبرمجة فقط — مرتبة حسب اليوم والتوقيت
             if "تاريخ المناقشة" in df_memos_m.columns:
@@ -5577,12 +5572,13 @@ elif st.session_state.user_type == "admin":
                             memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
                             memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
                             memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
-                            # بيانات الطالب من شيت الطلبة
-                            _s = students_dict.get(sel_memo_m, {})
-                            memo_dict["الطالب"] = _s.get("اسم", "")
-                            memo_dict["رقم ملف الطالب"] = _s.get("رقم", "")
-                            memo_dict["الطالب2"] = ""
-                            memo_dict["رقم ملف الطالب2"] = ""
+                            # أسماء الطلبة من عمود A وB
+                            memo_dict["الطالب"]  = str(row_m.get("الطالب الأول","")).strip()
+                            memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
+                            # أرقام الملفات من شيت الطلبة
+                            _ids = students_ids.get(sel_memo_m, [])
+                            memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
+                            memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
                             docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                             fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
                             b64 = base64.b64encode(docx_bytes).decode()
@@ -5611,11 +5607,11 @@ elif st.session_state.user_type == "admin":
                                         memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
                                         memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
                                         memo_dict["رابط الملف"] = str(row_m.get("رابط الملف","")).strip()
-                                        _s = students_dict.get(_mnum, {})
-                                        memo_dict["الطالب"] = _s.get("اسم", "")
-                                        memo_dict["رقم ملف الطالب"] = _s.get("رقم", "")
-                                        memo_dict["الطالب2"] = ""
-                                        memo_dict["رقم ملف الطالب2"] = ""
+                                        memo_dict["الطالب"]  = str(row_m.get("الطالب الأول","")).strip()
+                                        memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
+                                        _ids = students_ids.get(_mnum, [])
+                                        memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
+                                        memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
                                         docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                                         mnum = str(row_m.get("رقم المذكرة","")).strip()
                                         fname = f"{str(seq).zfill(3)}_محضر_{mnum}.docx"
