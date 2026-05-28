@@ -11,3 +11,4 @@ PyMuPDF
 arabic-reshaper
 python-bidi
 ortools
+python-docx
