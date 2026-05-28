@@ -3422,22 +3422,17 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
     }
 
     def replace_in_para(p, mapping):
-        """يدمج كل runs الفقرة ثم يستبدل — يعالج الـ placeholders المقسّمة على runs"""
+        """يدمج كل runs الفقرة ثم يستبدل مع الحفاظ على التنسيق"""
         if not p.runs: return
         full = "".join(r.text for r in p.runs)
         changed = any(old in full for old in mapping)
         if changed:
-            # احفظ خصائص أول run (bold, size, font)
-            first_run = p.runs[0]
-            was_bold = first_run.bold
-            was_size = first_run.font.size
             for old, new in mapping.items():
                 full = full.replace(old, new)
+            # ابحث عن أول run له bold=True — استخدمه لوضع النص
+            target_run = next((r for r in p.runs if r.bold), None) or p.runs[0]
             for r in p.runs: r.text = ""
-            if p.runs:
-                p.runs[0].text = full
-                if was_bold is not None: p.runs[0].bold = was_bold
-                if was_size: p.runs[0].font.size = was_size
+            target_run.text = full
 
     for p in doc.paragraphs:
         replace_in_para(p, replacements)
@@ -5606,19 +5601,19 @@ elif st.session_state.user_type == "admin":
                             memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
                             # أرقام الملفات من شيت الطلبة
                             _ids = students_ids.get(_norm_num(sel_memo_m), [])
-                            # debug
-                            st.caption(f"🔍 debug: sel={sel_memo_m} → norm={_norm_num(sel_memo_m)} | students_ids keys sample={list(students_ids.keys())[:5]} | ids={_ids}")
                             memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
                             memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
                             docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                             fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
-                            b64 = base64.b64encode(docx_bytes).decode()
-                            st.markdown(f'''<div style="text-align:center;margin:12px 0;">
-                                <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}"
-                                   download="{fname}"
-                                   style="background:#2F6F7E;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
-                                   📥 تحميل المحضر #{str(seq).zfill(3)}
-                                </a></div>''', unsafe_allow_html=True)
+                            st.download_button(
+                                label=f"📥 تحميل المحضر #{str(seq).zfill(3)}",
+                                data=docx_bytes,
+                                file_name=fname,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                use_container_width=True,
+                                type="primary",
+                                key="dl_mahdar_one"
+                            )
 
                     with col_m2:
                         st.markdown("**📦 توليد كل المحاضر (ZIP):**")
