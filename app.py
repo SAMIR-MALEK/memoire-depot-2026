@@ -5562,27 +5562,39 @@ elif st.session_state.user_type == "admin":
 
                     with col_m1:
                         st.markdown("**📄 توليد محضر واحد:**")
-                        search_term = st.text_input("🔍 ابحث برقم المذكرة أو اسم المشرف أو اسم الطالب:", key="mahdar_search", placeholder="مثال: 43 أو رفاف أو بوزيد")
-                        sel_memo_m = None
-                        if search_term.strip():
-                            _mask = (
-                                scheduled_m["رقم المذكرة"].astype(str).str.contains(search_term.strip(), case=False, na=False) |
-                                scheduled_m.get("الأستاذ", pd.Series(dtype=str)).astype(str).str.contains(search_term.strip(), case=False, na=False) |
-                                scheduled_m.get("الطالب الأول", pd.Series(dtype=str)).astype(str).str.contains(search_term.strip(), case=False, na=False) |
-                                scheduled_m.get("الطالب الثاني", pd.Series(dtype=str)).astype(str).str.contains(search_term.strip(), case=False, na=False)
-                            )
-                            filtered_m = scheduled_m[_mask]
-                            if filtered_m.empty:
-                                st.warning("لا توجد نتائج")
-                            elif len(filtered_m) == 1:
-                                sel_memo_m = str(filtered_m.iloc[0]["رقم المذكرة"])
-                                st.success(f"✅ مذكرة {sel_memo_m} — {filtered_m.iloc[0].get('الطالب الأول','')}")
-                            else:
-                                st.info(f"📋 {len(filtered_m)} نتيجة — دقّق البحث")
-                                for _, _fr in filtered_m.iterrows():
-                                    st.caption(f"• {_fr['رقم المذكرة']} — {_fr.get('الطالب الأول','')} — {_fr.get('الأستاذ','')}")
+                        # بناء قائمة مرتبة رقمياً مع بيانات للعرض
+                        def _fmt_memo_option(r):
+                            num = str(r.get("رقم المذكرة","")).strip()
+                            prof = str(r.get("الأستاذ","")).strip()
+                            s1 = str(r.get("الطالب الأول","")).strip()
+                            s2 = str(r.get("الطالب الثاني","")).strip()
+                            parts = [num.zfill(3), prof, s1]
+                            if s2 and s2 not in ["","nan"]: parts.append(s2)
+                            return " | ".join(p for p in parts if p)
+
+                        # ترتيب رقمي
+                        try:
+                            _sorted_m = scheduled_m.copy()
+                            _sorted_m["_num"] = pd.to_numeric(_sorted_m["رقم المذكرة"], errors="coerce")
+                            _sorted_m = _sorted_m.sort_values("_num").drop(columns=["_num"])
+                        except:
+                            _sorted_m = scheduled_m.copy()
+
+                        _options = [_fmt_memo_option(r) for _, r in _sorted_m.iterrows()]
+                        _memo_nums = _sorted_m["رقم المذكرة"].astype(str).tolist()
+
+                        sel_option = st.selectbox(
+                            "اختر المذكرة (ابحث برقم أو مشرف أو طالب):",
+                            options=_options,
+                            index=None,
+                            placeholder="اكتب للبحث...",
+                            key="sel_mahdar_memo"
+                        )
+                        sel_memo_m = _memo_nums[_options.index(sel_option)] if sel_option else None
                         if st.button("📄 توليد المحضر", type="primary", use_container_width=True, key="gen_one_mahdar"):
-                            row_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==str(sel_memo_m)].iloc[0]
+                            _rows_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==str(sel_memo_m)]
+                            if _rows_m.empty: st.error("لم توجد المذكرة"); st.stop()
+                            row_m = _rows_m.iloc[0]
                             seq = int(row_m["رقم_تسلسلي"])
                             memo_dict = row_m.to_dict()
                             # عنوان المذكرة عمود D
