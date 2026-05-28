@@ -3071,6 +3071,19 @@ def delete_exception_row(sheet_name, row_idx):
         return True
     except: return False
 
+def _norm_date(d):
+    """تحويل التاريخ من أي صيغة إلى YYYY-MM-DD"""
+    d = str(d).strip()
+    if not d or d in ["","nan"]: return ""
+    # صيغة DD/MM/YYYY
+    import re as _re
+    m = _re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", d)
+    if m: return f"{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}"
+    # صيغة YYYY-MM-DD
+    m2 = _re.match(r"(\d{4})-(\d{2})-(\d{2})", d)
+    if m2: return d
+    return d
+
 def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
     """
     بناء قاموس القيود من الاستثناءات:
@@ -3096,11 +3109,11 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             mid = str(row.get("رقم المذكرة","")).strip()
             if not mid or mid in ["","nan"]: continue
             
-            day_f = str(row.get("يوم مثبت","")).strip()
+            day_f = _norm_date(str(row.get("يوم مثبت","")).strip())
             slot_f = str(row.get("توقيت مثبت","")).strip()
             room_f = str(row.get("قاعة مثبتة","")).strip()
-            early = str(row.get("أقرب تاريخ","")).strip()
-            late = str(row.get("أبعد تاريخ","")).strip()
+            early = _norm_date(str(row.get("أقرب تاريخ","")).strip())
+            late  = _norm_date(str(row.get("أبعد تاريخ","")).strip())
             
             if day_f and day_f not in ["","nan"] and slot_f and slot_f not in ["","nan"]:
                 fixed_slots[mid] = (day_f, slot_f, room_f if room_f not in ["","nan"] else None)
@@ -3129,11 +3142,11 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             
             if banned and banned not in ["","nan"]:
                 prof_banned_days.setdefault(prof, set()).update(
-                    [d.strip() for d in banned.split(",") if d.strip()])
+                    [_norm_date(d) for d in banned.split(",") if d.strip()])
             
             if allowed and allowed not in ["","nan"]:
                 prof_allowed_days[prof] = set(
-                    [d.strip() for d in allowed.split(",") if d.strip()])
+                    [_norm_date(d) for d in allowed.split(",") if d.strip()])
             
             if not_before and not_before not in ["","nan"]:
                 prof_not_before[prof] = not_before
@@ -3164,7 +3177,7 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             start_second = str(row.get("بداية الفترة الثانية","")).strip()
             if n_first and n_first not in ["","nan"] and start_second and start_second not in ["","nan"]:
                 try:
-                    prof_phase_split[prof] = (int(n_first), start_second)
+                    prof_phase_split[prof] = (int(n_first), _norm_date(start_second))
                 except: pass
             late = str(row.get("يقبل 18:00","")).strip()
             if late.lower() in ["نعم","yes","1","true"]:
@@ -3179,7 +3192,7 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             mid = str(row.get("رقم المذكرة","")).strip()
             alt = str(row.get("أيام بديلة","")).strip()
             if mid and alt and alt not in ["","nan"]:
-                memo_alt_days[mid] = set([d.strip() for d in alt.split(",") if d.strip()])
+                memo_alt_days[mid] = set([_norm_date(d) for d in alt.split(",") if d.strip()])
 
     return fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, memo_alt_days, profs_accept_18, profs_cluster_days
 
