@@ -3443,57 +3443,71 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
 
     doc_xml = _re_mahdar.sub(r'(<wp:anchor[^>]*>.*?QR Code.*?</wp:anchor>)', inline_img, doc_xml, flags=_re_mahdar.DOTALL)
 
-    # ── استبدال النصوص ──
+    # ── استبدال النصوص — بناءً على الهيكل الفعلي للقالب ──
     seq_str = str(seq_num).zfill(3)
 
-    # رقم المحضر
+    # 1. رقم المحضر
     doc_xml = _re_mahdar.sub(r'رقم المحضر:\s*[\w\.]+', f'رقم المحضر: {seq_str}', doc_xml)
 
-    # التاريخ
-    doc_xml = doc_xml.replace('...../....../.......', def_date)
+    # 2. التاريخ
+    doc_xml = doc_xml.replace('...../......./.......', def_date)
 
-    # رقم المذكرة — ابحث عن النمط الموجود في القالب
+    # 3. رقم المذكرة
     doc_xml = _re_mahdar.sub(
         r'(مذكرة الماستر رقم\s*:\s*)([^<\s]+)',
         lambda m: m.group(1) + memo_num, doc_xml, count=1)
 
-    # عنوان المذكرة — الفقرة التي تلي "الموسومة" مباشرة
-    # نبحث عن محتوى <w:t> بعد "الموسومة" ونستبدله
+    # 4. عنوان المذكرة — استبدل كل w:t في الفقرة التالية لـ"الموسومة"
     def replace_title(xml, new_title):
         idx = xml.find('الموسومة')
         if idx == -1: return xml
-        # ابحث عن <w:t> التالية بعد "الموسومة"
-        p_end = xml.find('</w:p>', idx)
-        next_p_start = xml.find('<w:p ', p_end)
-        if next_p_start == -1: next_p_start = xml.find('<w:p>', p_end)
-        next_p_end = xml.find('</w:p>', next_p_start)
-        if next_p_end == -1: return xml
-        para_content = xml[next_p_start:next_p_end+6]
-        new_para = _re_mahdar.sub(r'(<w:t[^>]*>)[^<]*(</w:t>)',
-            lambda m: m.group(1) + new_title + m.group(2), para_content, count=1)
-        return xml[:next_p_start] + new_para + xml[next_p_end+6:]
+        p_end = xml.find('</w:p>', idx) + 6
+        next_p_end = xml.find('</w:p>', p_end) + 6
+        para = xml[p_end:next_p_end]
+        # استبدل أول w:t غير فارغة
+        new_para = _re_mahdar.sub(
+            r'(<w:t[^>]*>)[^<]+(</w:t>)',
+            lambda m: m.group(1) + new_title + m.group(2),
+            para, count=1)
+        return xml[:p_end] + new_para + xml[next_p_end:]
     doc_xml = replace_title(doc_xml, title)
 
-    # التخصص — ابحث عن النص بعد "تخصص:" واستبدله
+    # 5. التخصص — استبدل النص الأحمر "قانون أعمال" مباشرة
     doc_xml = _re_mahdar.sub(
-        r'(تخصص:)([^<]*)</w:t>',
-        lambda m: m.group(1) + specialty + '</w:t>', doc_xml, count=1)
+        r'(<w:t[^>]*>)قانون أعمال(</w:t>)',
+        lambda m: m.group(1) + specialty + m.group(2),
+        doc_xml, count=1)
 
-    # الطلاب — استبدل محتوى فقرة "للطالب (ين)"
-    def replace_student_line(xml, tag, name, sid):
-        idx = xml.find(tag)
-        if idx == -1: return xml
-        t_start = xml.rfind('<w:t', 0, idx)
-        t_end = xml.find('</w:t>', idx)
-        if t_start == -1 or t_end == -1: return xml
-        old_val = xml[t_start:t_end+6]
-        gt = old_val.find('>')
-        new_val = old_val[:gt+1] + f'- {name}\t(رقم الطالب {sid})' + '</w:t>'
-        return xml[:t_start] + new_val + xml[t_end+6:]
+    # 6. الطالب 1 — استبدل "- بن علي محمد" و"(رقم الطالب 20210001)"
+    doc_xml = _re_mahdar.sub(
+        r'(<w:t[^>]*>)- بن علي محمد(</w:t>)',
+        lambda m: m.group(1) + f'- {student_name}' + m.group(2),
+        doc_xml, count=1)
+    doc_xml = _re_mahdar.sub(
+        r'(<w:t[^>]*>)\(رقم الطالب \d+(\))</w:t>',
+        lambda m: f'{m.group(1)}(رقم الطالب {student_id}{m.group(2)}',
+        doc_xml, count=1)
 
-    doc_xml = replace_student_line(doc_xml, 'الطالب 1', student_name, student_id)
+    # 7. الطالب 2 — نفس المنطق للتكرار الثاني
     if student2_name and student2_name not in ["","nan"]:
-        doc_xml = replace_student_line(doc_xml, 'الطالب 2', student2_name, student2_id)
+        doc_xml = _re_mahdar.sub(
+            r'(<w:t[^>]*>)- بن علي محمد(</w:t>)',
+            lambda m: m.group(1) + f'- {student2_name}' + m.group(2),
+            doc_xml, count=1)
+        doc_xml = _re_mahdar.sub(
+            r'(<w:t[^>]*>)\(رقم الطالب \d+(\))</w:t>',
+            lambda m: f'{m.group(1)}(رقم الطالب {student2_id}{m.group(2)}',
+            doc_xml, count=1)
+    else:
+        # إذا طالب واحد — امسح السطر الثاني
+        doc_xml = _re_mahdar.sub(
+            r'(<w:t[^>]*>)- بن علي محمد(</w:t>)',
+            lambda m: m.group(1) + '' + m.group(2),
+            doc_xml, count=1)
+        doc_xml = _re_mahdar.sub(
+            r'(<w:t[^>]*>)\(رقم الطالب \d+(\))</w:t>',
+            lambda m: m.group(1) + '' + m.group(2),
+            doc_xml, count=1)
 
     with open(f'{work_dir}/word/document.xml', 'w', encoding='utf-8') as f: f.write(doc_xml)
 
