@@ -3416,8 +3416,9 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         "{{SPECIALTY}}":   specialty,
         "{{STUDENT1}}":    student_name,
         "{{STUDENT1_ID}}": student_id,
-        "{{STUDENT2}}":    student2_name if has_student2 else "",
-        "{{STUDENT2_ID}}": student2_id   if has_student2 else "",
+        "{{STUDENT2}}":       student2_name if has_student2 else "",
+        "{{STUDENT2_ID}}":    student2_id   if has_student2 else "",
+        "{{STUDENTS_LABEL}}": memo_data.get("STUDENTS_LABEL", "للطالبين:" if has_student2 else "للطالب:"),
         "...../......./......": def_date,
     }
 
@@ -5562,16 +5563,6 @@ elif st.session_state.user_type == "admin":
 
                     with col_m1:
                         st.markdown("**📄 توليد محضر واحد:**")
-                        # بناء قائمة مرتبة رقمياً مع بيانات للعرض
-                        def _fmt_memo_option(r):
-                            num = str(r.get("رقم المذكرة","")).strip()
-                            prof = str(r.get("الأستاذ","")).strip()
-                            s1 = str(r.get("الطالب الأول","")).strip()
-                            s2 = str(r.get("الطالب الثاني","")).strip()
-                            parts = [num.zfill(3), prof, s1]
-                            if s2 and s2 not in ["","nan"]: parts.append(s2)
-                            return " | ".join(p for p in parts if p)
-
                         # ترتيب رقمي
                         try:
                             _sorted_m = scheduled_m.copy()
@@ -5580,52 +5571,59 @@ elif st.session_state.user_type == "admin":
                         except:
                             _sorted_m = scheduled_m.copy()
 
-                        _options = [_fmt_memo_option(r) for _, r in _sorted_m.iterrows()]
+                        def _fmt_option(r):
+                            num = str(r.get("رقم المذكرة","")).strip()
+                            prof = str(r.get("الأستاذ","")).strip()
+                            s1 = str(r.get("الطالب الأول","")).strip()
+                            s2 = str(r.get("الطالب الثاني","")).strip()
+                            parts = [num.zfill(3), prof, s1]
+                            if s2 and s2 not in ["","nan"]: parts.append(s2)
+                            return " | ".join(p for p in parts if p)
+
+                        _options = [_fmt_option(r) for _, r in _sorted_m.iterrows()]
                         _memo_nums = _sorted_m["رقم المذكرة"].astype(str).tolist()
 
                         sel_option = st.selectbox(
                             "اختر المذكرة (ابحث برقم أو مشرف أو طالب):",
-                            options=_options,
-                            index=None,
+                            options=_options, index=None,
                             placeholder="اكتب للبحث...",
                             key="sel_mahdar_memo"
                         )
                         sel_memo_m = _memo_nums[_options.index(sel_option)] if sel_option else None
-                        if st.button("📄 توليد المحضر", type="primary", use_container_width=True, key="gen_one_mahdar"):
+
+                        # توليد مباشر عند الاختيار
+                        if sel_memo_m and template_bytes:
                             _rows_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==str(sel_memo_m)]
-                            if _rows_m.empty: st.error("لم توجد المذكرة"); st.stop()
-                            row_m = _rows_m.iloc[0]
-                            seq = int(row_m["رقم_تسلسلي"])
-                            memo_dict = row_m.to_dict()
-                            # عنوان المذكرة عمود D
-                            memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
-                            # التخصص عمود E
-                            memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
-                            # رابط الملف عمود U → QR
-                            memo_dict["رابط الملف"] = str(row_m.get("رابط الملف","")).strip()
-                            # الرتب من شيت الأساتذة عمود P
-                            memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
-                            memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
-                            memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
-                            memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
-                            # أسماء الطلبة من عمود A وB
-                            memo_dict["الطالب"]  = str(row_m.get("الطالب الأول","")).strip()
-                            memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
-                            # أرقام الملفات من شيت الطلبة
-                            _ids = students_ids.get(_norm_num(sel_memo_m), [])
-                            memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
-                            memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
-                            docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
-                            fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
-                            st.download_button(
-                                label=f"📥 تحميل المحضر #{str(seq).zfill(3)}",
-                                data=docx_bytes,
-                                file_name=fname,
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                use_container_width=True,
-                                type="primary",
-                                key="dl_mahdar_one"
-                            )
+                            if not _rows_m.empty:
+                                row_m = _rows_m.iloc[0]
+                                seq = int(row_m["رقم_تسلسلي"])
+                                memo_dict = row_m.to_dict()
+                                memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
+                                memo_dict["التخصص"]        = str(row_m.get("التخصص","")).strip()
+                                memo_dict["رابط الملف"]    = str(row_m.get("رابط الملف","")).strip()
+                                memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
+                                memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
+                                memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
+                                memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
+                                memo_dict["الطالب"]        = str(row_m.get("الطالب الأول","")).strip()
+                                memo_dict["الطالب2"]       = str(row_m.get("الطالب الثاني","")).strip()
+                                _ids = students_ids.get(_norm_num(sel_memo_m), [])
+                                memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
+                                memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
+                                _has_s2_m = bool(memo_dict["الطالب2"] and memo_dict["الطالب2"] not in ["","nan","-"])
+                                memo_dict["STUDENTS_LABEL"] = "للطالبين:" if _has_s2_m else "للطالب:"
+                                with st.spinner("⏳ جاري التوليد..."):
+                                    docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
+                                fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
+                                st.download_button(
+                                    label=f"📥 تحميل المحضر #{str(seq).zfill(3)}",
+                                    data=docx_bytes,
+                                    file_name=fname,
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    use_container_width=True,
+                                    type="primary",
+                                    key="dl_mahdar_one"
+                                )
 
                     with col_m2:
                         st.markdown("**📦 توليد كل المحاضر (ZIP):**")
