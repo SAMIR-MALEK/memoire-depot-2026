@@ -230,7 +230,7 @@ STUDENTS_SHEET_ID   = "1_uhwdyOERttICR6uqftU9eyJrmetpA6idL3vz5WtWX4"
 MEMOS_SHEET_ID      = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"
 PROF_MEMOS_SHEET_ID = "1OnZi1o-oPMUI_W_Ew-op0a1uOhSj006hw_2jrMD6FSE"
 REQUESTS_SHEET_ID   = "1sTJ6BZRM4Qgt0w2xUkpFZqquL-hfriMYTSN3x1_12_o"
-STUDENTS_RANGE  = "الطلبة!A1:V1000"
+STUDENTS_RANGE  = "Feuille 1!A1:V1000"
 MEMOS_RANGE     = "Feuille 1!A1:AI1000"
 PROF_MEMOS_RANGE= "Feuille 1!A1:S1000"
 REQUESTS_RANGE  = "Feuille 1!A1:K1000"
@@ -4579,7 +4579,7 @@ elif st.session_state.user_type == "admin":
         df_students = load_students()
         st_s=len(df_students); t_m=len(df_memos); r_m=len(df_memos[df_memos["تم التسجيل"].astype(str).str.strip()=="نعم"])
         a_m=t_m-r_m; t_p=len(df_prof_memos["الأستاذ"].unique())
-        memo_col=df_students["رقم المذكرة"].astype(str).str.strip()
+        memo_col=df_students["رقم المذكرة"].astype(str).str.strip() if "رقم المذكرة" in df_students.columns else pd.Series(dtype=str)
         reg_st=(memo_col!="").sum(); unreg_st=(memo_col=="").sum()
         st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
         # إحصائيات المناقشات
