@@ -2707,17 +2707,24 @@ def schedule_to_rows(schedule, df_memos):
 def save_full_schedule_to_sheets(schedule, df_memos):
     """حفظ الجدول الكامل في Google Sheets"""
     try:
+        # أولاً: اقرأ الشيت الكامل للحصول على الصفوف الحقيقية
+        all_memos = load_memos()
+        # بناء خريطة رقم المذكرة → رقم الصف الحقيقي في الشيت
+        row_map = {}
+        for i, (_, row) in enumerate(all_memos.iterrows()):
+            mid = str(row.get("رقم المذكرة","")).strip()
+            if mid and mid not in ["","nan"]:
+                row_map[mid] = i + 2  # +2 لأن الصف الأول هو الرأس
+
         updates = []
-        for i, (_, row) in enumerate(df_memos.iterrows()):
-            mid = str(row["رقم المذكرة"])
-            slot = schedule.get(mid)
+        for mid, slot in schedule.items():
             if not slot: continue
-            row_idx = i + 2
+            row_idx = row_map.get(str(mid))
+            if not row_idx: continue
             updates += [
                 {"range": f"Feuille 1!W{row_idx}", "values": [[slot[0]]]},
                 {"range": f"Feuille 1!X{row_idx}", "values": [[slot[1]]]},
-                {"range": f"Feuille 1!Y{row_idx}", "values": [[slot[2]]]},
-                # AD (نشر البرنامج) لا يُعدّل تلقائياً — الإدارة تتحكم فيه يدوياً
+                {"range": f"Feuille 1!Y{row_idx}", "values": [[slot[2] if slot[2] else ""]]},
             ]
         if updates:
             for i in range(0, len(updates), 100):
