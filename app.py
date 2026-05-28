@@ -3361,6 +3361,132 @@ def validate_schedule(schedule, memo_members, days, slots_per_day):
     return violations
 
 
+
+import io, zipfile
+from docx import Document
+from docx.oxml.ns import qn
+from copy import deepcopy
+
+MAHDAR_TEMPLATE_PATH = "template_mahdar.docx"
+
+def set_cell_text(cell, text):
+    """كتابة نص في خلية مع الحفاظ على التنسيق"""
+    for p in cell.paragraphs:
+        for run in p.runs:
+            run.text = ""
+    if cell.paragraphs:
+        run = cell.paragraphs[0].add_run(text)
+        run.font.name = "Traditional Arabic"
+        cell.paragraphs[0].alignment = 1  # center
+
+def generate_mahdar(memo_data, seq_num, template_bytes):
+    """توليد محضر مناقشة واحد"""
+    doc = Document(io.BytesIO(template_bytes))
+    
+    # ── بيانات المذكرة ──
+    memo_num    = str(memo_data.get("رقم المذكرة","")).strip()
+    title       = str(memo_data.get("عنوان المذكرة","")).strip()
+    specialty   = str(memo_data.get("التخصص","")).strip()
+    student1_ln = str(memo_data.get("لقب الطالب 1","")).strip()
+    student1_fn = str(memo_data.get("اسم الطالب 1","")).strip()
+    student2_ln = str(memo_data.get("لقب الطالب 2","")).strip()
+    student2_fn = str(memo_data.get("اسم الطالب 2","")).strip()
+    def_date    = str(memo_data.get("تاريخ المناقشة","")).strip()
+    def_time    = str(memo_data.get("توقيت المناقشة","")).strip()
+    def_room    = str(memo_data.get("القاعة","")).strip()
+    
+    # أعضاء اللجنة
+    pres   = str(memo_data.get("الرئيس","")).strip()
+    sup    = str(memo_data.get("الأستاذ","")).strip()
+    ex1    = str(memo_data.get("المناقش1","")).strip()
+    ex2    = str(memo_data.get("المناقش2","")).strip()
+    
+    # الرتب (من شيت الأساتذة)
+    rank_pres = str(memo_data.get("رتبة_الرئيس","")).strip()
+    rank_sup  = str(memo_data.get("رتبة_المشرف","")).strip()
+    rank_ex1  = str(memo_data.get("رتبة_المناقش1","")).strip()
+    rank_ex2  = str(memo_data.get("رتبة_المناقش2","")).strip()
+
+    # ── ملء الفقرات ──
+    for i, p in enumerate(doc.paragraphs):
+        txt = p.text
+        if "رقم المحضر" in txt:
+            for run in p.runs:
+                run.text = run.text.replace(".......", str(seq_num).zfill(3))
+        elif "وبتاريخ" in txt:
+            new_txt = txt.replace("...../......./.......", f"{def_date}")
+            for run in p.runs:
+                if "...../......./......." in run.text:
+                    run.text = run.text.replace("...../......./.......", def_date)
+        elif "مذكرة الماستر رقم" in txt:
+            for run in p.runs:
+                if "....................." in run.text:
+                    run.text = run.text.replace("......................", memo_num)
+        elif "الموسومة" in txt:
+            # العنوان في الفقرة التالية
+            pass
+    
+    # العنوان في P5 أو P6
+    title_written = False
+    for i, p in enumerate(doc.paragraphs):
+        if "الموسومة" in p.text:
+            # الفقرة التالية هي العنوان
+            if i+1 < len(doc.paragraphs):
+                tp = doc.paragraphs[i+1]
+                for run in tp.runs:
+                    run.text = ""
+                if tp.runs:
+                    tp.runs[0].text = title
+                else:
+                    tp.add_run(title)
+            title_written = True
+            break
+    
+    # التخصص
+    for p in doc.paragraphs:
+        if "تخصص:" in p.text:
+            for run in p.runs:
+                if "تخصص:" in run.text and len(run.text) < 20:
+                    run.text = f"تخصص: {specialty}"
+    
+    # الطلاب
+    students_str = f"{student1_ln} {student1_fn}"
+    if student2_ln and student2_ln not in ["","nan"]:
+        students_str += f"\nو {student2_ln} {student2_fn}"
+    for i, p in enumerate(doc.paragraphs):
+        if "للطالب (ين):" in p.text:
+            if i+1 < len(doc.paragraphs):
+                sp = doc.paragraphs[i+1]
+                for run in sp.runs:
+                    run.text = ""
+                if sp.runs:
+                    sp.runs[0].text = students_str
+                else:
+                    sp.add_run(students_str)
+            break
+
+    # ── ملء جدول اللجنة ──
+    t = doc.tables[0]
+    members = [
+        ("01", pres,  rank_pres, "برج بوعريريج", "رئيسا"),
+        ("02", sup,   rank_sup,  "برج بوعريريج", "مشرفا"),
+        ("03", ex1,   rank_ex1,  "برج بوعريريج", "ممتحنا"),
+        ("04", ex2,   rank_ex2,  "برج بوعريريج", "ممتحنا"),
+    ]
+    for row_idx, (num, name, rank, univ, role) in enumerate(members, start=1):
+        if row_idx >= len(t.rows): break
+        row = t.rows[row_idx]
+        set_cell_text(row.cells[0], num)
+        set_cell_text(row.cells[1], name)
+        set_cell_text(row.cells[2], rank)
+        set_cell_text(row.cells[3], univ)
+        set_cell_text(row.cells[4], role)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf.read()
+
 df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
 if df_students.empty or df_memos.empty or df_prof_memos.empty:
     st.error("❌ خطأ في تحميل البيانات."); st.stop()
@@ -4464,7 +4590,7 @@ elif st.session_state.user_type == "admin":
             <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
         </div>''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab9,tab_stats=st.tabs(["📅 جدولة ذكية","📊 إحصائيات الأساتذة"])
+        tab9,tab_stats,tab_mahdar=st.tabs(["📅 جدولة ذكية","📊 إحصائيات الأساتذة","📄 المحاضر"])
 
         # ================================================================
         # TAB جدولة ذكية
@@ -5351,6 +5477,117 @@ elif st.session_state.user_type == "admin":
                 st.markdown("##### 📊 أعلى 20 أستاذاً")
                 top20 = df_show.nlargest(20,"المجموع").set_index("الأستاذ")[["مشرف","رئيس","مناقش"]]
                 st.bar_chart(top20, color=["#2F9EA0","#FFD700","#818CF8"])
+
+        with tab_mahdar:
+            st.subheader("📄 توليد محاضر المناقشة")
+
+            df_memos_m = load_memos()
+            df_profs_m = load_prof_memos()
+
+            # بناء قاموس الرتب من شيت الأساتذة
+            ranks_dict = {}
+            if not df_profs_m.empty and "الأستاذ" in df_profs_m.columns:
+                rank_col = "الرتبة" if "الرتبة" in df_profs_m.columns else None
+                if rank_col:
+                    for _, pr in df_profs_m.iterrows():
+                        pname = str(pr.get("الأستاذ","")).strip()
+                        prank = str(pr.get(rank_col,"")).strip()
+                        if pname and prank and pname not in ["","nan"]:
+                            ranks_dict[pname] = prank
+
+            # المذكرات المبرمجة فقط
+            if "تاريخ المناقشة" in df_memos_m.columns:
+                scheduled_m = df_memos_m[
+                    df_memos_m["تاريخ المناقشة"].astype(str).str.strip().apply(
+                        lambda x: x not in ["","nan"])
+                ].copy()
+                # ترتيب حسب اليوم ثم التوقيت
+                scheduled_m = scheduled_m.sort_values(
+                    ["تاريخ المناقشة","توقيت المناقشة"],
+                    na_position="last"
+                ).reset_index(drop=True)
+                scheduled_m["رقم_تسلسلي"] = range(1, len(scheduled_m)+1)
+            else:
+                scheduled_m = pd.DataFrame()
+
+            if scheduled_m.empty:
+                st.warning("لا توجد مذكرات مبرمجة بعد.")
+            else:
+                st.success(f"✅ {len(scheduled_m)} مذكرة مبرمجة — جاهزة للمحاضر")
+
+                # تحميل القالب
+                import base64, io, zipfile
+                try:
+                    import requests as _req
+                    _template_url = "https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/template_mahdar.docx"
+                    _resp = _req.get(_template_url, timeout=10)
+                    template_bytes = _resp.content
+                    st.success("✅ القالب محمّل من GitHub")
+                except:
+                    st.error("❌ تعذّر تحميل القالب — تأكد من رفع template_mahdar.docx على GitHub")
+                    template_bytes = None
+
+                if template_bytes:
+                    col_m1, col_m2 = st.columns(2)
+
+                    with col_m1:
+                        st.markdown("**📄 توليد محضر واحد:**")
+                        memo_list_m = scheduled_m["رقم المذكرة"].astype(str).tolist()
+                        sel_memo_m = st.selectbox("اختر المذكرة:", memo_list_m, key="sel_mahdar_memo")
+                        if st.button("📄 توليد المحضر", type="primary", use_container_width=True, key="gen_one_mahdar"):
+                            row_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==sel_memo_m].iloc[0]
+                            seq = int(row_m["رقم_تسلسلي"])
+                            memo_dict = row_m.to_dict()
+                            # إضافة الرتب
+                            memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
+                            memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
+                            memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
+                            memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
+                            docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
+                            fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
+                            b64 = base64.b64encode(docx_bytes).decode()
+                            st.markdown(f'''<div style="text-align:center;margin:12px 0;">
+                                <a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}"
+                                   download="{fname}"
+                                   style="background:#2F6F7E;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
+                                   📥 تحميل المحضر #{str(seq).zfill(3)}
+                                </a></div>''', unsafe_allow_html=True)
+
+                    with col_m2:
+                        st.markdown("**📦 توليد كل المحاضر (ZIP):**")
+                        st.caption(f"سيُولَّد {len(scheduled_m)} محضر مرتب حسب اليوم والتوقيت")
+                        if st.button("📦 توليد الكل", use_container_width=True, key="gen_all_mahdar"):
+                            with st.spinner("⏳ جاري توليد المحاضر..."):
+                                zip_buf = io.BytesIO()
+                                with zipfile.ZipFile(zip_buf, "w") as zf:
+                                    for _, row_m in scheduled_m.iterrows():
+                                        seq = int(row_m["رقم_تسلسلي"])
+                                        memo_dict = row_m.to_dict()
+                                        memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
+                                        memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
+                                        memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
+                                        memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
+                                        docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
+                                        mnum = str(row_m.get("رقم المذكرة","")).strip()
+                                        fname = f"{str(seq).zfill(3)}_محضر_{mnum}.docx"
+                                        zf.writestr(fname, docx_bytes)
+                            zip_buf.seek(0)
+                            b64z = base64.b64encode(zip_buf.read()).decode()
+                            st.markdown(f'''<div style="text-align:center;margin:12px 0;">
+                                <a href="data:application/zip;base64,{b64z}"
+                                   download="محاضر_المناقشات_2026.zip"
+                                   style="background:#10B981;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
+                                   📦 تحميل كل المحاضر ({len(scheduled_m)} محضر)
+                                </a></div>''', unsafe_allow_html=True)
+
+                    # جدول المحاضر مع الأرقام التسلسلية
+                    st.markdown("---")
+                    st.markdown("**📋 قائمة المحاضر بالأرقام التسلسلية:**")
+                    cols_show = ["رقم_تسلسلي","رقم المذكرة","تاريخ المناقشة","توقيت المناقشة","القاعة","الأستاذ","الرئيس","المناقش1","المناقش2"]
+                    cols_available = [c for c in cols_show if c in scheduled_m.columns]
+                    st.dataframe(scheduled_m[cols_available], use_container_width=True, hide_index=True,
+                        column_config={"رقم_تسلسلي": st.column_config.NumberColumn("# التسلسلي", width="small")})
+
 
 st.markdown("---")
 st.markdown('<div style="text-align:center;color:#ffffff;font-size:11px;padding:16px;">إشراف مسؤول الميدان البروفيسور لخضر رفاف ©</div>', unsafe_allow_html=True)
