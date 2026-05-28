@@ -4573,6 +4573,7 @@ elif st.session_state.user_type == "admin":
         if st.button("🎓 برنامج المناقشات",key="open_wizard"):
             st.session_state['admin_mode']='defense_wizard'; st.session_state['wizard_step']=1; st.rerun()
         st.markdown("<br>", unsafe_allow_html=True)
+        df_students = load_students()
         st_s=len(df_students); t_m=len(df_memos); r_m=len(df_memos[df_memos["تم التسجيل"].astype(str).str.strip()=="نعم"])
         a_m=t_m-r_m; t_p=len(df_prof_memos["الأستاذ"].unique())
         memo_col=df_students["رقم المذكرة"].astype(str).str.strip()
