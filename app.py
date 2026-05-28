@@ -3377,24 +3377,13 @@ def generate_qr_png(url):
     return buf.getvalue()
 
 def generate_mahdar(memo_data, seq_num, template_bytes):
-    """
-    توليد محضر مناقشة من القالب
-    يُرجع bytes
-    """
-    from docx import Document as _DocxDoc
-    from docx.oxml import OxmlElement as _OxmlElement
+    """توليد محضر مناقشة من القالب بـ placeholders"""
+    import io as _io
+    from docx import Document as _Doc
+    from docx.oxml import OxmlElement as _Elem
     from docx.oxml.ns import qn as _qn
-    from docx.shared import Pt as _Pt
+    from docx.shared import Pt as _Pt, Cm as _Cm
 
-    work_dir = _tempfile.mkdtemp()
-    import shutil, os
-
-    # استخراج القالب من bytes
-    tmpl_path = os.path.join(work_dir, 'template.docx')
-    with open(tmpl_path, 'wb') as f: f.write(template_bytes)
-    with zipfile.ZipFile(tmpl_path) as z: z.extractall(work_dir)
-
-    # ── بيانات ──
     memo_num     = str(memo_data.get("رقم المذكرة","")).strip()
     title        = str(memo_data.get("عنوان المذكرة","")).strip()
     specialty    = str(memo_data.get("التخصص","")).strip()
@@ -3403,154 +3392,95 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
     student_id   = str(memo_data.get("رقم ملف الطالب","")).strip()
     student2_name= str(memo_data.get("الطالب2","")).strip()
     student2_id  = str(memo_data.get("رقم ملف الطالب2","")).strip()
-    drive_link   = str(memo_data.get("رابط الملف","")).strip()  # عمود U
-    pres         = str(memo_data.get("الرئيس","")).strip()
-    sup          = str(memo_data.get("الأستاذ","")).strip()
-    ex1          = str(memo_data.get("المناقش1","")).strip()
-    ex2          = str(memo_data.get("المناقش2","")).strip()
-    rank_pres    = str(memo_data.get("رتبة_الرئيس","")).strip()
-    rank_sup     = str(memo_data.get("رتبة_المشرف","")).strip()
-    rank_ex1     = str(memo_data.get("رتبة_المناقش1","")).strip()
-    rank_ex2     = str(memo_data.get("رتبة_المناقش2","")).strip()
+    drive_link   = str(memo_data.get("رابط الملف","")).strip()
+    pres    = str(memo_data.get("الرئيس","")).strip()
+    sup     = str(memo_data.get("الأستاذ","")).strip()
+    ex1     = str(memo_data.get("المناقش1","")).strip()
+    ex2     = str(memo_data.get("المناقش2","")).strip()
+    rank_p  = str(memo_data.get("رتبة_الرئيس","")).strip()
+    rank_s  = str(memo_data.get("رتبة_المشرف","")).strip()
+    rank_e1 = str(memo_data.get("رتبة_المناقش1","")).strip()
+    rank_e2 = str(memo_data.get("رتبة_المناقش2","")).strip()
 
-    # ── QR Code → رابط الملف عمود U ──
-    qr_url = drive_link if drive_link and drive_link not in ["","nan"] else f"مذكرة_{memo_num}"
-    qr_png = generate_qr_png(qr_url)
-    os.makedirs(f'{work_dir}/word/media', exist_ok=True)
-    with open(f'{work_dir}/word/media/qr_code.png', 'wb') as f: f.write(qr_png)
+    has_student2 = bool(student2_name and student2_name not in ["","nan","-"])
 
-    # Content type
-    ct_path = f'{work_dir}/[Content_Types].xml'
-    with open(ct_path, encoding='utf-8') as f: ct_xml = f.read()
-    if 'qr_code.png' not in ct_xml and 'Extension="png"' not in ct_xml:
-        ct_xml = ct_xml.replace('</Types>',
-            '<Override PartName="/word/media/qr_code.png" ContentType="image/png"/></Types>')
-    with open(ct_path, 'w', encoding='utf-8') as f: f.write(ct_xml)
-
-    # Relationship
-    rels_path = f'{work_dir}/word/_rels/document.xml.rels'
-    with open(rels_path, encoding='utf-8') as f: rels_xml = f.read()
-    new_rid = "rId_qr99"
-    if new_rid not in rels_xml:
-        rels_xml = rels_xml.replace('</Relationships>',
-            f'<Relationship Id="{new_rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/qr_code.png"/></Relationships>')
-    with open(rels_path, 'w', encoding='utf-8') as f: f.write(rels_xml)
-
-    # استبدال QR textbox بـ inline image
-    with open(f'{work_dir}/word/document.xml', encoding='utf-8') as f: doc_xml = f.read()
-
-    inline_img = f'<w:drawing xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0"><wp:extent cx="914400" cy="914400"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="9999" name="QRCode"/><wp:cNvGraphicFramePr/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="9998" name="QRCode"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="{new_rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>'
-
-    doc_xml = _re_mahdar.sub(r'(<wp:anchor[^>]*>.*?QR Code.*?</wp:anchor>)', inline_img, doc_xml, flags=_re_mahdar.DOTALL)
-
-    # ── استبدال النصوص — بناءً على الهيكل الفعلي للقالب ──
+    doc = _Doc(_io.BytesIO(template_bytes))
     seq_str = str(seq_num).zfill(3)
 
-    # 1. رقم المحضر
-    doc_xml = _re_mahdar.sub(r'رقم المحضر:\s*[\w\.]+', f'رقم المحضر: {seq_str}', doc_xml)
+    # ── Placeholders ──
+    replacements = {
+        "{{SEQ}}":         seq_str,
+        "{{DATE}}":        def_date,
+        "{{MEMO_NUM}}":    memo_num,
+        "{{TITLE}}":       title,
+        "{{SPECIALTY}}":   specialty,
+        "{{STUDENT1}}":    student_name,
+        "{{STUDENT1_ID}}": student_id,
+        "{{STUDENT2}}":    student2_name if has_student2 else "",
+        "{{STUDENT2_ID}}": student2_id   if has_student2 else "",
+        "...../......./......": def_date,
+    }
 
-    # 2. التاريخ
-    doc_xml = doc_xml.replace('...../......./.......', def_date)
+    def replace_in_para(p, mapping):
+        """يدمج كل runs الفقرة ثم يستبدل — يعالج الـ placeholders المقسّمة على runs"""
+        if not p.runs: return
+        full = "".join(r.text for r in p.runs)
+        changed = any(old in full for old in mapping)
+        if changed:
+            for old, new in mapping.items():
+                full = full.replace(old, new)
+            for r in p.runs: r.text = ""
+            if p.runs: p.runs[0].text = full
 
-    # 3. رقم المذكرة
-    doc_xml = _re_mahdar.sub(
-        r'(مذكرة الماستر رقم\s*:\s*)([^<\s]+)',
-        lambda m: m.group(1) + memo_num, doc_xml, count=1)
+    for p in doc.paragraphs:
+        replace_in_para(p, replacements)
+        # إذا طالب واحد — احذف سطر الطالب الثاني كاملاً
+        if not has_student2:
+            full = "".join(r.text for r in p.runs)
+            if "STUDENT2" in full or (student2_name == "" and "رقم الملف" in full and student_id not in full):
+                for r in p.runs: r.text = ""
+                p._p.getparent().remove(p._p)
 
-    # 4. عنوان المذكرة — استبدل كل w:t في الفقرة التالية لـ"الموسومة"
-    def replace_title(xml, new_title):
-        idx = xml.find('الموسومة')
-        if idx == -1: return xml
-        p_end = xml.find('</w:p>', idx) + 6
-        next_p_end = xml.find('</w:p>', p_end) + 6
-        para = xml[p_end:next_p_end]
-        # استبدل أول w:t غير فارغة
-        new_para = _re_mahdar.sub(
-            r'(<w:t[^>]*>)[^<]+(</w:t>)',
-            lambda m: m.group(1) + new_title + m.group(2),
-            para, count=1)
-        return xml[:p_end] + new_para + xml[next_p_end:]
-    doc_xml = replace_title(doc_xml, title)
+    # ── QR Code مكان {{QR}} ──
+    qr_url = drive_link if drive_link and drive_link not in ["","nan"] else f"مذكرة_{memo_num}"
+    qr_png = generate_qr_png(qr_url)
 
-    # 5. التخصص — استبدل النص الأحمر "قانون أعمال" مباشرة
-    doc_xml = _re_mahdar.sub(
-        r'(<w:t[^>]*>)قانون أعمال(</w:t>)',
-        lambda m: m.group(1) + specialty + m.group(2),
-        doc_xml, count=1)
+    for p in doc.paragraphs:
+        full = "".join(r.text for r in p.runs)
+        if "{{QR}}" in full:
+            for r in p.runs: r.text = ""
+            run_qr = p.add_run()
+            run_qr.add_picture(_io.BytesIO(qr_png), width=_Cm(2.5))
+            break
 
-    # 6. الطالب 1 — استبدل "- بن علي محمد" و"(رقم الطالب 20210001)"
-    doc_xml = _re_mahdar.sub(
-        r'(<w:t[^>]*>)- بن علي محمد(</w:t>)',
-        lambda m: m.group(1) + f'- {student_name}' + m.group(2),
-        doc_xml, count=1)
-    doc_xml = _re_mahdar.sub(
-        r'(<w:t[^>]*>)\(رقم الطالب \d+(\))</w:t>',
-        lambda m: f'{m.group(1)}(رقم الطالب {student_id}{m.group(2)}',
-        doc_xml, count=1)
-
-    # 7. الطالب 2 — نفس المنطق للتكرار الثاني
-    if student2_name and student2_name not in ["","nan"]:
-        doc_xml = _re_mahdar.sub(
-            r'(<w:t[^>]*>)- بن علي محمد(</w:t>)',
-            lambda m: m.group(1) + f'- {student2_name}' + m.group(2),
-            doc_xml, count=1)
-        doc_xml = _re_mahdar.sub(
-            r'(<w:t[^>]*>)\(رقم الطالب \d+(\))</w:t>',
-            lambda m: f'{m.group(1)}(رقم الطالب {student2_id}{m.group(2)}',
-            doc_xml, count=1)
-    else:
-        # إذا طالب واحد — امسح السطر الثاني
-        doc_xml = _re_mahdar.sub(
-            r'(<w:t[^>]*>)- بن علي محمد(</w:t>)',
-            lambda m: m.group(1) + '' + m.group(2),
-            doc_xml, count=1)
-        doc_xml = _re_mahdar.sub(
-            r'(<w:t[^>]*>)\(رقم الطالب \d+(\))</w:t>',
-            lambda m: m.group(1) + '' + m.group(2),
-            doc_xml, count=1)
-
-    with open(f'{work_dir}/word/document.xml', 'w', encoding='utf-8') as f: f.write(doc_xml)
-
-    # حزم
-    out_path = os.path.join(work_dir, 'output.docx')
-    with zipfile.ZipFile(out_path, 'w', zipfile.ZIP_DEFLATED) as zout:
-        for root, dirs, files in os.walk(work_dir):
-            for file in files:
-                if file in ['template.docx', 'output.docx']: continue
-                fp = os.path.join(root, file)
-                arcname = os.path.relpath(fp, work_dir)
-                zout.write(fp, arcname)
-
-    # جدول اللجنة — Sakkal Majalla 14 سميك
-    doc = _DocxDoc(out_path)
-    t = doc.tables[0]
-
+    # ── جدول اللجنة ──
     def fill_cell(cell, text, size=14, bold=True):
         for p in cell.paragraphs:
-            for run in p.runs: run.text = ""
+            for r in p.runs: r.text = ""
         p = cell.paragraphs[0]
         pPr = p._p.get_or_add_pPr()
-        for tag in ['w:bidi', 'w:jc']:
+        for tag in ["w:bidi","w:jc"]:
             ex = pPr.find(_qn(tag))
             if ex is not None: pPr.remove(ex)
-        bidi = _OxmlElement('w:bidi'); pPr.append(bidi)
-        jc = _OxmlElement('w:jc'); jc.set(_qn('w:val'), 'center'); pPr.append(jc)
+        bidi = _Elem("w:bidi"); pPr.append(bidi)
+        jc = _Elem("w:jc"); jc.set(_qn("w:val"), "center"); pPr.append(jc)
         run = p.add_run(text)
         rPr = run._r.get_or_add_rPr()
-        rFonts = _OxmlElement('w:rFonts')
-        for attr in ['w:ascii', 'w:hAnsi', 'w:cs', 'w:eastAsia']:
-            rFonts.set(_qn(attr), "Sakkal Majalla")
-        ex = rPr.find(_qn('w:rFonts'))
+        rF = _Elem("w:rFonts")
+        for a in ["w:ascii","w:hAnsi","w:cs","w:eastAsia"]:
+            rF.set(_qn(a), "Sakkal Majalla")
+        ex = rPr.find(_qn("w:rFonts"))
         if ex is not None: rPr.remove(ex)
-        rPr.insert(0, rFonts)
+        rPr.insert(0, rF)
         run.font.size = _Pt(size)
         run.font.bold = bold
 
+    t = doc.tables[0]
     members = [
-        ("01", pres,  rank_pres, "جامعة برج بوعريريج", "رئيساً"),
-        ("02", sup,   rank_sup,  "جامعة برج بوعريريج", "مشرفاً ومقرراً"),
-        ("03", ex1,   rank_ex1,  "جامعة برج بوعريريج", "ممتحناً"),
-        ("04", ex2,   rank_ex2,  "جامعة برج بوعريريج", "ممتحناً"),
+        ("01", pres,  rank_p,  "جامعة برج بوعريريج", "رئيساً"),
+        ("02", sup,   rank_s,  "جامعة برج بوعريريج", "مشرفاً ومقرراً"),
+        ("03", ex1,   rank_e1, "جامعة برج بوعريريج", "ممتحناً"),
+        ("04", ex2,   rank_e2, "جامعة برج بوعريريج", "ممتحناً"),
     ]
     for ri, (num, name, rank, univ, role) in enumerate(members, 1):
         if ri >= len(t.rows): break
@@ -3561,16 +3491,10 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         fill_cell(row.cells[3], univ)
         fill_cell(row.cells[4], role)
 
-    doc.save(out_path)
+    buf = _io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
 
-    with open(out_path, 'rb') as f: result = f.read()
-    shutil.rmtree(work_dir)
-    return result
-
-
-df_students = load_students(); df_memos = load_memos(); df_prof_memos = load_prof_memos(); df_requests = load_requests()
-if df_students.empty or df_memos.empty or df_prof_memos.empty:
-    st.error("❌ خطأ في تحميل البيانات."); st.stop()
 
 def lookup_student(username):
     if df_students.empty: return None
