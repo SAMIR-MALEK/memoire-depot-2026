@@ -1382,7 +1382,7 @@ def calc_schedule_quality(schedule, memo_members, days, slots_per_day):
     
     return min(100, quality), placed, unplaced, total_idle, total_days, max_gap
 
-def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300, prof_banned_days=None, prof_allowed_days=None, profs_accept_18=None):
+def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=2000, prof_banned_days=None, prof_allowed_days=None, profs_accept_18=None, fixed_slots=None):
     """
     تحسين الجدول:
     - ابحث عن أستاذ لديه مذكرة معزولة في يوم وحدها
@@ -1430,6 +1430,8 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
     prof_banned_days = prof_banned_days or {}
     prof_allowed_days = prof_allowed_days or {}
     profs_accept_18 = profs_accept_18 or set()
+    fixed_slots = fixed_slots or {}
+    _fixed_mids = set(str(k) for k in fixed_slots.keys())
 
     current = dict(schedule)
     _, _, _, cur_idle, cur_days, _ = calc_schedule_quality(current, memo_members, days, slots_per_day)
@@ -1646,17 +1648,11 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
         fd, fs, fr = slot_val
         fd, fs = str(fd).strip(), str(fs).strip()
         if fd not in days:
-            try:
-                import streamlit as _sta
-                _sta.error(f"🔴 مذكرة {mid}: {fd} غير موجود في الأيام={days[:3]}...")
-            except: pass
+
             failed.append(f"المذكرة {mid}: يوم التثبيت {fd} غير موجود في الأيام")
             continue
         if fs not in slots_per_day:
-            try:
-                import streamlit as _stb
-                _stb.error(f"🔴 مذكرة {mid}: {fs} غير موجود في التوقيتات={slots_per_day}")
-            except: pass
+
             failed.append(f"المذكرة {mid}: توقيت التثبيت {fs} غير موجود في التوقيتات")
             continue
         placed = False
@@ -1668,13 +1664,7 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
                 placed = True; break
         if not placed:
             # debug: جرب مع log=True لمعرفة السبب
-            rejection_log = rejection_log or {}
-            for r in rooms:
-                can_place(mid, fd, fs, r, log=True)
-            try:
-                import streamlit as _stc
-                _stc.error(f"🔴 مذكرة {mid}: رُفضت في {fd} {fs} — أسباب: {rejection_log.get(str(mid), 'غير محدد')}")
-            except: pass
+
             failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} {fs} — تعارض")
     return applied, failed
 
@@ -2787,7 +2777,8 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         _pad = constraints[6] if constraints else {}
         _pa18 = constraints[11] if constraints else set()
         schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=2000,
-                                   prof_banned_days=_pbd, prof_allowed_days=_pad, profs_accept_18=_pa18)
+                                   prof_banned_days=_pbd, prof_allowed_days=_pad, profs_accept_18=_pa18,
+                                   fixed_slots=constraints[0] if constraints else {})
 
     # ── تحقق صارم ما بعد التوليد وإصلاح انتهاكات الأيام الممنوعة ──
     _pbd = constraints[2] if constraints else {}
@@ -3339,10 +3330,7 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             late  = _norm_date(str(row.get("أبعد تاريخ","")).strip())
             
             if day_f and day_f not in ["","nan"] and slot_f and slot_f not in ["","nan"]:
-                try:
-                    import streamlit as _stf
-                    _stf.info(f"📌 مثبت: مذكرة={mid} يوم={day_f} توقيت={slot_f}")
-                except: pass
+
                 fixed_slots[mid] = (day_f, slot_f, room_f if room_f not in ["","nan"] else None)
             
             if early not in ["","nan"] or late not in ["","nan"]:
