@@ -1638,7 +1638,7 @@ def make_place_fn(schedule, occupied, prof_busy, prof_day_count, memo_members, p
     return place
 
 
-def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled):
+def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled, rejection_log=None):
     """تطبيق المواعيد المثبتة — مشترك بين كل الخوارزميات"""
     applied = []
     failed = []
@@ -1667,9 +1667,13 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
                 applied.append(f"✅ المذكرة {mid} → {fd} {fs} {r}")
                 placed = True; break
         if not placed:
+            # debug: جرب مع log=True لمعرفة السبب
+            rejection_log = rejection_log or {}
+            for r in rooms:
+                can_place(mid, fd, fs, r, log=True)
             try:
                 import streamlit as _stc
-                _stc.error(f"🔴 مذكرة {mid}: تعارض في {fd} {fs} — can_place رفضت")
+                _stc.error(f"🔴 مذكرة {mid}: رُفضت في {fd} {fs} — أسباب: {rejection_log.get(str(mid), 'غير محدد')}")
             except: pass
             failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} {fs} — تعارض")
     return applied, failed
