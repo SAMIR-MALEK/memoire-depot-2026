@@ -1,4 +1,4 @@
-import streamlit as st
+streamlit as st
 from datetime import datetime, time, date
 import pandas as pd
 from google.oauth2.service_account import Credentials
@@ -1851,6 +1851,14 @@ def algo_greedy(df_memos, days, slots_per_day, rooms, constraints):
                 placed = False
                 for room in rooms:
                     if can_place(memo, best_day, slot, room):
+                        # DEBUG
+                        _mems_dbg = memo_members.get(str(memo), set())
+                        if "ميهوب يزيد" in _mems_dbg:
+                            _banned_dbg = prof_banned_days.get("ميهوب يزيد", set())
+                            try:
+                                import streamlit as _st_dbg2
+                                _st_dbg2.error(f"🚨 وضع ميهوب في {best_day} — banned={_banned_dbg} — day_in_banned={best_day in _banned_dbg}")
+                            except: pass
                         place(memo, best_day, slot, room)
                         scheduled.add(memo); placed = True; break
                 if placed: break
