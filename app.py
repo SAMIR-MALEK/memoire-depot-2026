@@ -1433,6 +1433,17 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
     fixed_slots = fixed_slots or {}
     _fixed_mids = set(str(k) for k in fixed_slots.keys())
 
+    # مذكرات محمية — لا تُلمس أبداً:
+    # 1. مواعيد مثبتة
+    # 2. مذكرات فيها أستاذ له قيود (أيام ممنوعة أو مسموحة فقط)
+    # 3. مذكرات لها قيود زمنية (أقرب/أبعد تاريخ أو أيام بديلة)
+    _protected_mids = set(str(k) for k in fixed_slots.keys())
+    for mid, members in memo_members.items():
+        for prof in members:
+            if prof in prof_banned_days or prof in prof_allowed_days:
+                _protected_mids.add(str(mid))
+                break
+
     current = dict(schedule)
     _, _, _, cur_idle, cur_days, _ = calc_schedule_quality(current, memo_members, days, slots_per_day)
     cur_score = cur_idle + cur_days * 10
@@ -1485,8 +1496,11 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
             lonely_memos = multi_lonely
         
         random.shuffle(lonely_memos)
-        prof, lonely_day, lonely_memo = lonely_memos[0]
-        old_slot = current[lonely_memo]
+        # تخطى المذكرات المحمية
+        _movable = [(p, d, m) for p, d, m in lonely_memos if str(m) not in _protected_mids]
+        if not _movable: break
+        prof, lonely_day, lonely_memo = _movable[0]
+        old_slot = current.get(lonely_memo)
         if not old_slot: continue
         
         # حاول نقلها ليوم فيه مذكرات أخرى لنفس الأستاذ
@@ -5428,8 +5442,18 @@ elif st.session_state.user_type == "admin":
                                             else: continue; break
                                         else: continue; break
 
+                                # احمل القيود الكاملة
+                                _df_memo_exc_i = load_memo_exceptions()
+                                _df_prof_exc_i = load_prof_exceptions()
+                                _fix_i, _, _pbd_i, _, _, _, _pad_i, _, _, _, _, _acc18_i, _ = build_constraints(_df_memo_exc_i, _df_prof_exc_i, sl_j)
                                 better_j = improve_schedule(cur, memo_members_j2, dy_j, sl_j, rm_j, iterations=2000,
-                                    prof_banned_days=_pbd2, prof_allowed_days=_pad2, fixed_slots=_fix2)
+                                    prof_banned_days=_pbd_i, prof_allowed_days=_pad_i,
+                                    profs_accept_18=_acc18_i, fixed_slots=_fix_i)
+                                # أعد تطبيق المثبتات بالقوة
+                                for _fmid_i, _fsv_i in _fix_i.items():
+                                    _fd_i, _fs_i, _fr_i = _fsv_i
+                                    if _fd_i and _fs_i and str(_fmid_i) in better_j:
+                                        better_j[str(_fmid_i)] = (_fd_i, _fs_i, _fr_i if _fr_i else rm_j[0])
                                 q2, p2, u2, i2, d2, _ = calc_schedule_quality(better_j, memo_members_j2, dy_j, sl_j)
                                 st.session_state["j_schedule"] = better_j
                                 st.session_state["j_score"] = q2
