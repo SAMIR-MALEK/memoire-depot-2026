@@ -4242,6 +4242,7 @@ elif st.session_state.user_type == "professor":
             with c1: u=st.text_input("اسم المستخدم")
             with c2: p=st.text_input("كلمة المرور", type="password")
             if st.form_submit_button("تسجيل الدخول"):
+                df_prof_memos = load_prof_memos()
                 v,r=verify_professor(u,p,df_prof_memos)
                 if not v: st.error(r)
                 else:
