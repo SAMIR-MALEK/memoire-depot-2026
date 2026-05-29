@@ -2752,6 +2752,99 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
     return best_overall, memo_members, rej_log
 
 
+
+def multi_start_best(df_memos, days, slots_per_day, rooms, constraints,
+                     n_tries=20, algo_name="🧱 كتل الأساتذة",
+                     progress_cb=None):
+    """
+    Multi-Start Optimizer — يشغل الخوارزمية n_tries مرة
+    ويختار الجدول الأفضل بناءً على score مركّب
+    """
+    import random
+
+    fixed_slots   = constraints[0]
+    prof_banned   = constraints[2]
+    prof_allowed  = constraints[6]
+
+    # ── دالة التقييم ──
+    def score_schedule(sched, memo_members):
+        placed   = sum(1 for sv in sched.values() if sv)
+        total    = len(sched)
+        if total == 0: return -999999
+
+        # انتهاكات حرجة
+        violations = _validate_hard_constraints(sched, memo_members)
+        critical   = len([v for v in violations if v.startswith("🔴")])
+        warnings   = len([v for v in violations if v.startswith("🟡")])
+
+        # توزيع يومي
+        day_counts = {}
+        for sv in sched.values():
+            if sv: day_counts[sv[0]] = day_counts.get(sv[0], 0) + 1
+        avg = sum(day_counts.values()) / max(len(day_counts), 1)
+        imbalance = sum(abs(c - avg) for c in day_counts.values())
+
+        score = (placed * 100
+                 - critical * 500
+                 - warnings  * 30
+                 - imbalance * 5)
+        return score
+
+    best_schedule   = None
+    best_score      = -999999
+    best_memo_mbrs  = {}
+    best_rej        = {}
+
+    for i in range(n_tries):
+        seed = i * 37 + 7
+        try:
+            sched, memo_mbrs, rej = run_algorithm(
+                algo_name, df_memos, days, slots_per_day, rooms,
+                constraints, improve=False, seed=seed
+            )[0], None, {}
+            # run_algorithm returns tuple — unpack properly
+            result = run_algorithm(
+                algo_name, df_memos, days, slots_per_day, rooms,
+                constraints, improve=False, seed=seed
+            )
+            sched     = result[0]
+            memo_mbrs = result[6]
+            rej       = result[7]
+        except Exception as _e:
+            continue
+
+        sc = score_schedule(sched, memo_mbrs)
+        if sc > best_score:
+            best_score    = sc
+            best_schedule = dict(sched)
+            best_memo_mbrs= memo_mbrs
+            best_rej      = rej
+
+        if progress_cb:
+            progress_cb(i + 1, n_tries, best_score,
+                        sum(1 for sv in best_schedule.values() if sv) if best_schedule else 0)
+
+    # تحسين نهائي على أفضل جدول
+    if best_schedule:
+        _pbd  = constraints[2]
+        _pad  = constraints[6]
+        _pa18 = constraints[11]
+        _fix  = constraints[0]
+        best_schedule = improve_schedule(
+            best_schedule, best_memo_mbrs, days, slots_per_day, rooms,
+            iterations=2000, prof_banned_days=_pbd,
+            prof_allowed_days=_pad, profs_accept_18=_pa18,
+            fixed_slots=_fix
+        )
+        # أعد تطبيق المثبتات بالقوة
+        for fmid, fsv in _fix.items():
+            fd, fs, fr = fsv
+            if fd and fs and str(fmid) in best_schedule:
+                best_schedule[str(fmid)] = (fd, fs, fr if fr else rooms[0])
+
+    return best_schedule, best_memo_mbrs, best_rej, best_score
+
+
 def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, improve=True, seed=42):
     """تشغيل الخوارزمية المختارة"""
     import random
@@ -5341,6 +5434,25 @@ elif st.session_state.user_type == "admin":
 
                 c_g1, c_g2, c_g3 = st.columns(3)
                 with c_g1:
+                    _n_tries = st.number_input("عدد المحاولات:", min_value=1, max_value=50, value=10, step=1, key="j_n_tries")
+                    if st.button("🏆 أفضل جدول (Multi-Start)", use_container_width=True, key="j_multi_start"):
+                        _pt = st.empty(); _pb = st.progress(0)
+                        def _ms_cb(i,n,sc,pl):
+                            _pt.text(f"محاولة {i}/{n} | score: {sc:.0f} | مجدول: {pl}")
+                            _pb.progress(int(i/n*100))
+                        _dme=load_memo_exceptions(); _dpe=load_prof_exceptions()
+                        _f2,_dl2,_bd2,_nb2,_na2,_o2,_ad2,_co2,_fr2,_ph2,_alt2,_a182,_cl2=build_constraints(_dme,_dpe,gen_slots_j)
+                        _cms=(_f2,_dl2,_bd2,_nb2,_na2,_o2,_ad2,_co2,_fr2,_ph2,_alt2,_a182,_cl2)
+                        _bs,_bmm,_br,_bsc=multi_start_best(ready_memos_j,gen_days_j,gen_slots_j,gen_rooms_j,_cms,
+                            n_tries=int(_n_tries),algo_name=st.session_state.get("algo_choice","🧱 كتل الأساتذة"),progress_cb=_ms_cb)
+                        _pt.empty(); _pb.empty()
+                        if _bs:
+                            _q,_pl,_upl,_id,_td,_=calc_schedule_quality(_bs,_bmm,gen_days_j,gen_slots_j)
+                            st.session_state.update({"j_schedule":_bs,"j_memo_members":_bmm,"j_rej_log":_br,
+                                "j_quality":_q,"j_placed":_pl,"j_unplaced":_upl,
+                                "j_slots_list":gen_slots_j,"j_days_list":gen_days_j,"j_rooms_list":gen_rooms_j})
+                            st.success(f"✅ أفضل جدول: {_pl}/{_pl+_upl} مجدول | جودة: {_q}%")
+                            st.rerun()
                     if st.button("🚀 توليد الجدول الذكي", type="primary", use_container_width=True, key="j_generate"):
                         if capacity < total_ready_j:
                             st.error(f"❌ الطاقة ({capacity}) أقل من عدد المذكرات ({total_ready_j})")
