@@ -5395,8 +5395,40 @@ elif st.session_state.user_type == "admin":
                                 dy_j = st.session_state.get("j_days_list", gen_days_j)
                                 rm_j = st.session_state.get("j_rooms_list", gen_rooms_j)
                                 _, conflicts_j2, memo_members_j2 = build_conflict_matrix(ready_memos_j)
-                                better_j = improve_schedule(cur, memo_members_j2, dy_j, sl_j, rm_j, iterations=400)
-                                better_j = improve_schedule(better_j, memo_members_j2, dy_j, sl_j, rm_j, iterations=200)
+                                _pbd2 = st.session_state.get("_j_ban_days", {})
+                                _pad2 = st.session_state.get("_j_allow_days", {})
+                                _fix2 = _constraints[0] if "_constraints" in dir() else {}
+
+                                # ── مرحلة ملء ذكية: استغلال الفراغات ──
+                                _occ2 = {sv: m for m, sv in cur.items() if sv}
+                                _pbusy2 = {}
+                                _pdc2 = {}
+                                for _m2, _sv2 in cur.items():
+                                    if not _sv2: continue
+                                    _d2, _s2, _r2 = _sv2
+                                    for _p2 in memo_members_j2.get(_m2, set()):
+                                        _pbusy2[(_d2, _s2, _p2)] = _m2
+                                        _pdc2[(_p2, _d2)] = _pdc2.get((_p2, _d2), 0) + 1
+
+                                _can2, _ = make_can_place(_occ2, _pbusy2, _pdc2, memo_members_j2,
+                                    _fix2, {}, _pbd2, {}, {}, {}, set(), set(), {}, {}, sl_j, None)
+                                _place2 = make_place_fn(cur, _occ2, _pbusy2, _pdc2, memo_members_j2, {}, {})
+
+                                # ابحث عن المذكرات غير المجدولة وضعها في الفراغات
+                                _unscheduled = [m for m, sv in cur.items() if not sv]
+                                _filled = 0
+                                for _umid in _unscheduled:
+                                    for _uday in sorted(dy_j, key=lambda d: sum(1 for sv in cur.values() if sv and sv[0]==d)):
+                                        for _uslot in sl_j:
+                                            for _uroom in rm_j:
+                                                if _can2(_umid, _uday, _uslot, _uroom, log=False):
+                                                    _place2(_umid, _uday, _uslot, _uroom)
+                                                    _filled += 1; break
+                                            else: continue; break
+                                        else: continue; break
+
+                                better_j = improve_schedule(cur, memo_members_j2, dy_j, sl_j, rm_j, iterations=2000,
+                                    prof_banned_days=_pbd2, prof_allowed_days=_pad2, fixed_slots=_fix2)
                                 q2, p2, u2, i2, d2, _ = calc_schedule_quality(better_j, memo_members_j2, dy_j, sl_j)
                                 st.session_state["j_schedule"] = better_j
                                 st.session_state["j_score"] = q2
@@ -5570,7 +5602,6 @@ elif st.session_state.user_type == "admin":
                         if st.button("💾 حفظ في الشيت (بدون نشر)", use_container_width=True, key="j_save_no_publish"):
                             with st.spinner("⏳ جاري الحفظ..."):
                                 _sched_to_save = st.session_state.get("j_schedule", {})
-                                st.info(f"🔍 جدول للحفظ: {len(_sched_to_save)} مذكرة — مجدول: {sum(1 for v in _sched_to_save.values() if v)}")
                                 ok_s, msg_s = save_full_schedule_to_sheets(_sched_to_save, ready_memos_j)
                             if ok_s:
                                 st.success("✅ تم الحفظ في الشيت — لم يُنشر بعد. غيّر عمود 'نشر البرنامج' يدوياً عند الاعتماد.")
