@@ -3346,7 +3346,7 @@ def load_schedule_days():
         day_time_limits = {}  # day -> (from_slot, to_slot)
         for row in values[1:]:
             if not row or not row[0].strip(): continue
-            date = row[0].strip()
+            date = _norm_date(row[0].strip())  # تحويل لـ YYYY-MM-DD
             note = row[1].strip() if len(row) > 1 else ""
             from_t = row[2].strip() if len(row) > 2 else ""
             to_t = row[3].strip() if len(row) > 3 else ""
