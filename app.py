@@ -4668,7 +4668,12 @@ elif st.session_state.user_type == "professor":
                     # تصدير HTML
                     st.markdown("---")
                     rows_html = ""
-                    _all_for_html = jury_memos.copy()
+                    # فلتر AI — HTML يظهر فقط المذكرات المنشورة (AI = نعم)
+                    _col_ai_h = "نشر البرنامج" if "نشر البرنامج" in jury_memos.columns else ("AI" if "AI" in jury_memos.columns else None)
+                    if _col_ai_h:
+                        _all_for_html = jury_memos[jury_memos[_col_ai_h].astype(str).str.strip() == "نعم"].copy()
+                    else:
+                        _all_for_html = jury_memos[jury_memos["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"])].copy()
                     for idx_r, jm_r in _all_for_html.iterrows():
                         jmid_r  = str(jm_r.get("رقم المذكرة","")).strip()
                         jtitle_r= str(jm_r.get("عنوان المذكرة","")).strip()
