@@ -2253,7 +2253,10 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
         _early = [d for d in days if d < _cutoff]
         _late  = [d for d in days if d >= _cutoff]
         # 85% احتمال اختيار يوم مبكر
-        _weighted_days = _early * 3 + _late  # الأيام المبكرة بوزن أكبر (أخف من قبل)
+        if _use_intensive and _early:
+            _weighted_days = _early * 3 + _late
+        else:
+            _weighted_days = days[:]  # كل الأيام سواسية
 
         for memo in order:
             if memo in scheduled: continue
@@ -2291,11 +2294,17 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
     # الفترات الزمنية
     # تاريخ النهاية والنسبة من session_state إذا حُددا من الواجهة
     import streamlit as _st_c
+    _use_intensive = _st_c.session_state.get("j_use_intensive", True)
     _cutoff_obj = _st_c.session_state.get("j_cutoff_date", None)
     _target_r   = _st_c.session_state.get("j_target_ratio", 70) / 100
-    CUTOFF_DATE = _cutoff_obj.strftime("%Y-%m-%d") if _cutoff_obj else "2026-06-08"
-    early_days = [d for d in days if d < CUTOFF_DATE]
-    late_days  = [d for d in days if d >= CUTOFF_DATE]
+    if _use_intensive:
+        CUTOFF_DATE = _cutoff_obj.strftime("%Y-%m-%d") if _cutoff_obj else "2026-06-08"
+        early_days = [d for d in days if d < CUTOFF_DATE]
+        late_days  = [d for d in days if d >= CUTOFF_DATE]
+    else:
+        CUTOFF_DATE = None
+        early_days = days[:]
+        late_days  = []
 
     # ── دالة الـ Fitness ──
     def fitness(schedule):
@@ -2316,7 +2325,9 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
         early_ratio = early_placed / max(placed, 1)
         # نكافئ بقوة إذا 80%+ في الفترة المبكرة
         _tr = _target_r if "_target_r" in dir() else 0.70
-        if early_ratio >= _tr: early_bonus = 400
+        if not _use_intensive or not early_days:
+            early_bonus = 0  # كل الأيام سواسية
+        elif early_ratio >= _tr: early_bonus = 400
         elif early_ratio >= _tr - 0.05: early_bonus = 200
         elif early_ratio >= _tr - 0.15: early_bonus = 50
         else: early_bonus = -100
@@ -5111,25 +5122,28 @@ elif st.session_state.user_type == "admin":
                 st.markdown("---")
                 # ── إعدادات الفترة المكثفة ──
                 with st.expander("⚙️ إعدادات الفترة المكثفة", expanded=False):
-                    _col_i1, _col_i2 = st.columns(2)
-                    with _col_i1:
-                        st.date_input(
-                            "📅 نهاية البرمجة المكثفة:",
-                            value=date(2026, 6, 8),
-                            min_value=date(2026, 5, 31),
-                            max_value=date(2026, 6, 30),
-                            key="j_cutoff_date",
-                            help="برمجة النسبة الهدف من المذكرات قبل هذا التاريخ"
-                        )
-                    with _col_i2:
-                        st.slider(
-                            "🎯 النسبة الهدف:",
-                            min_value=50, max_value=95, value=70, step=5,
-                            key="j_target_ratio", format="%d%%"
-                        )
-                    _cd = st.session_state.get("j_cutoff_date", date(2026,6,8))
-                    _tr = st.session_state.get("j_target_ratio", 70)
-                    st.caption(f"**{_tr}%** من المذكرات قبل **{_cd.strftime('%d/%m/%Y')}**")
+                    _use_intensive = st.checkbox("تفعيل الفترة المكثفة", value=True, key="j_use_intensive")
+                    if _use_intensive:
+                        _col_i1, _col_i2 = st.columns(2)
+                        with _col_i1:
+                            st.date_input(
+                                "📅 نهاية البرمجة المكثفة:",
+                                value=date(2026, 6, 8),
+                                min_value=date(2026, 5, 31),
+                                max_value=date(2026, 6, 30),
+                                key="j_cutoff_date",
+                            )
+                        with _col_i2:
+                            st.number_input(
+                                "🎯 النسبة الهدف (%):",
+                                min_value=50, max_value=95, value=70, step=5,
+                                key="j_target_ratio",
+                            )
+                        _cd = st.session_state.get("j_cutoff_date", date(2026,6,8))
+                        _tr = st.session_state.get("j_target_ratio", 70)
+                        st.caption(f"**{_tr}%** من المذكرات قبل **{_cd.strftime('%d/%m/%Y')}**")
+                    else:
+                        st.info("كل الأيام سواسية — لا أولوية زمنية")
 
                 # بذرة التوليد — تغييرها يعطي جدولاً مختلفاً
                 _seed = st.session_state.get("j_seed", 42)
