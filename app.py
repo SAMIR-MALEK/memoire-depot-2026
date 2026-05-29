@@ -2779,6 +2779,14 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=2000,
                                    prof_banned_days=_pbd, prof_allowed_days=_pad, profs_accept_18=_pa18,
                                    fixed_slots=constraints[0] if constraints else {})
+        # ── إعادة تطبيق المثبتات بالقوة بعد improve_schedule ──
+        _fixed = constraints[0] if constraints else {}
+        for _fmid, _fsv in _fixed.items():
+            _fd, _fs, _fr = _fsv
+            if not _fd or not _fs: continue
+            # أزل من موقعه الحالي
+            if str(_fmid) in schedule and schedule[str(_fmid)] != (_fd, _fs, _fr):
+                schedule[str(_fmid)] = (_fd, _fs, _fr if _fr else (list(rooms)[0] if rooms else ""))
 
     # ── تحقق صارم ما بعد التوليد وإصلاح انتهاكات الأيام الممنوعة ──
     _pbd = constraints[2] if constraints else {}
