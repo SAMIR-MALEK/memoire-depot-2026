@@ -4586,6 +4586,9 @@ elif st.session_state.user_type == "professor":
                         jrole = str(jm.get("الصفة","")).strip()
                         jlink = str(jm.get("رابط الملف","")).strip()
                         jdate = str(jm.get("تاريخ المناقشة","")).strip()
+                        # تحقق من نشر البرنامج لهذا الصف
+                        _col_pub_r = next((c for c in ["نشر البرنامج","AI","منشور"] if c in filtered.columns), None)
+                        is_pub_row = str(jm.get(_col_pub_r,"")).strip() == "نعم" if _col_pub_r else False
                         jtime = str(jm.get("توقيت المناقشة","")).strip()
                         jroom = str(jm.get("القاعة","")).strip()
                         jsup       = str(jm.get("الأستاذ","")).strip()
@@ -4642,6 +4645,21 @@ elif st.session_state.user_type == "professor":
                             schedule_line = '<div style="margin-top:8px;"><span style="color:#F59E0B;font-size:0.82rem;">⏳ لم يُحدد موعد المناقشة بعد</span></div>'
 
                         sup_html = f'<div style="color:#94A3B8;font-size:0.8rem;margin-top:4px;">👨‍🏫 المشرف: <span style="color:#CBD5E1;">{jsup}</span></div>' if jrole != "مشرف" and jsup and jsup not in ["","nan"] else ""
+
+                        # أعضاء اللجنة — تظهر للمشرف فقط إذا AI = نعم
+                        jury_members_html = ""
+                        if jrole == "مشرف" and is_pub_row:
+                            _jrow_full = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)].iloc[0] if len(jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]) > 0 else None
+                            if _jrow_full is not None:
+                                _pres = str(_jrow_full.get("الرئيس","")).strip()
+                                _ex1  = str(_jrow_full.get("المناقش1","")).strip()
+                                _ex2  = str(_jrow_full.get("المناقش2","")).strip()
+                                _members = []
+                                if _pres and _pres not in ["","nan"]: _members.append(f"🎓 رئيساً: {_pres}")
+                                if _ex1  and _ex1  not in ["","nan"]: _members.append(f"🔍 ممتحناً: {_ex1}")
+                                if _ex2  and _ex2  not in ["","nan"]: _members.append(f"🔍 ممتحناً: {_ex2}")
+                                if _members:
+                                    jury_members_html = '<div style="margin-top:6px;padding:6px 10px;background:rgba(15,41,66,0.4);border-radius:8px;font-size:0.78rem;color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(_members) + "</div>"
                         cards_html += f'''<div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);
                                     border-right:4px solid {r_color};border-radius:12px;
                                     padding:14px 16px;margin-bottom:10px;">
@@ -4658,6 +4676,7 @@ elif st.session_state.user_type == "professor":
                                 {jtitle[:70]}{"..." if len(jtitle)>70 else ""}
                             </div>
                             {sup_html}
+                            {jury_members_html}
                             {schedule_line}
                         </div>'''
 
