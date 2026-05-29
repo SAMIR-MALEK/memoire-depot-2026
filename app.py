@@ -5134,6 +5134,7 @@ elif st.session_state.user_type == "admin":
                             _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
                                 _df_memo_exc, _df_prof_exc, gen_slots_j
                             )
+                            st.info(f"📋 استثناءات الأساتذة: {len(_df_prof_exc)} صف | أيام ممنوعة لـ {len(_ban_days)} أستاذ: {list(_ban_days.keys())[:3]}")
                             # دمج قيود التوقيت اليومي
                             _day_time_limits = _days_from_sheet and _day_limits or {}
                             _conflicts = detect_constraint_conflicts(
