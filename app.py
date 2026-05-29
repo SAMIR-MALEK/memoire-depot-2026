@@ -1382,7 +1382,7 @@ def calc_schedule_quality(schedule, memo_members, days, slots_per_day):
     
     return min(100, quality), placed, unplaced, total_idle, total_days, max_gap
 
-def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300):
+def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300, prof_banned_days=None, prof_allowed_days=None, profs_accept_18=None):
     """
     تحسين الجدول:
     - ابحث عن أستاذ لديه مذكرة معزولة في يوم وحدها
@@ -1403,23 +1403,33 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
     
     def can_place(sched, memo_id, day, slot, room):
         members_new = memo_members.get(memo_id, set())
-        day_counts = {}  # prof -> count in this day
+        # ✅ تحقق من الأيام الممنوعة أولاً
+        for p in members_new:
+            if day in prof_banned_days.get(p, set()):
+                return False
+            if prof_allowed_days.get(p) and day not in prof_allowed_days[p]:
+                return False
+            if slot > "16:00" and p not in profs_accept_18:
+                return False
+        day_counts = {}
         for other_mid, other_slot in sched.items():
             if other_mid == memo_id or not other_slot: continue
             if other_slot == (day, slot, room): return False
             if other_slot[0] == day and other_slot[1] == slot:
                 if members_new & memo_members.get(other_mid, set()):
                     return False
-            # حساب عدد مذكرات كل أستاذ في هذا اليوم
             if other_slot[0] == day:
                 for p in memo_members.get(other_mid, set()):
                     day_counts[p] = day_counts.get(p, 0) + 1
-        # تحقق من حد 3 مذكرات/يوم — قاعدة مطلقة
         for p in members_new:
             if day_counts.get(p, 0) >= 3:
                 return False
         return True
     
+    prof_banned_days = prof_banned_days or {}
+    prof_allowed_days = prof_allowed_days or {}
+    profs_accept_18 = profs_accept_18 or set()
+
     current = dict(schedule)
     _, _, _, cur_idle, cur_days, _ = calc_schedule_quality(current, memo_members, days, slots_per_day)
     cur_score = cur_idle + cur_days * 10
@@ -1505,15 +1515,7 @@ def make_can_place(occupied, prof_busy, prof_day_count, memo_members,
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
     LATE_SLOT = "18:00"
     constraint_report = []  # سجل تطبيق القيود
-    # DEBUG TEMP
-    try:
-        import streamlit as _st3
-        _mihub = prof_banned_days.get("ميهوب يزيد", set())
-        if _mihub:
-            _st3.success(f"✅ make_can_place: ميهوب banned={_mihub}")
-        else:
-            _st3.error(f"❌ make_can_place: ميهوب غير موجود في prof_banned_days! keys={list(prof_banned_days.keys())[:5]}")
-    except: pass
+
 
     def _reject(memo_id, reason):
         if rejection_log is not None:
@@ -2630,7 +2632,11 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         schedule, memo_members, rej_log = algo_greedy(df_memos, days, slots_per_day, rooms, constraints)
 
     if improve:
-        schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300)
+        _pbd = constraints[2] if constraints else {}
+        _pad = constraints[6] if constraints else {}
+        _pa18 = constraints[11] if constraints else set()
+        schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300,
+                                   prof_banned_days=_pbd, prof_allowed_days=_pad, profs_accept_18=_pa18)
 
     quality, placed, unplaced, idle, total_days, _ = calc_schedule_quality(schedule, memo_members, days, slots_per_day)
     return schedule, quality, placed, unplaced, idle, total_days, memo_members, rej_log
