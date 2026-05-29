@@ -1851,14 +1851,6 @@ def algo_greedy(df_memos, days, slots_per_day, rooms, constraints):
                 placed = False
                 for room in rooms:
                     if can_place(memo, best_day, slot, room):
-                        # DEBUG
-                        _mems_dbg = memo_members.get(str(memo), set())
-                        if "ميهوب يزيد" in _mems_dbg:
-                            _banned_dbg = prof_banned_days.get("ميهوب يزيد", set())
-                            try:
-                                import streamlit as _st_dbg2
-                                _st_dbg2.error(f"🚨 وضع ميهوب في {best_day} — banned={_banned_dbg} — day_in_banned={best_day in _banned_dbg}")
-                            except: pass
                         place(memo, best_day, slot, room)
                         scheduled.add(memo); placed = True; break
                 if placed: break
@@ -5142,7 +5134,7 @@ elif st.session_state.user_type == "admin":
                             _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
                                 _df_memo_exc, _df_prof_exc, gen_slots_j
                             )
-                            st.info(f"📋 استثناءات الأساتذة: {len(_df_prof_exc)} صف | أيام ممنوعة لـ {len(_ban_days)} أستاذ: {list(_ban_days.keys())[:3]}")
+
                             # دمج قيود التوقيت اليومي
                             _day_time_limits = _days_from_sheet and _day_limits or {}
                             _conflicts = detect_constraint_conflicts(
