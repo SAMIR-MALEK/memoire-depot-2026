@@ -1451,11 +1451,33 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
             multi_lonely = []
             for prof, days_dict in prog.items():
                 total_p = sum(len(ms) for ms in days_dict.values())
-                if total_p < 3: continue  # طبيعي إذا مجموعه أقل من 3
-                solo_days = [d for d, ms in days_dict.items() if len(ms)==1]
-                if len(solo_days) > 1:
-                    for d in solo_days[1:]:
+                if total_p < 3: continue
+                solo_days = sorted([d for d, ms in days_dict.items() if len(ms)==1])
+                if len(solo_days) > 2:  # أكثر من يومين منعزلين
+                    for d in solo_days[2:]:  # ابقِ الأول والثاني
                         multi_lonely.append((prof, d, days_dict[d][0]))
+
+            # تحقق من أيام متتالية > 3
+            if not multi_lonely:
+                from datetime import datetime as _dt2, timedelta as _td2
+                for prof, days_dict in prog.items():
+                    sorted_d = sorted(days_dict.keys())
+                    consec = 1
+                    for i in range(1, len(sorted_d)):
+                        try:
+                            d1 = _dt2.strptime(sorted_d[i-1], "%Y-%m-%d")
+                            d2 = _dt2.strptime(sorted_d[i], "%Y-%m-%d")
+                            if (d2-d1).days <= 3:
+                                consec += 1
+                                if consec > 3:
+                                    # انقل آخر يوم في السلسلة
+                                    target_day = sorted_d[i]
+                                    target_memo = days_dict[target_day][0]
+                                    multi_lonely.append((prof, target_day, target_memo))
+                            else:
+                                consec = 1
+                        except: pass
+
             if not multi_lonely:
                 break
             lonely_memos = multi_lonely
@@ -2656,7 +2678,7 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         _pbd = constraints[2] if constraints else {}
         _pad = constraints[6] if constraints else {}
         _pa18 = constraints[11] if constraints else set()
-        schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300,
+        schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=2000,
                                    prof_banned_days=_pbd, prof_allowed_days=_pad, profs_accept_18=_pa18)
 
     # ── تحقق صارم ما بعد التوليد وإصلاح انتهاكات الأيام الممنوعة ──
