@@ -5570,6 +5570,7 @@ elif st.session_state.user_type == "admin":
                         if st.button("💾 حفظ في الشيت (بدون نشر)", use_container_width=True, key="j_save_no_publish"):
                             with st.spinner("⏳ جاري الحفظ..."):
                                 _sched_to_save = st.session_state.get("j_schedule", {})
+                                st.info(f"🔍 جدول للحفظ: {len(_sched_to_save)} مذكرة — مجدول: {sum(1 for v in _sched_to_save.values() if v)}")
                                 ok_s, msg_s = save_full_schedule_to_sheets(_sched_to_save, ready_memos_j)
                             if ok_s:
                                 st.success("✅ تم الحفظ في الشيت — لم يُنشر بعد. غيّر عمود 'نشر البرنامج' يدوياً عند الاعتماد.")
