@@ -3750,14 +3750,17 @@ def restore_session_from_url():
                 st.session_state.mode = "view" if note_num else "register"
                 st.session_state.logged_in = True
                 if note_num:
-                    mr = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==note_num]
+                    _df_m_r = load_memos()
+                    mr = _df_m_r[_df_m_r["رقم المذكرة"].astype(str).apply(normalize_text)==note_num]
                     if not mr.empty:
                         s2_name = str(mr.iloc[0].get("الطالب الثاني","")).strip()
                         if s2_name and s2_name!="--":
-                            s2 = load_student2_for_memo(mr.iloc[0], normalize_text(s_data.get('رقم التسجيل','')), df_students)
+                            _df_st_r = load_students()
+                            s2 = load_student2_for_memo(mr.iloc[0], normalize_text(s_data.get('رقم التسجيل','')), _df_st_r)
                             if s2: st.session_state.student2=s2
     elif user_type=='professor':
-        p = df_prof_memos[df_prof_memos["إسم المستخدم"].astype(str).apply(normalize_text)==normalize_text(username)]
+        _df_pm_r = load_prof_memos()
+        p = _df_pm_r[_df_pm_r["إسم المستخدم"].astype(str).apply(normalize_text)==normalize_text(username)]
         if not p.empty: st.session_state.professor=p.iloc[0].to_dict(); st.session_state.logged_in=True
     elif user_type=='admin':
         if username in ADMIN_CREDENTIALS: st.session_state.admin_user=username; st.session_state.logged_in=True
