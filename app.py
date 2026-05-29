@@ -1505,6 +1505,15 @@ def make_can_place(occupied, prof_busy, prof_day_count, memo_members,
     slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
     LATE_SLOT = "18:00"
     constraint_report = []  # سجل تطبيق القيود
+    # DEBUG TEMP
+    try:
+        import streamlit as _st3
+        _mihub = prof_banned_days.get("ميهوب يزيد", set())
+        if _mihub:
+            _st3.success(f"✅ make_can_place: ميهوب banned={_mihub}")
+        else:
+            _st3.error(f"❌ make_can_place: ميهوب غير موجود في prof_banned_days! keys={list(prof_banned_days.keys())[:5]}")
+    except: pass
 
     def _reject(memo_id, reason):
         if rejection_log is not None:
