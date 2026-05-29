@@ -4668,12 +4668,12 @@ elif st.session_state.user_type == "professor":
                     # تصدير HTML
                     st.markdown("---")
                     rows_html = ""
-                    # فلتر AI — HTML يظهر فقط المذكرات المنشورة (AI = نعم)
-                    _col_ai_h = "نشر البرنامج" if "نشر البرنامج" in jury_memos.columns else ("AI" if "AI" in jury_memos.columns else None)
+                    # فلتر نشر البرنامج — HTML يظهر فقط المذكرات المنشورة
+                    _col_ai_h = next((c for c in ["نشر البرنامج","AI","منشور"] if c in jury_memos.columns), None)
                     if _col_ai_h:
                         _all_for_html = jury_memos[jury_memos[_col_ai_h].astype(str).str.strip() == "نعم"].copy()
                     else:
-                        _all_for_html = jury_memos[jury_memos["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"])].copy()
+                        _all_for_html = pd.DataFrame()  # لا نشر → لا HTML
                     for idx_r, jm_r in _all_for_html.iterrows():
                         jmid_r  = str(jm_r.get("رقم المذكرة","")).strip()
                         jtitle_r= str(jm_r.get("عنوان المذكرة","")).strip()
@@ -4767,10 +4767,11 @@ elif st.session_state.user_type == "professor":
 </body>
 </html>'''
 
-                    import base64 as _b64
-                    _html_b64 = _b64.b64encode(html_export.encode("utf-8")).decode()
-                    _fname = f"programme_{prof_name.replace(' ','_')}.html"
-                    st.markdown(f'''<div style="text-align:center;margin-top:12px;">
+                    if not _all_for_html.empty:
+                        import base64 as _b64
+                        _html_b64 = _b64.b64encode(html_export.encode("utf-8")).decode()
+                        _fname = f"programme_{prof_name.replace(' ','_')}.html"
+                        st.markdown(f'''<div style="text-align:center;margin-top:12px;">
                         <a href="data:text/html;base64,{_html_b64}" download="{_fname}"
                            style="display:inline-block;background:linear-gradient(135deg,#0F2942,#1A3A5C);
                                   color:#FFD700;padding:8px 22px;border-radius:20px;
@@ -4779,6 +4780,8 @@ elif st.session_state.user_type == "professor":
                             📄 تحميل البرنامج
                         </a>
                     </div>''', unsafe_allow_html=True)
+                    else:
+                        st.info("⏳ لم يُنشر البرنامج بعد — التحميل غير متاح")
 
 
 
