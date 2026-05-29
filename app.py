@@ -5075,6 +5075,9 @@ elif st.session_state.user_type == "admin":
                                     _constraints = (_fixed, _date_lim, _ban_days, _not_bef, _not_aft,
                                         _one_day, _allow_days, _consec, _frozen, _phase,
                                         _alt_days, _acc18, _cluster)
+                                    # DEBUG
+                                    import streamlit as _st_dbg
+                                    _st_dbg.info(f"🔍 أيام ممنوعة ميهوب: {_ban_days.get('ميهوب يزيد', 'غير موجود')}")
                                     _seed = st.session_state.get("j_seed", 42)
                                     _algo = st.session_state.get("algo_choice", "🧱 كتل الأساتذة")
                                     schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j, rej_log_j = run_algorithm(
