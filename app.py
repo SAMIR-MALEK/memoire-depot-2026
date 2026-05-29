@@ -5179,6 +5179,8 @@ elif st.session_state.user_type == "admin":
                                     if _alt_days: _cs.append(f"📅 {len(_alt_days)} مذكرة أيام بديلة")
                                     if _cluster: _cs.append(f"🏠 {len(_cluster)} أستاذ تجميع أيام")
                                     st.session_state["j_constraints_summary"] = _cs
+                                    st.session_state["_j_ban_days"] = _ban_days
+                                    st.session_state["_j_allow_days"] = _allow_days
                                 st.success(f"✅ مجدول: {placed_j}/{placed_j+unplaced_j} | غير مجدول: {unplaced_j} | جودة: {quality_j}%")
                                 st.rerun()
                 with c_g2:
@@ -5329,9 +5331,9 @@ elif st.session_state.user_type == "admin":
                         if not _sv: continue
                         _day = _sv[0]
                         for _prof in _mbrs_check.get(_mid, set()):
-                            if _day in _ban_days.get(_prof, set()):
+                            if _day in st.session_state.get("_j_ban_days", {}).get(_prof, set()):
                                 _ban_violations.append(f"🔴 {_prof}: مبرمج في يوم ممنوع {_day} (مذكرة {_mid})")
-                            if _allow_days.get(_prof) and _day not in _allow_days[_prof]:
+                            if st.session_state.get("_j_allow_days", {}).get(_prof) and _day not in st.session_state.get("_j_allow_days", {})[_prof]:
                                 _ban_violations.append(f"🔴 {_prof}: مبرمج في يوم غير مسموح {_day} (مذكرة {_mid})")
                     if _ban_violations:
                         st.error(f"⚠️ {len(_ban_violations)} انتهاك للاستثناءات:")
