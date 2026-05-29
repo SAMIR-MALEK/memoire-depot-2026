@@ -1405,7 +1405,13 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
         members_new = memo_members.get(memo_id, set())
         # ✅ تحقق من الأيام الممنوعة أولاً
         for p in members_new:
-            if day in prof_banned_days.get(p, set()):
+            _banned = prof_banned_days.get(p, set())
+            if p == "ميهوب يزيد":
+                try:
+                    import streamlit as _stx
+                    _stx.warning(f"improve can_place: ميهوب day={day} banned={_banned} result={'REJECT' if day in _banned else 'OK'}")
+                except: pass
+            if day in _banned:
                 return False
             if prof_allowed_days.get(p) and day not in prof_allowed_days[p]:
                 return False
@@ -1564,12 +1570,16 @@ def make_can_place(occupied, prof_busy, prof_day_count, memo_members,
 
             # 8. أيام ممنوعة
             if day in prof_banned_days.get(prof, set()):
-                return _reject(mid, f"يوم {day} ممنوع على {prof}") if log else False
+                if rejection_log is not None:
+                    rejection_log.setdefault(str(mid), set()).add(f"يوم {day} ممنوع على {prof}")
+                return False  # رفض مطلق بغض النظر عن log
 
             # 9. أيام مسموحة فقط
             if prof in prof_allowed_days and prof_allowed_days[prof]:
                 if day not in prof_allowed_days[prof]:
-                    return _reject(mid, f"يوم {day} غير مسموح لـ{prof}") if log else False
+                    if rejection_log is not None:
+                        rejection_log.setdefault(str(mid), set()).add(f"يوم {day} غير مسموح لـ{prof}")
+                    return False  # رفض مطلق
 
             # 10. لا قبل توقيت
             if prof in prof_not_before:
@@ -5090,9 +5100,7 @@ elif st.session_state.user_type == "admin":
                                     _constraints = (_fixed, _date_lim, _ban_days, _not_bef, _not_aft,
                                         _one_day, _allow_days, _consec, _frozen, _phase,
                                         _alt_days, _acc18, _cluster)
-                                    # DEBUG
-                                    import streamlit as _st_dbg
-                                    _st_dbg.info(f"🔍 أيام ممنوعة ميهوب: {_ban_days.get('ميهوب يزيد', 'غير موجود')}")
+
                                     _seed = st.session_state.get("j_seed", 42)
                                     _algo = st.session_state.get("algo_choice", "🧱 كتل الأساتذة")
                                     schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j, rej_log_j = run_algorithm(
@@ -5260,6 +5268,22 @@ elif st.session_state.user_type == "admin":
                         with st.expander("📋 القيود المطبقة في هذا الجدول", expanded=False):
                             for _c in st.session_state["j_constraints_summary"]:
                                 st.markdown(f"- {_c}")
+
+                    # ── تحقق صارم من الاستثناءات ──
+                    _ban_violations = []
+                    _sched_check = st.session_state.get("j_schedule", {})
+                    _mbrs_check = st.session_state.get("j_memo_members", {})
+                    for _mid, _sv in _sched_check.items():
+                        if not _sv: continue
+                        _day = _sv[0]
+                        for _prof in _mbrs_check.get(_mid, set()):
+                            if _day in _ban_days.get(_prof, set()):
+                                _ban_violations.append(f"🔴 {_prof}: مبرمج في يوم ممنوع {_day} (مذكرة {_mid})")
+                            if _allow_days.get(_prof) and _day not in _allow_days[_prof]:
+                                _ban_violations.append(f"🔴 {_prof}: مبرمج في يوم غير مسموح {_day} (مذكرة {_mid})")
+                    if _ban_violations:
+                        st.error(f"⚠️ {len(_ban_violations)} انتهاك للاستثناءات:")
+                        for v in _ban_violations[:10]: st.markdown(f"- {v}")
 
                     # ── تقرير التحقق ──
                     st.markdown("---")
