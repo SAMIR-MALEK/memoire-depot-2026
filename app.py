@@ -3323,6 +3323,10 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             late  = _norm_date(str(row.get("أبعد تاريخ","")).strip())
             
             if day_f and day_f not in ["","nan"] and slot_f and slot_f not in ["","nan"]:
+                try:
+                    import streamlit as _stf
+                    _stf.info(f"📌 مثبت: مذكرة={mid} يوم={day_f} توقيت={slot_f}")
+                except: pass
                 fixed_slots[mid] = (day_f, slot_f, room_f if room_f not in ["","nan"] else None)
             
             if early not in ["","nan"] or late not in ["","nan"]:
