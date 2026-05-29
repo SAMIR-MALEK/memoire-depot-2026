@@ -1646,9 +1646,17 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
         fd, fs, fr = slot_val
         fd, fs = str(fd).strip(), str(fs).strip()
         if fd not in days:
+            try:
+                import streamlit as _sta
+                _sta.error(f"🔴 مذكرة {mid}: {fd} غير موجود في الأيام={days[:3]}...")
+            except: pass
             failed.append(f"المذكرة {mid}: يوم التثبيت {fd} غير موجود في الأيام")
             continue
         if fs not in slots_per_day:
+            try:
+                import streamlit as _stb
+                _stb.error(f"🔴 مذكرة {mid}: {fs} غير موجود في التوقيتات={slots_per_day}")
+            except: pass
             failed.append(f"المذكرة {mid}: توقيت التثبيت {fs} غير موجود في التوقيتات")
             continue
         placed = False
@@ -1659,6 +1667,10 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
                 applied.append(f"✅ المذكرة {mid} → {fd} {fs} {r}")
                 placed = True; break
         if not placed:
+            try:
+                import streamlit as _stc
+                _stc.error(f"🔴 مذكرة {mid}: تعارض في {fd} {fs} — can_place رفضت")
+            except: pass
             failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} {fs} — تعارض")
     return applied, failed
 
