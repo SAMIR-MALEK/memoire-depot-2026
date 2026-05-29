@@ -1664,71 +1664,163 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
 
 
 def algo_blocks(df_memos, days, slots_per_day, rooms, constraints):
-    """كتل الأساتذة — تجميع مضمون بأيام متجاورة"""
+    """
+    كتل الأساتذة — توزيع عادل مع تجميع مناقشات الأستاذ
+    المبدأ: نبني الجدول عمودياً (جولة لكل يوم) لضمان التوازن
+    """
     import random
-    fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split,     memo_alt_days, profs_accept_18, profs_cluster_days = constraints
+    fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, \
+    prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, \
+    memo_alt_days, profs_accept_18, profs_cluster_days = constraints
 
     prof_memos_map, memo_members = build_prof_memo_map(df_memos)
     memo_ids = df_memos["رقم المذكرة"].astype(str).tolist()
+    slot_to_idx = {s: i for i, s in enumerate(slots_per_day)}
 
     schedule, occupied, prof_busy, prof_day_count, prof_first_phase_count = {}, {}, {}, {}, {}
     rejection_log = {}
     scheduled = set()
 
-    can_place, _ = make_can_place(occupied, prof_busy, prof_day_count, memo_members,
-        fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after,
-        prof_allowed_days, profs_accept_18, memo_alt_days, prof_phase_split,
+    # الطاقة اليومية المستهدفة — توزيع عادل
+    n_memos = len(memo_ids)
+    n_days = len(days)
+    n_slots = len(slots_per_day)
+    n_rooms = len(rooms)
+    daily_capacity = n_slots * n_rooms  # الطاقة القصوى
+    daily_target = max(1, round(n_memos / n_days))  # الهدف اليومي
+    daily_max = min(daily_capacity, int(daily_target * 1.4))  # سقف مرن
+
+    # عداد المذكرات في كل يوم
+    day_count = {d: 0 for d in days}
+
+    can_place, _ = make_can_place(
+        occupied, prof_busy, prof_day_count, memo_members,
+        fixed_slots, memo_date_limits, prof_banned_days,
+        prof_not_before, prof_not_after, prof_allowed_days,
+        profs_accept_18, memo_alt_days, prof_phase_split,
         prof_first_phase_count, slots_per_day, rejection_log)
-    place = make_place_fn(schedule, occupied, prof_busy, prof_day_count, memo_members,
-        prof_first_phase_count, prof_phase_split)
+    place = make_place_fn(schedule, occupied, prof_busy, prof_day_count,
+                          memo_members, prof_first_phase_count, prof_phase_split)
 
+    # Phase 0: Fixed slots
     applied, failed = apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place, scheduled)
-    if failed:
-        import streamlit as _st
-        for f in failed: _st.warning(f)
+    for mid in scheduled:
+        sv = schedule.get(mid)
+        if sv: day_count[sv[0]] = day_count.get(sv[0], 0) + 1
 
+    # Phase 1: رتّب الأساتذة من الأكثر مناقشات
     sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
-    valid_days = days[:]
 
-    prof_assigned_days = {}
+    # لكل أستاذ — خصص له أيام متجاورة بناءً على عدد مناقشاته
+    prof_preferred_days = {}
     for prof, pmemos in sorted_profs:
         n = len([m for m in pmemos if m not in scheduled])
         if n == 0: continue
-        n_days_needed = max(1, (n + 2) // 3)
         banned = prof_banned_days.get(prof, set())
         allowed = prof_allowed_days.get(prof, set())
-        cand_days = [d for d in valid_days if d not in banned and (not allowed or d in allowed)]
+        # أيام مرتبة من الأقل اكتظاظاً
+        cand = [d for d in days if d not in banned and (not allowed or d in allowed)]
+        cand_sorted = sorted(cand, key=lambda d: day_count.get(d, 0))
+        # اختر أيام متجاورة قدر الإمكان
+        n_days_needed = max(1, (n + 2) // 3)
+        # ابحث عن كتلة متجاورة
         best_block = []
-        for i in range(len(cand_days) - n_days_needed + 1):
-            block = cand_days[i:i+n_days_needed]
-            if len(block) == n_days_needed:
-                best_block = block; break
-        prof_assigned_days[prof] = best_block or cand_days[:n_days_needed]
+        for i in range(len(cand_sorted)):
+            # جرب بناء كتلة من هذا اليوم
+            block = [cand_sorted[i]]
+            for j in range(i+1, len(cand_sorted)):
+                if len(block) >= n_days_needed: break
+                # هل اليوم مجاور لأحد أيام الكتلة؟
+                try:
+                    from datetime import datetime as _dt
+                    d_new = _dt.strptime(cand_sorted[j], "%Y-%m-%d")
+                    is_adj = any(
+                        abs((_dt.strptime(d, "%Y-%m-%d") - d_new).days) <= 2
+                        for d in block
+                    )
+                    if is_adj or len(block) == 0:
+                        block.append(cand_sorted[j])
+                except: block.append(cand_sorted[j])
+            if len(block) >= min(n_days_needed, len(cand_sorted)):
+                best_block = block[:n_days_needed]; break
+        prof_preferred_days[prof] = best_block or cand_sorted[:n_days_needed]
 
-    for prof, pmemos in sorted_profs:
-        unsch = [m for m in pmemos if m not in scheduled]
-        if not unsch: continue
-        assigned = prof_assigned_days.get(prof, valid_days)
-        memo_idx = 0
-        for day in assigned:
-            if memo_idx >= len(unsch): break
+    # Phase 2: توزيع عمودي — جولة لكل يوم
+    remaining = [m for m in memo_ids if m not in scheduled]
+
+    # رتب المذكرات: الأساتذة الأثقل أولاً
+    def memo_priority(mid):
+        members = memo_members.get(mid, set())
+        max_load = max((len(prof_memos_map.get(p, [])) for p in members), default=0)
+        return -max_load
+
+    remaining.sort(key=memo_priority)
+
+    # جولات توزيع — كل جولة تضع مذكرة في كل يوم
+    max_rounds = daily_max + 5
+    for round_num in range(max_rounds):
+        if not [m for m in remaining if m not in scheduled]:
+            break
+        # رتب الأيام من الأقل اكتظاظاً
+        days_ordered = sorted(days, key=lambda d: day_count.get(d, 0))
+
+        for day in days_ordered:
+            if day_count.get(day, 0) >= daily_max:
+                continue
+            # ابحث عن مذكرة مناسبة لهذا اليوم
+            best_memo = None
+            for mid in remaining:
+                if mid in scheduled: continue
+                # أولوية للمذكرات التي أعضاؤها لديهم مناقشات في هذا اليوم
+                members = memo_members.get(mid, set())
+                has_prof_here = any(
+                    day in prof_preferred_days.get(p, []) for p in members
+                )
+                day_not_banned = all(
+                    day not in prof_banned_days.get(p, set()) and
+                    (not prof_allowed_days.get(p) or day in prof_allowed_days.get(p, set()))
+                    for p in members
+                )
+                if day_not_banned:
+                    if has_prof_here:
+                        best_memo = mid; break
+            if best_memo is None:
+                for mid in remaining:
+                    if mid in scheduled: continue
+                    members = memo_members.get(mid, set())
+                    ok = all(
+                        day not in prof_banned_days.get(p, set()) and
+                        (not prof_allowed_days.get(p) or day in prof_allowed_days.get(p, set()))
+                        for p in members
+                    )
+                    if ok: best_memo = mid; break
+
+            if best_memo is None: continue
+
+            # ضع المذكرة في أفضل توقيت متاح
             for slot in slots_per_day:
-                if memo_idx >= len(unsch): break
-                memo = unsch[memo_idx]
+                placed = False
                 for room in rooms:
-                    if can_place(memo, day, slot, room):
-                        place(memo, day, slot, room)
-                        scheduled.add(memo); memo_idx += 1; break
+                    if can_place(best_memo, day, slot, room, log=True):
+                        place(best_memo, day, slot, room)
+                        scheduled.add(best_memo)
+                        day_count[day] = day_count.get(day, 0) + 1
+                        placed = True; break
+                if placed: break
 
+    # Phase 3: المتبقية
     for memo in memo_ids:
         if memo in scheduled: continue
         placed = False
-        for day in days:
+        # رتب الأيام من الأقل
+        for day in sorted(days, key=lambda d: day_count.get(d, 0)):
             for slot in slots_per_day:
                 for room in rooms:
                     if can_place(memo, day, slot, room, log=True):
                         place(memo, day, slot, room)
-                        scheduled.add(memo); placed = True; break
+                        scheduled.add(memo)
+                        day_count[day] = day_count.get(day, 0) + 1
+                        placed = True; break
                 if placed: break
             if placed: break
         if not placed: schedule[memo] = None
