@@ -3867,6 +3867,7 @@ elif st.session_state.user_type == "student":
             username1 = st.text_input("اسم المستخدم")
             password1 = st.text_input("كلمة السر", type="password")
             if st.form_submit_button("دخول"):
+                df_students = load_students()
                 valid, result = verify_student(username1, password1, df_students)
                 if not valid: st.error(result)
                 else:
