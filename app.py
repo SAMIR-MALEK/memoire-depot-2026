@@ -1406,11 +1406,6 @@ def improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterati
         # ✅ تحقق من الأيام الممنوعة أولاً
         for p in members_new:
             _banned = prof_banned_days.get(p, set())
-            if p == "ميهوب يزيد":
-                try:
-                    import streamlit as _stx
-                    _stx.warning(f"improve can_place: ميهوب day={day} banned={_banned} result={'REJECT' if day in _banned else 'OK'}")
-                except: pass
             if day in _banned:
                 return False
             if prof_allowed_days.get(p) and day not in prof_allowed_days[p]:
@@ -2647,6 +2642,63 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         _pa18 = constraints[11] if constraints else set()
         schedule = improve_schedule(schedule, memo_members, days, slots_per_day, rooms, iterations=300,
                                    prof_banned_days=_pbd, prof_allowed_days=_pad, profs_accept_18=_pa18)
+
+    # ── تحقق صارم ما بعد التوليد وإصلاح انتهاكات الأيام الممنوعة ──
+    _pbd = constraints[2] if constraints else {}
+    _pad = constraints[6] if constraints else {}
+    if _pbd:
+        _violations_found = []
+        for mid, sv in list(schedule.items()):
+            if not sv: continue
+            day, slot, room = sv
+            for prof in memo_members.get(mid, set()):
+                if day in _pbd.get(prof, set()):
+                    _violations_found.append((mid, prof, day))
+                if _pad.get(prof) and day not in _pad[prof]:
+                    _violations_found.append((mid, prof, day))
+        
+        # أصلح كل انتهاك — انقل المذكرة ليوم صالح
+        if _violations_found:
+            _fixed_count = 0
+            for mid, viol_prof, bad_day in _violations_found:
+                old_sv = schedule.get(mid)
+                if not old_sv: continue
+                # ابحث عن خانة بديلة
+                _occ = {sv: m for m, sv in schedule.items() if sv}
+                _pbusy = {}
+                _pdc = {}
+                for m2, sv2 in schedule.items():
+                    if not sv2: continue
+                    d2, s2, r2 = sv2
+                    for p2 in memo_members.get(m2, set()):
+                        _pbusy[(d2, s2, p2)] = m2
+                        _pdc[(p2, d2)] = _pdc.get((p2, d2), 0) + 1
+                
+                placed_alt = False
+                for day in days:
+                    if placed_alt: break
+                    # تحقق أن هذا اليوم مقبول لكل الأعضاء
+                    ok_for_all = True
+                    for p in memo_members.get(mid, set()):
+                        if day in _pbd.get(p, set()):
+                            ok_for_all = False; break
+                        if _pad.get(p) and day not in _pad[p]:
+                            ok_for_all = False; break
+                    if not ok_for_all: continue
+                    
+                    for slot in slots_per_day:
+                        if placed_alt: break
+                        for room in rooms:
+                            if (day, slot, room) in _occ: continue
+                            conflict = False
+                            for p in memo_members.get(mid, set()):
+                                if (day, slot, p) in _pbusy: conflict = True; break
+                                if _pdc.get((p, day), 0) >= 3: conflict = True; break
+                            if not conflict:
+                                schedule[mid] = (day, slot, room)
+                                placed_alt = True
+                                _fixed_count += 1
+                                break
 
     quality, placed, unplaced, idle, total_days, _ = calc_schedule_quality(schedule, memo_members, days, slots_per_day)
     return schedule, quality, placed, unplaced, idle, total_days, memo_members, rej_log
