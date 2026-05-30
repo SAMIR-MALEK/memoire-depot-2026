@@ -5412,8 +5412,8 @@ elif st.session_state.user_type == "admin":
                                                 else:
                                                     consec = 1
                                             except: pass
-                                        if max_c > 4:
-                                            errors.append(f"❌ {prof}: {max_c} أيام متتالية (الحد 4)")
+                                        if max_c > 5:
+                                            errors.append(f"❌ {prof}: {max_c} أيام متتالية (الحد 5)")
                                     return errors
 
                                 # ── حلقة المحاولات ──
