@@ -1255,7 +1255,7 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
                 prof_first_phase_count[prof] = prof_first_phase_count.get(prof, 0) + 1
     
     # رتّب الأساتذة من الأكثر مذكرات إلى الأقل
-    sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]) + random.random()*0.01, reverse=True)
+    sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
     
     # تتبع المذكرات المجدولة
     scheduled_memos = set()
@@ -1660,37 +1660,35 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
     failed = []
     for mid, slot_val in fixed_slots.items():
         fd, fs, fr = slot_val
-        fd = str(fd).strip()
-        fs = str(fs).strip() if fs else ""
+        fd, fs = str(fd).strip(), str(fs).strip()
         if fd not in days:
+
             failed.append(f"المذكرة {mid}: يوم التثبيت {fd} غير موجود في الأيام")
             continue
-        # إذا توقيت محدد — استخدمه فقط، وإلا جرب كل التوقيتات
-        slots_to_try = [fs] if fs and fs in slots_per_day else slots_per_day
-        if fs and fs not in slots_per_day:
-            failed.append(f"المذكرة {mid}: توقيت {fs} غير موجود")
+        if fs not in slots_per_day:
+
+            failed.append(f"المذكرة {mid}: توقيت التثبيت {fs} غير موجود في التوقيتات")
             continue
         placed = False
-        for slot in slots_to_try:
-            if placed: break
-            for r in ([fr] if fr and fr in rooms else rooms):
-                if can_place(mid, fd, slot, r, log=False):
-                    place(mid, fd, slot, r)
-                    scheduled.add(mid)
-                    applied.append(f"✅ المذكرة {mid} → {fd} {slot} {r}")
-                    placed = True; break
+        for r in ([fr] if fr and fr in rooms else rooms):
+            if can_place(mid, fd, fs, r, log=False):
+                place(mid, fd, fs, r)
+                scheduled.add(mid)
+                applied.append(f"✅ المذكرة {mid} → {fd} {fs} {r}")
+                placed = True; break
         if not placed:
-            failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} — تعارض")
+            # debug: جرب مع log=True لمعرفة السبب
+
+            failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} {fs} — تعارض")
     return applied, failed
 
 
-def algo_blocks(df_memos, days, slots_per_day, rooms, constraints, seed=42):
+def algo_blocks(df_memos, days, slots_per_day, rooms, constraints):
     """
     كتل الأساتذة — توزيع عادل مع تجميع مناقشات الأستاذ
     المبدأ: نبني الجدول عمودياً (جولة لكل يوم) لضمان التوازن
     """
     import random
-    random.seed(seed)
     fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, \
     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, \
     memo_alt_days, profs_accept_18, profs_cluster_days = constraints
@@ -1784,7 +1782,7 @@ def algo_blocks(df_memos, days, slots_per_day, rooms, constraints, seed=42):
         if not [m for m in remaining if m not in scheduled]:
             break
         # رتب الأيام من الأقل اكتظاظاً
-        days_ordered = sorted(days, key=lambda d: day_count.get(d, 0) + random.random()*0.1)
+        days_ordered = sorted(days, key=lambda d: day_count.get(d, 0))
 
         for day in days_ordered:
             if day_count.get(day, 0) >= daily_max:
@@ -2755,6 +2753,98 @@ def ga_tabu_scheduler(df_memos, days, slots_per_day, rooms, constraints, streaml
 
 
 
+def multi_start_best(df_memos, days, slots_per_day, rooms, constraints,
+                     n_tries=20, algo_name="🧱 كتل الأساتذة",
+                     progress_cb=None):
+    """
+    Multi-Start Optimizer — يشغل الخوارزمية n_tries مرة
+    ويختار الجدول الأفضل بناءً على score مركّب
+    """
+    import random
+
+    fixed_slots   = constraints[0]
+    prof_banned   = constraints[2]
+    prof_allowed  = constraints[6]
+
+    # ── دالة التقييم ──
+    def score_schedule(sched, memo_members):
+        placed   = sum(1 for sv in sched.values() if sv)
+        total    = len(sched)
+        if total == 0: return -999999
+
+        # انتهاكات حرجة
+        violations = _validate_hard_constraints(sched, memo_members)
+        critical   = len([v for v in violations if v.startswith("🔴")])
+        warnings   = len([v for v in violations if v.startswith("🟡")])
+
+        # توزيع يومي
+        day_counts = {}
+        for sv in sched.values():
+            if sv: day_counts[sv[0]] = day_counts.get(sv[0], 0) + 1
+        avg = sum(day_counts.values()) / max(len(day_counts), 1)
+        imbalance = sum(abs(c - avg) for c in day_counts.values())
+
+        score = (placed * 100
+                 - critical * 500
+                 - warnings  * 30
+                 - imbalance * 5)
+        return score
+
+    best_schedule   = None
+    best_score      = -999999
+    best_memo_mbrs  = {}
+    best_rej        = {}
+
+    for i in range(n_tries):
+        seed = i * 37 + 7
+        try:
+            sched, memo_mbrs, rej = run_algorithm(
+                algo_name, df_memos, days, slots_per_day, rooms,
+                constraints, improve=False, seed=seed
+            )[0], None, {}
+            # run_algorithm returns tuple — unpack properly
+            result = run_algorithm(
+                algo_name, df_memos, days, slots_per_day, rooms,
+                constraints, improve=False, seed=seed
+            )
+            sched     = result[0]
+            memo_mbrs = result[6]
+            rej       = result[7]
+        except Exception as _e:
+            continue
+
+        sc = score_schedule(sched, memo_mbrs)
+        if sc > best_score:
+            best_score    = sc
+            best_schedule = dict(sched)
+            best_memo_mbrs= memo_mbrs
+            best_rej      = rej
+
+        if progress_cb:
+            progress_cb(i + 1, n_tries, best_score,
+                        sum(1 for sv in best_schedule.values() if sv) if best_schedule else 0)
+
+    # تحسين نهائي على أفضل جدول
+    if best_schedule:
+        _pbd  = constraints[2]
+        _pad  = constraints[6]
+        _pa18 = constraints[11]
+        _fix  = constraints[0]
+        best_schedule = improve_schedule(
+            best_schedule, best_memo_mbrs, days, slots_per_day, rooms,
+            iterations=2000, prof_banned_days=_pbd,
+            prof_allowed_days=_pad, profs_accept_18=_pa18,
+            fixed_slots=_fix
+        )
+        # أعد تطبيق المثبتات بالقوة
+        for fmid, fsv in _fix.items():
+            fd, fs, fr = fsv
+            if fd and fs and str(fmid) in best_schedule:
+                best_schedule[str(fmid)] = (fd, fs, fr if fr else rooms[0])
+
+    return best_schedule, best_memo_mbrs, best_rej, best_score
+
+
 def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, improve=True, seed=42):
     """تشغيل الخوارزمية المختارة"""
     import random
@@ -2772,7 +2862,7 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         df_memos = df_memos[~df_memos["رقم المذكرة"].astype(str).isin(_frozen_memos)].copy()
 
     if algo_name == "🧱 كتل الأساتذة":
-        schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints, seed=seed)
+        schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints)
     elif algo_name == "📅 الجدول أولاً":
         schedule, memo_members, rej_log = algo_day_first(df_memos, days, slots_per_day, rooms, constraints)
     elif algo_name == "🧬 GA + Tabu Search":
@@ -3354,9 +3444,9 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             early = _norm_date(str(row.get("أقرب تاريخ","")).strip())
             late  = _norm_date(str(row.get("أبعد تاريخ","")).strip())
             
-            if day_f and day_f not in ["","nan"]:
-                # يوم مثبت بدون توقيت → نستخدم أول توقيت متاح كافتراضي
-                fixed_slots[mid] = (day_f, slot_f if slot_f not in ["","nan"] else "", room_f if room_f not in ["","nan"] else None)
+            if day_f and day_f not in ["","nan"] and slot_f and slot_f not in ["","nan"]:
+
+                fixed_slots[mid] = (day_f, slot_f, room_f if room_f not in ["","nan"] else None)
             
             if early not in ["","nan"] or late not in ["","nan"]:
                 memo_date_limits[mid] = (
@@ -4840,104 +4930,6 @@ elif st.session_state.user_type == "professor":
                         st.info("⏳ لم يُنشر البرنامج بعد — التحميل غير متاح")
 
 
-        with tab_import:
-            st.subheader("📤 استيراد جدول المناقشات من Excel")
-            st.info("ارفع ملف Excel يحتوي على أعمدة: **رقم المذكرة، تاريخ المناقشة، توقيت المناقشة، القاعة** — سيتم نقلها تلقائياً إلى شيت المذكرات.")
-
-            uploaded_sched = st.file_uploader("📂 اختر ملف Excel:", type=["xlsx","xls"], key="import_sched_file")
-
-            if uploaded_sched:
-                import openpyxl as _xl
-                import io as _io_imp
-                try:
-                    _wb_imp = _xl.load_workbook(_io_imp.BytesIO(uploaded_sched.read()))
-                    _ws_imp = _wb_imp.active
-                    _headers_imp = [str(_ws_imp.cell(1,c).value or '').strip() for c in range(1, _ws_imp.max_column+1)]
-
-                    # ابحث عن أعمدة المذكرة والتاريخ والتوقيت والقاعة
-                    def _find_col(headers, candidates):
-                        for c in candidates:
-                            if c in headers: return headers.index(c)
-                        return -1
-
-                    _col_mid  = _find_col(_headers_imp, ['رقم المذكرة','رقم المذكرة'])
-                    _col_date = _find_col(_headers_imp, ['تاريخ المناقشة','التاريخ'])
-                    _col_slot = _find_col(_headers_imp, ['توقيت المناقشة','التوقيت','الساعة'])
-                    _col_room = _find_col(_headers_imp, ['القاعة','قاعة'])
-
-                    if _col_mid == -1 or _col_date == -1:
-                        st.error("❌ لم يُوجد عمود رقم المذكرة أو التاريخ في الملف")
-                    else:
-                        # قراءة البيانات
-                        _import_data = []
-                        for _r in range(2, _ws_imp.max_row+1):
-                            _mid_v = _ws_imp.cell(_r, _col_mid+1).value
-                            _date_v = _ws_imp.cell(_r, _col_date+1).value
-                            if not _mid_v or not _date_v: continue
-                            import datetime as _dt_imp
-                            # تحويل التاريخ
-                            if isinstance(_date_v, _dt_imp.datetime):
-                                _date_str = _date_v.strftime("%Y-%m-%d")
-                            else:
-                                _date_str = str(_date_v).strip()
-                            # توقيت
-                            _slot_v = _ws_imp.cell(_r, _col_slot+1).value if _col_slot >= 0 else None
-                            if isinstance(_slot_v, _dt_imp.time):
-                                _slot_str = _slot_v.strftime("%H:%M")
-                            else:
-                                _slot_str = str(_slot_v or '').strip()
-                                if len(_slot_str) == 8 and _slot_str[2] == ':': _slot_str = _slot_str[:5]
-                            # قاعة
-                            _room_str = str(_ws_imp.cell(_r, _col_room+1).value or '').strip() if _col_room >= 0 else ''
-                            _import_data.append({
-                                'رقم المذكرة': str(int(float(str(_mid_v)))),
-                                'تاريخ': _date_str,
-                                'توقيت': _slot_str,
-                                'قاعة': _room_str
-                            })
-
-                        st.success(f"✅ {len(_import_data)} مذكرة جاهزة للاستيراد")
-                        st.dataframe(_import_data[:10], use_container_width=True)
-                        if len(_import_data) > 10: st.caption(f"... و{len(_import_data)-10} أخرى")
-
-                        if st.button("🚀 استيراد إلى الشيت", type="primary", use_container_width=True, key="do_import"):
-                            with st.spinner("⏳ جاري الاستيراد..."):
-                                # اقرأ شيت المذكرات لبناء خريطة رقم المذكرة → رقم الصف
-                                _all_memos_imp = load_memos()
-                                _row_map_imp = {}
-                                for _i, (_, _row_imp) in enumerate(_all_memos_imp.iterrows()):
-                                    _mid_key = str(_row_imp.get("رقم المذكرة","")).strip()
-                                    try: _mid_key = str(int(float(_mid_key)))
-                                    except: pass
-                                    if _mid_key: _row_map_imp[_mid_key] = _i + 2
-
-                                # بناء batch update
-                                _updates_imp = []
-                                _not_found = []
-                                for _d in _import_data:
-                                    _mid_k = _d['رقم المذكرة']
-                                    _row_n = _row_map_imp.get(_mid_k)
-                                    if not _row_n:
-                                        _not_found.append(_mid_k); continue
-                                    _updates_imp += [
-                                        {"range": f"Feuille 1!W{_row_n}", "values": [[_d['تاريخ']]]},
-                                        {"range": f"Feuille 1!X{_row_n}", "values": [[_d['توقيت']]]},
-                                        {"range": f"Feuille 1!Y{_row_n}", "values": [[_d['قاعة']]]},
-                                    ]
-
-                                if _updates_imp:
-                                    for _i in range(0, len(_updates_imp), 100):
-                                        sheets_service.spreadsheets().values().batchUpdate(
-                                            spreadsheetId=MEMOS_SHEET_ID,
-                                            body={"valueInputOption": "USER_ENTERED", "data": _updates_imp[_i:_i+100]}
-                                        ).execute()
-                                    clear_cache_and_reload()
-                                    st.success(f"✅ تم استيراد {len(_import_data)-len(_not_found)} مذكرة بنجاح!")
-                                    if _not_found: st.warning(f"⚠️ لم توجد في الشيت: {_not_found}")
-                                else:
-                                    st.error("❌ لا توجد بيانات للاستيراد أو أرقام المذكرات غير موجودة في الشيت")
-                except Exception as _e_imp:
-                    st.error(f"❌ خطأ في قراءة الملف: {_e_imp}")
 
 # ================================================================
 # فضاء الإدارة
@@ -5442,6 +5434,25 @@ elif st.session_state.user_type == "admin":
 
                 c_g1, c_g2, c_g3 = st.columns(3)
                 with c_g1:
+                    _n_tries = st.number_input("عدد المحاولات:", min_value=1, max_value=50, value=10, step=1, key="j_n_tries")
+                    if st.button("🏆 أفضل جدول (Multi-Start)", use_container_width=True, key="j_multi_start"):
+                        _pt = st.empty(); _pb = st.progress(0)
+                        def _ms_cb(i,n,sc,pl):
+                            _pt.text(f"محاولة {i}/{n} | score: {sc:.0f} | مجدول: {pl}")
+                            _pb.progress(int(i/n*100))
+                        _dme=load_memo_exceptions(); _dpe=load_prof_exceptions()
+                        _f2,_dl2,_bd2,_nb2,_na2,_o2,_ad2,_co2,_fr2,_ph2,_alt2,_a182,_cl2=build_constraints(_dme,_dpe,gen_slots_j)
+                        _cms=(_f2,_dl2,_bd2,_nb2,_na2,_o2,_ad2,_co2,_fr2,_ph2,_alt2,_a182,_cl2)
+                        _bs,_bmm,_br,_bsc=multi_start_best(ready_memos_j,gen_days_j,gen_slots_j,gen_rooms_j,_cms,
+                            n_tries=int(_n_tries),algo_name=st.session_state.get("algo_choice","🧱 كتل الأساتذة"),progress_cb=_ms_cb)
+                        _pt.empty(); _pb.empty()
+                        if _bs:
+                            _q,_pl,_upl,_id,_td,_=calc_schedule_quality(_bs,_bmm,gen_days_j,gen_slots_j)
+                            st.session_state.update({"j_schedule":_bs,"j_memo_members":_bmm,"j_rej_log":_br,
+                                "j_quality":_q,"j_placed":_pl,"j_unplaced":_upl,
+                                "j_slots_list":gen_slots_j,"j_days_list":gen_days_j,"j_rooms_list":gen_rooms_j})
+                            st.success(f"✅ أفضل جدول: {_pl}/{_pl+_upl} مجدول | جودة: {_q}%")
+                            st.rerun()
                     if st.button("🚀 توليد الجدول الذكي", type="primary", use_container_width=True, key="j_generate"):
                         if capacity < total_ready_j:
                             st.error(f"❌ الطاقة ({capacity}) أقل من عدد المذكرات ({total_ready_j})")
@@ -5464,91 +5475,20 @@ elif st.session_state.user_type == "admin":
                                     st.markdown(f"- {_cf}")
                                 st.stop()
                             else:
-                                _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
-                                    _df_memo_exc, _df_prof_exc, gen_slots_j
-                                )
-                                _constraints = (_fixed, _date_lim, _ban_days, _not_bef, _not_aft,
-                                    _one_day, _allow_days, _consec, _frozen, _phase,
-                                    _alt_days, _acc18, _cluster)
-                                _algo = st.session_state.get("algo_choice", "🧱 كتل الأساتذة")
-                                _base_seed = st.session_state.get("j_seed", 42)
-                                MAX_TRIES = 50
-
-                                def _check_hard_violations(sched, memo_mbrs, days_list):
-                                    """تحقق من القيدين المطلقين"""
-                                    from datetime import datetime as _dt2
-                                    errors = []
-                                    prof_day_slots = {}
-                                    for mid, sv in sched.items():
-                                        if not sv: continue
-                                        day = sv[0]
-                                        for prof in memo_mbrs.get(mid, set()):
-                                            prof_day_slots.setdefault(prof, {})
-                                            prof_day_slots[prof][day] = prof_day_slots[prof].get(day, 0) + 1
-                                    for prof, dc in prof_day_slots.items():
-                                        total = sum(dc.values())
-                                        if total < 3: continue
-                                        # قيد 1: أيام منعزلة > 3
-                                        lonely = [d for d, c in dc.items() if c == 1]
-                                        if len(lonely) > 4:
-                                            errors.append(f"❌ {prof}: {len(lonely)} أيام منعزلة (الحد 4)")
-                                        # قيد 2: أيام متتالية > 4 (الجمعة فاصل)
-                                        sorted_d = sorted(dc.keys())
-                                        consec = 1; max_c = 1
-                                        for i in range(1, len(sorted_d)):
-                                            try:
-                                                d1 = _dt2.strptime(sorted_d[i-1], "%Y-%m-%d")
-                                                d2 = _dt2.strptime(sorted_d[i], "%Y-%m-%d")
-                                                diff = (d2 - d1).days
-                                                # الجمعة (weekday=4) فاصل
-                                                is_friday_between = any(
-                                                    (_dt2.strptime(sorted_d[i-1], "%Y-%m-%d").toordinal() + k) % 7 == 4
-                                                    for k in range(1, diff)
-                                                )
-                                                if diff <= 3 and not is_friday_between:
-                                                    consec += 1; max_c = max(max_c, consec)
-                                                else:
-                                                    consec = 1
-                                            except: pass
-                                        if max_c > 6:
-                                            errors.append(f"❌ {prof}: {max_c} أيام متتالية (الحد 6)")
-                                    return errors
-
-                                # ── حلقة المحاولات ──
-                                _prog_placeholder = st.empty()
-                                _status_placeholder = st.empty()
-                                schedule_j = None
-                                quality_j = placed_j = unplaced_j = idle_j = days_j = 0
-                                memo_members_j = {}; rej_log_j = {}
-                                _found = False
-
-                                for _try in range(MAX_TRIES):
-                                    _try_seed = _base_seed + _try
-                                    _prog_placeholder.info(f"🔄 محاولة {_try+1}/{MAX_TRIES} — بذرة {_try_seed}...")
-
-                                    _sched_t, _q_t, _pl_t, _upl_t, _id_t, _td_t, _mm_t, _rej_t = run_algorithm(
-                                        _algo, ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
-                                        _constraints, improve=False, seed=_try_seed
+                                with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
+                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
+                                        _df_memo_exc, _df_prof_exc, gen_slots_j
                                     )
-                                    hard_errs = _check_hard_violations(_sched_t, _mm_t, gen_days_j)
-                                    if hard_errs:
-                                        _status_placeholder.warning(
-                                            f"⚠️ محاولة {_try+1} فشلت:\n" + "\n".join(hard_errs[:3]) +
-                                            (f"\n... و{len(hard_errs)-3} انتهاك آخر" if len(hard_errs) > 3 else "")
-                                        )
-                                    else:
-                                        _prog_placeholder.success(f"✅ جدول صالح وجد في المحاولة {_try+1} (بذرة {_try_seed})")
-                                        _status_placeholder.empty()
-                                        schedule_j = _sched_t; quality_j = _q_t
-                                        placed_j = _pl_t; unplaced_j = _upl_t
-                                        idle_j = _id_t; days_j = _td_t
-                                        memo_members_j = _mm_t; rej_log_j = _rej_t
-                                        _found = True
-                                        break
+                                    _constraints = (_fixed, _date_lim, _ban_days, _not_bef, _not_aft,
+                                        _one_day, _allow_days, _consec, _frozen, _phase,
+                                        _alt_days, _acc18, _cluster)
 
-                                if not _found:
-                                    _prog_placeholder.error(f"❌ لم يُوجد جدول صالح بعد {MAX_TRIES} محاولة — جرب خوارزمية أخرى أو راجع القيود")
-                                    st.stop()
+                                    _seed = st.session_state.get("j_seed", 42)
+                                    _algo = st.session_state.get("algo_choice", "🧱 كتل الأساتذة")
+                                    schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j, rej_log_j = run_algorithm(
+                                        _algo, ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
+                                        _constraints, improve=True, seed=_seed
+                                    )
                                     st.session_state["j_schedule"] = schedule_j
                                     st.session_state["j_score"] = quality_j
                                     st.session_state["j_unplaced"] = unplaced_j
@@ -5559,28 +5499,12 @@ elif st.session_state.user_type == "admin":
                                     st.session_state["j_rej_log"] = rej_log_j
                                     # ملخص القيود المطبقة
                                     _cs = []
-                                    # تفصيل المواعيد المثبتة
-                                    if _fixed:
-                                        for _fmid, _fsv in _fixed.items():
-                                            _fd, _fs, _fr = _fsv
-                                            _cs.append(f"📌 مذكرة {_fmid}: يوم {_fd}" + (f" توقيت {_fs}" if _fs else "") + (f" قاعة {_fr}" if _fr else "") + " ✅")
-                                    # تفصيل الأيام الممنوعة
-                                    if _ban_days:
-                                        for _bp, _bds in _ban_days.items():
-                                            _bds_fmt = ", ".join(sorted(_bds))
-                                            _cs.append(f"🚫 {_bp}: ممنوع من ({_bds_fmt}) ✅")
-                                    # تفصيل الأيام المسموحة
-                                    if _allow_days:
-                                        for _ap, _ads in _allow_days.items():
-                                            _ads_fmt = ", ".join(sorted(_ads))
-                                            _cs.append(f"✅ {_ap}: مسموح فقط ({_ads_fmt}) ✅")
-                                    if _not_bef:
-                                        for _np, _ns in _not_bef.items():
-                                            _cs.append(f"⏰ {_np}: لا قبل {_ns} ✅")
-                                    if _not_aft:
-                                        for _np, _ns in _not_aft.items():
-                                            _cs.append(f"⏰ {_np}: لا بعد {_ns} ✅")
-                                    if _frozen: _cs.append(f"🔒 {len(_frozen)} أستاذ مجمّد: {', '.join(_frozen)} ✅")
+                                    if _fixed: _cs.append(f"📌 {len(_fixed)} موعد مثبت")
+                                    if _ban_days: _cs.append(f"🚫 {len(_ban_days)} أستاذ أيام ممنوعة")
+                                    if _allow_days: _cs.append(f"✅ {len(_allow_days)} أستاذ أيام مسموحة فقط")
+                                    if _not_bef: _cs.append(f"⏰ {len(_not_bef)} لا قبل توقيت")
+                                    if _not_aft: _cs.append(f"⏰ {len(_not_aft)} لا بعد توقيت")
+                                    if _frozen: _cs.append(f"🔒 {len(_frozen)} أستاذ مجمّد")
                                     if _acc18: _cs.append(f"🌙 {len(_acc18)} يقبل 18:00")
                                     if _alt_days: _cs.append(f"📅 {len(_alt_days)} مذكرة أيام بديلة")
                                     if _cluster: _cs.append(f"🏠 {len(_cluster)} أستاذ تجميع أيام")
@@ -6233,6 +6157,69 @@ elif st.session_state.user_type == "admin":
                     st.dataframe(scheduled_m[cols_available], use_container_width=True, hide_index=True,
                         column_config={"رقم_تسلسلي": st.column_config.NumberColumn("# التسلسلي", width="small")})
 
+
+
+        with tab_import:
+            st.subheader("📤 استيراد جدول المناقشات من Excel")
+            st.info("ارفع ملف Excel يحتوي على: **رقم المذكرة، تاريخ المناقشة، توقيت المناقشة، القاعة**")
+            _upl = st.file_uploader("📂 اختر ملف Excel:", type=["xlsx","xls"], key="import_sched_file")
+            if _upl:
+                import openpyxl as _xl2, io as _io2, datetime as _dti2, pandas as _pd2
+                try:
+                    _wb2 = _xl2.load_workbook(_io2.BytesIO(_upl.read()))
+                    _ws2 = _wb2.active
+                    _hdr2 = [str(_ws2.cell(1,c).value or '').strip() for c in range(1,_ws2.max_column+1)]
+                    def _fc2(h,cands):
+                        for c in cands:
+                            if c in h: return h.index(c)
+                        return -1
+                    _cm2=_fc2(_hdr2,['رقم المذكرة']); _cd2=_fc2(_hdr2,['تاريخ المناقشة','التاريخ'])
+                    _cs2=_fc2(_hdr2,['توقيت المناقشة','التوقيت']); _cr2=_fc2(_hdr2,['القاعة','قاعة'])
+                    if _cm2==-1 or _cd2==-1:
+                        st.error("❌ لم يُوجد عمود رقم المذكرة أو التاريخ")
+                    else:
+                        _dat2=[]
+                        for _r2 in range(2,_ws2.max_row+1):
+                            _mv2=_ws2.cell(_r2,_cm2+1).value
+                            _dv2=_ws2.cell(_r2,_cd2+1).value
+                            if not _mv2 or not _dv2: continue
+                            _ds2=_dv2.strftime("%Y-%m-%d") if isinstance(_dv2,_dti2.datetime) else str(_dv2).strip()
+                            _sv2=_ws2.cell(_r2,_cs2+1).value if _cs2>=0 else None
+                            _ss2=_sv2.strftime("%H:%M") if isinstance(_sv2,_dti2.time) else str(_sv2 or '').strip()[:5]
+                            _rv2=str(_ws2.cell(_r2,_cr2+1).value or '').strip() if _cr2>=0 else ''
+                            try: _mid2=str(int(float(str(_mv2))))
+                            except: _mid2=str(_mv2).strip()
+                            _dat2.append({'رقم المذكرة':_mid2,'تاريخ':_ds2,'توقيت':_ss2,'قاعة':_rv2})
+                        st.success(f"✅ {len(_dat2)} مذكرة جاهزة")
+                        st.dataframe(_pd2.DataFrame(_dat2).head(10),use_container_width=True)
+                        if st.button("🚀 استيراد إلى الشيت",type="primary",use_container_width=True,key="do_import2"):
+                            with st.spinner("⏳ جاري الاستيراد..."):
+                                _am2=load_memos(); _rm2={}
+                                for _i2,(_,_rw2) in enumerate(_am2.iterrows()):
+                                    _mk2=str(_rw2.get("رقم المذكرة","")).strip()
+                                    try: _mk2=str(int(float(_mk2)))
+                                    except: pass
+                                    if _mk2: _rm2[_mk2]=_i2+2
+                                _upd2=[]; _nf2=[]
+                                for _d2 in _dat2:
+                                    _rn2=_rm2.get(_d2['رقم المذكرة'])
+                                    if not _rn2: _nf2.append(_d2['رقم المذكرة']); continue
+                                    _upd2+=[{"range":f"Feuille 1!W{_rn2}","values":[[_d2['تاريخ']]]},
+                                            {"range":f"Feuille 1!X{_rn2}","values":[[_d2['توقيت']]]},
+                                            {"range":f"Feuille 1!Y{_rn2}","values":[[_d2['قاعة']]]}]
+                                if _upd2:
+                                    for _i3 in range(0,len(_upd2),100):
+                                        sheets_service.spreadsheets().values().batchUpdate(
+                                            spreadsheetId=MEMOS_SHEET_ID,
+                                            body={"valueInputOption":"USER_ENTERED","data":_upd2[_i3:_i3+100]}
+                                        ).execute()
+                                    clear_cache_and_reload()
+                                    st.success(f"✅ تم استيراد {len(_dat2)-len(_nf2)} مذكرة!")
+                                    if _nf2: st.warning(f"غير موجودة: {_nf2}")
+                                else:
+                                    st.error("❌ لا توجد بيانات")
+                except Exception as _e2:
+                    st.error(f"❌ {_e2}")
 
 st.markdown("---")
 st.markdown('<div style="text-align:center;color:#ffffff;font-size:11px;padding:16px;">إشراف مسؤول الميدان البروفيسور لخضر رفاف ©</div>', unsafe_allow_html=True)
