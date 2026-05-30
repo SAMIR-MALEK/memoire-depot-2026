@@ -6287,6 +6287,76 @@ elif st.session_state.user_type == "admin":
                                 })
                         _prof_rows.sort(key=lambda r: (r["يوم"], r["توقيت"]))
 
+                        _html_body = (
+                            "<!DOCTYPE html>"
+                            "<html dir='rtl' lang='ar'><head><meta charset='UTF-8'>"
+                            "<meta name='viewport' content='width=device-width,initial-scale=1.0,maximum-scale=3.0'>"
+                            "<style>"
+                            "*{box-sizing:border-box;margin:0;padding:0}"
+                            "body{font-family:Arial,sans-serif;direction:rtl;background:#f0f4f8;padding:8px}"
+                            ".wrap{max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}"
+                            ".hdr{background:linear-gradient(135deg,#0F2942,#1a3a6b);padding:20px;text-align:center}"
+                            ".hdr h1{color:#FFD700;font-size:1.1rem;margin-bottom:5px}"
+                            ".hdr p{color:#cdd8e8;font-size:.8rem;margin-top:3px}"
+                            ".bdy{padding:20px 18px}"
+                            ".greet{font-size:.95rem;color:#0F2942;font-weight:bold;margin-bottom:10px}"
+                            ".txt{font-size:.88rem;color:#333;line-height:1.8;margin-bottom:8px}"
+                            ".warn{background:#fff8e1;border-right:4px solid #f59e0b;padding:10px 12px;border-radius:6px;font-size:.83rem;color:#78350f;margin:14px 0}"
+                            ".plat{background:#e8f0fe;border-radius:8px;padding:10px 14px;margin-top:16px;text-align:center;font-size:.88rem}"
+                            ".plat a{color:#0F2942;font-weight:bold;text-decoration:none}"
+                            ".sig{margin-top:18px;font-size:.85rem;color:#1a3a6b;line-height:1.8}"
+                            ".ftr{background:#f4f6f9;padding:12px;text-align:center;font-size:.75rem;color:#888;border-top:1px solid #e0e0e0}"
+                            "table.dt{width:100%;border-collapse:collapse;margin-top:14px;font-size:.8rem}"
+                            "table.dt th{background:#0F2942;color:#FFD700;padding:9px 6px;text-align:center}"
+                            "table.dt td{border:1px solid #e0e0e0;padding:7px 6px;text-align:center;color:#333}"
+                            "table.dt tr:nth-child(even) td{background:#f9fafc}"
+                            "table.dt .ttl{text-align:center;min-width:140px;font-size:.75rem}"
+                            ".cards{display:none}"
+                            ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:12px;border-right:4px solid #0F2942}"
+                            ".card .cn{font-size:.72rem;color:#64748b;margin-bottom:5px}"
+                            ".card .ct{font-size:.88rem;font-weight:bold;color:#0F2942;margin-bottom:9px;line-height:1.5}"
+                            ".card .cr{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;color:#333}"
+                            ".card .cl{color:#64748b}"
+                            ".card .role{display:inline-block;background:#0F2942;color:#FFD700;padding:2px 9px;border-radius:10px;font-size:.72rem;margin-top:7px}"
+                            ".card .lnk{display:block;text-align:center;margin-top:10px;background:#1a3a6b;color:#FFD700;padding:7px;border-radius:7px;text-decoration:none;font-size:.83rem}"
+                            "@media(max-width:550px){table.dt{display:none}.cards{display:block;margin-top:14px}}"
+                            "</style></head><body>"
+                            "<div class='wrap'>"
+                            "<div class='hdr'><h1>&#128203; برنامج مناقشة مذكرات الماستر</h1>"
+                            "<p>الدورة العادية — السنة الجامعية 2025–2026</p>"
+                            "<p>كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</p></div>"
+                            "<div class='bdy'>"
+                            f"<p class='greet'>الأستاذ(ة) الفاضل(ة): {_prof_name}</p>"
+                            "<p class='txt'>تحية طيبة وبعد،<br>مرفق لكم البرنامج الرسمي لمناقشة مذكرات الماستر، للدورة العادية للسنة الجامعية 2025–2026.</p>"
+                            "<p class='txt'>يمكنكم معاينة المذكرات وتحميلها مباشرةً من خلال الضغط على &#128065; المرفق بكل مذكرة.</p>"
+                            "<div class='warn'>&#9888;&#65039; نظرًا لدقة رزنامة نهاية السنة الجامعية، <strong>يُمنع تأجيل المناقشات أو تعديل توقيتها</strong>. في حال وجود أي ملاحظات، يُرجى التواصل مع مكتب فريق التكوين.</div>"
+                            "<table class='dt'><thead><tr><th>#</th><th>&#128065;</th><th>رقم</th><th>العنوان</th><th>التاريخ</th><th>التوقيت</th><th>القاعة</th><th>الصفة</th></tr></thead><tbody>"
+                            + "".join(
+                                f"<tr><td>{idx_r+1}</td>"
+                                f"<td>{'<a href="'+r["رابط"]+'" target="_blank">&#128065;</a>' if r['رابط'] and r['رابط'] not in ['','nan'] else '—'}</td>"
+                                f"<td>{r['رقم']}</td><td class='ttl'>{r['عنوان']}</td>"
+                                f"<td>{r['يوم']}</td><td>{r['توقيت']}</td><td>{r['قاعة']}</td><td>{r['صفة']}</td></tr>"
+                                for idx_r,r in enumerate(_prof_rows))
+                            + "</tbody></table>"
+                            + "<div class='cards'>"
+                            + "".join(
+                                f"<div class='card'><div class='cn'>مذكرة #{r['رقم']}</div>"
+                                f"<div class='ct'>{r['عنوان']}</div>"
+                                f"<div class='cr'><span class='cl'>&#128197;</span><span>{r['يوم']}</span></div>"
+                                f"<div class='cr'><span class='cl'>&#128336;</span><span>{r['توقيت']}</span></div>"
+                                f"<div class='cr'><span class='cl'>&#127963;&#65039;</span><span>{r['قاعة']}</span></div>"
+                                f"<span class='role'>{r['صفة']}</span>"
+                                + (f"<a class='lnk' href='{r['رابط']}' target='_blank'>&#128065; معاينة المذكرة</a>" if r['رابط'] and r['رابط'] not in ['','nan'] else "")
+                                + "</div>"
+                                for r in _prof_rows)
+                            + "</div>"
+                            "<div class='plat'>&#127760; <a href='https://memoires2026.streamlit.app'>memoires2026.streamlit.app</a></div>"
+                            "<div class='sig'><p>عيدكم مبارك، وكل عام وأنتم بخير. &#127769;</p>"
+                            "<p><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p></div>"
+                            "</div><div class='ftr'>هذا البريد أُرسل تلقائيًا من منصة إدارة مذكرات الماستر — جامعة برج بوعريريج 2025/2026</div>"
+                            "</div></body></html>"
+                        )
+
                         # بناء HTML التكليف
                         _rows_html = "".join(f"""
                             <tr>
@@ -6298,71 +6368,6 @@ elif st.session_state.user_type == "admin":
                                 <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["صفة"]}</td>
                             </tr>""" for r in _prof_rows)
 
-                        _html_body = f"""<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head><meta charset="UTF-8">
-<style>
-  body {{ font-family: 'Segoe UI', Arial, sans-serif; direction: rtl; margin: 0; padding: 0; background: #f4f6f9; }}
-  .wrapper {{ max-width: 700px; width: 100%; margin: 10px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
-  .header {{ background: linear-gradient(135deg, #0F2942, #1a3a6b); padding: 30px 24px; text-align: center; }}
-  .header h1 {{ color: #FFD700; font-size: 1.3rem; margin: 0 0 6px 0; }}
-  .header p {{ color: #cdd8e8; font-size: 0.9rem; margin: 0; }}
-  .body {{ padding: 28px 32px; }}
-  .greeting {{ font-size: 1rem; color: #1a3a6b; font-weight: bold; margin-bottom: 16px; }}
-  .text {{ font-size: 0.95rem; color: #333; line-height: 1.8; margin-bottom: 14px; }}
-  .warning {{ background: #fff3cd; border-right: 4px solid #ff9800; padding: 12px 16px; border-radius: 6px; font-size: 0.9rem; color: #7a4e00; margin: 18px 0; }}
-  .table-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }}
-  table {{ border-collapse: collapse; width: 100%; min-width: 500px; margin-top: 20px; font-size: 0.88rem; }}
-  th {{ background: #0F2942; color: #FFD700; padding: 11px 10px; text-align: center; }}
-  td {{ border: 1px solid #e0e0e0; padding: 9px 10px; text-align: center; color: #333; }}
-  tr:nth-child(even) td {{ background: #f9fafc; }}
-  .eye-icon {{ font-size: 1.1rem; }}
-  .platform {{ background: #e8f0fe; border-radius: 8px; padding: 14px 18px; margin-top: 22px; text-align: center; }}
-  .platform a {{ color: #0F2942; font-weight: bold; text-decoration: none; font-size: 0.95rem; }}
-  .footer {{ background: #f4f6f9; padding: 18px 32px; text-align: center; font-size: 0.82rem; color: #777; border-top: 1px solid #e0e0e0; }}
-  .signature {{ margin-top: 24px; font-size: 0.93rem; color: #1a3a6b; }}
-</style>
-</head>
-<body>
-<div class="wrapper">
-  <div class="header">
-    <h1>📋 برنامج مناقشة مذكرات الماستر</h1>
-    <p>الدورة العادية — السنة الجامعية 2025–2026</p>
-    <p>كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</p>
-  </div>
-  <div class="body">
-    <p class="greeting">الأستاذ(ة) الفاضل(ة): {_prof_name}</p>
-    <p class="text">تحية طيبة وبعد،</p>
-    <p class="text">مرفق لكم البرنامج الرسمي لمناقشة مذكرات الماستر لجميع التخصصات، للدورة العادية للسنة الجامعية 2025–2026.</p>
-    <p class="text">يمكنكم معاينة المذكرات وتحميلها مباشرةً من خلال الضغط على أيقونة 👁 المرفقة بكل مذكرة في الجدول أدناه.</p>
-    <div class="warning">⚠️ نظرًا لدقة رزنامة نهاية السنة الجامعية، <strong>يُمنع تأجيل المناقشات أو تعديل توقيتها</strong>. في حال وجود أي ملاحظات، يُرجى التواصل مع مكتب فريق التكوين بالطابق الأرضي للكلية.</div>
-    <div class="table-wrap"><table>
-      <thead><tr>
-        <th>م</th><th>👁</th><th>رقم المذكرة</th><th>عنوان المذكرة</th><th>التاريخ</th><th>التوقيت</th><th>القاعة</th><th>الصفة</th>
-      </tr></thead>
-      <tbody>
-        {"".join(f'''<tr>
-          <td>{idx_r+1}</td>
-          <td class="eye-icon">{"<a href='" + r["رابط"] + "' target='_blank' title='فتح المذكرة'>👁</a>" if r["رابط"] and r["رابط"] not in ["","nan"] else "—"}</td>
-          <td>{r["رقم"]}</td>
-          <td style="text-align:center;min-width:200px">{r["عنوان"]}</td>
-          <td>{r["يوم"]}</td><td>{r["توقيت"]}</td><td>{r["قاعة"]}</td><td>{r["صفة"]}</td>
-        </tr>''' for idx_r, r in enumerate(_prof_rows))}
-      </tbody>
-    </table></div>
-    <div class="platform">
-      🌐 للاطلاع على تفاصيل أكثر وتحميل المذكرات، يُرجى الولوج إلى منصة المذكرات:<br>
-      <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a>
-    </div>
-    <div class="signature">
-      <p>عيدكم مبارك، وكل عام وأنتم بخير. 🌙</p>
-      <p><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p>
-      <p>بالنيابة عن إدارة كلية الحقوق والعلوم السياسية</p>
-    </div>
-  </div>
-  <div class="footer">هذا البريد أُرسل تلقائيًا من منصة إدارة مذكرات الماستر — جامعة برج بوعريريج 2025/2026</div>
-</div>
-</body></html>"""
 
                         # إرسال مباشر بـ HTML التكليف
                         try:
