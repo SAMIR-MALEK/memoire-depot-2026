@@ -4667,6 +4667,7 @@ elif st.session_state.user_type == "professor":
                     if not _prof_row_ms.empty:
                         _massoul_val = str(_prof_row_ms.iloc[0].get("مسؤول","")).strip()
                         _is_massoul = _massoul_val == "نعم"
+                    st.session_state["_prof_is_massoul"] = _is_massoul
 
                     masks = []
                     # المشرف يرى دائماً مذكراته
@@ -4791,6 +4792,7 @@ elif st.session_state.user_type == "professor":
 
                         # أعضاء اللجنة للمسؤول — دائماً بغض النظر عن AI
                         jury_members_html = ""
+                        _is_massoul = st.session_state.get("_prof_is_massoul", False)
                         if _is_massoul:
                             _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
                             if len(_jrow_full2) > 0:
