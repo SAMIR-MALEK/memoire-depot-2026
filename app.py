@@ -6258,6 +6258,7 @@ elif st.session_state.user_type == "admin":
                     st.caption(f"سيُرسل لـ {len(_profs_to_send)} أستاذ")
 
 
+                _send_fmt = st.radio("صيغة الإرسال:", ["📧 HTML فقط", "📄 PDF + HTML"], horizontal=True, key="send_fmt_tk")
                 if st.button("📧 إرسال التكاليف", type="primary", use_container_width=True, key="send_takleef"):
                     _sent = 0; _failed = []
                     _progress = st.progress(0)
@@ -6374,16 +6375,34 @@ elif st.session_state.user_type == "admin":
                             import smtplib
                             from email.mime.multipart import MIMEMultipart
                             from email.mime.text import MIMEText
+                            from email.mime.base import MIMEBase
+                            from email import encoders as _enc
                             _rows_em = df_p_tk[df_p_tk["الأستاذ"].astype(str).str.strip()==_prof_name.strip()]
                             _email_to = get_email_smart(_rows_em.iloc[0]) if not _rows_em.empty else ""
                             if not _email_to or "@" not in _email_to:
                                 _ok, _msg = False, "لا بريد"
                             else:
-                                _msg_em = MIMEMultipart("alternative")
+                                _msg_em = MIMEMultipart("mixed")
                                 _msg_em["Subject"] = "تكليف بمناقشة مذكرات الماستر — الدورة العادية الأولى 2025/2026"
                                 _msg_em["From"] = EMAIL_SENDER
                                 _msg_em["To"] = _email_to
-                                _msg_em.attach(MIMEText(_html_body, "html", "utf-8"))
+                                # HTML body
+                                _alt = MIMEMultipart("alternative")
+                                _alt.attach(MIMEText(_html_body, "html", "utf-8"))
+                                _msg_em.attach(_alt)
+                                # PDF attachment
+                                if _send_fmt == "📄 PDF + HTML":
+                                    try:
+                                        from weasyprint import HTML as _WH
+                                        _pdf_bytes = _WH(string=_html_body).write_pdf()
+                                        _pdf_part = MIMEBase("application","pdf")
+                                        _pdf_part.set_payload(_pdf_bytes)
+                                        _enc.encode_base64(_pdf_part)
+                                        _pdf_name = f"تكليف_{_prof_name.replace(' ','_')}.pdf"
+                                        _pdf_part.add_header("Content-Disposition","attachment",filename=_pdf_name)
+                                        _msg_em.attach(_pdf_part)
+                                    except Exception as _pdf_err:
+                                        pass  # إذا فشل PDF أرسل HTML فقط
                                 with smtplib.SMTP_SSL("smtp.gmail.com", 465) as _srv:
                                     _srv.login(EMAIL_SENDER, EMAIL_PASSWORD)
                                     _srv.sendmail(EMAIL_SENDER, _email_to, _msg_em.as_string())
