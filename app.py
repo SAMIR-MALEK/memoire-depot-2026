@@ -6392,7 +6392,8 @@ elif st.session_state.user_type == "admin":
                                 _alt.attach(MIMEText(_html_body, "html", "utf-8"))
                                 _msg_em.attach(_alt)
                                 # PDF attachment
-                                if st.session_state.get("_send_fmt_val","") == "📄 PDF + HTML":
+                                _fmt_val = st.session_state.get("_send_fmt_val","")
+                                if _fmt_val == "📄 PDF + HTML":
                                     try:
                                         from weasyprint import HTML as _WH
                                         _pdf_bytes = _WH(string=_html_body).write_pdf()
@@ -6402,8 +6403,9 @@ elif st.session_state.user_type == "admin":
                                         _pdf_name = f"تكليف_{_prof_name.replace(' ','_')}.pdf"
                                         _pdf_part.add_header("Content-Disposition","attachment",filename=_pdf_name)
                                         _msg_em.attach(_pdf_part)
+                                        _msg += " + PDF"
                                     except Exception as _pdf_err:
-                                        pass  # إذا فشل PDF أرسل HTML فقط
+                                        _failed.append(f"PDF فشل: {_pdf_err}")
                                 with smtplib.SMTP_SSL("smtp.gmail.com", 465) as _srv:
                                     _srv.login(EMAIL_SENDER, EMAIL_PASSWORD)
                                     _srv.sendmail(EMAIL_SENDER, _email_to, _msg_em.as_string())
