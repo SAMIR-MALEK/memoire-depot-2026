@@ -6403,7 +6403,7 @@ elif st.session_state.user_type == "admin":
                                         _pdf_name = f"تكليف_{_prof_name.replace(' ','_')}.pdf"
                                         _pdf_part.add_header("Content-Disposition","attachment",filename=_pdf_name)
                                         _msg_em.attach(_pdf_part)
-                                        _msg += " + PDF"
+                                        _ok = True; _msg = "تم + PDF"
                                     except Exception as _pdf_err:
                                         _failed.append(f"PDF فشل: {_pdf_err}")
                                 with smtplib.SMTP_SSL("smtp.gmail.com", 465) as _srv:
