@@ -4840,6 +4840,104 @@ elif st.session_state.user_type == "professor":
                         st.info("⏳ لم يُنشر البرنامج بعد — التحميل غير متاح")
 
 
+        with tab_import:
+            st.subheader("📤 استيراد جدول المناقشات من Excel")
+            st.info("ارفع ملف Excel يحتوي على أعمدة: **رقم المذكرة، تاريخ المناقشة، توقيت المناقشة، القاعة** — سيتم نقلها تلقائياً إلى شيت المذكرات.")
+
+            uploaded_sched = st.file_uploader("📂 اختر ملف Excel:", type=["xlsx","xls"], key="import_sched_file")
+
+            if uploaded_sched:
+                import openpyxl as _xl
+                import io as _io_imp
+                try:
+                    _wb_imp = _xl.load_workbook(_io_imp.BytesIO(uploaded_sched.read()))
+                    _ws_imp = _wb_imp.active
+                    _headers_imp = [str(_ws_imp.cell(1,c).value or '').strip() for c in range(1, _ws_imp.max_column+1)]
+
+                    # ابحث عن أعمدة المذكرة والتاريخ والتوقيت والقاعة
+                    def _find_col(headers, candidates):
+                        for c in candidates:
+                            if c in headers: return headers.index(c)
+                        return -1
+
+                    _col_mid  = _find_col(_headers_imp, ['رقم المذكرة','رقم المذكرة'])
+                    _col_date = _find_col(_headers_imp, ['تاريخ المناقشة','التاريخ'])
+                    _col_slot = _find_col(_headers_imp, ['توقيت المناقشة','التوقيت','الساعة'])
+                    _col_room = _find_col(_headers_imp, ['القاعة','قاعة'])
+
+                    if _col_mid == -1 or _col_date == -1:
+                        st.error("❌ لم يُوجد عمود رقم المذكرة أو التاريخ في الملف")
+                    else:
+                        # قراءة البيانات
+                        _import_data = []
+                        for _r in range(2, _ws_imp.max_row+1):
+                            _mid_v = _ws_imp.cell(_r, _col_mid+1).value
+                            _date_v = _ws_imp.cell(_r, _col_date+1).value
+                            if not _mid_v or not _date_v: continue
+                            import datetime as _dt_imp
+                            # تحويل التاريخ
+                            if isinstance(_date_v, _dt_imp.datetime):
+                                _date_str = _date_v.strftime("%Y-%m-%d")
+                            else:
+                                _date_str = str(_date_v).strip()
+                            # توقيت
+                            _slot_v = _ws_imp.cell(_r, _col_slot+1).value if _col_slot >= 0 else None
+                            if isinstance(_slot_v, _dt_imp.time):
+                                _slot_str = _slot_v.strftime("%H:%M")
+                            else:
+                                _slot_str = str(_slot_v or '').strip()
+                                if len(_slot_str) == 8 and _slot_str[2] == ':': _slot_str = _slot_str[:5]
+                            # قاعة
+                            _room_str = str(_ws_imp.cell(_r, _col_room+1).value or '').strip() if _col_room >= 0 else ''
+                            _import_data.append({
+                                'رقم المذكرة': str(int(float(str(_mid_v)))),
+                                'تاريخ': _date_str,
+                                'توقيت': _slot_str,
+                                'قاعة': _room_str
+                            })
+
+                        st.success(f"✅ {len(_import_data)} مذكرة جاهزة للاستيراد")
+                        st.dataframe(_import_data[:10], use_container_width=True)
+                        if len(_import_data) > 10: st.caption(f"... و{len(_import_data)-10} أخرى")
+
+                        if st.button("🚀 استيراد إلى الشيت", type="primary", use_container_width=True, key="do_import"):
+                            with st.spinner("⏳ جاري الاستيراد..."):
+                                # اقرأ شيت المذكرات لبناء خريطة رقم المذكرة → رقم الصف
+                                _all_memos_imp = load_memos()
+                                _row_map_imp = {}
+                                for _i, (_, _row_imp) in enumerate(_all_memos_imp.iterrows()):
+                                    _mid_key = str(_row_imp.get("رقم المذكرة","")).strip()
+                                    try: _mid_key = str(int(float(_mid_key)))
+                                    except: pass
+                                    if _mid_key: _row_map_imp[_mid_key] = _i + 2
+
+                                # بناء batch update
+                                _updates_imp = []
+                                _not_found = []
+                                for _d in _import_data:
+                                    _mid_k = _d['رقم المذكرة']
+                                    _row_n = _row_map_imp.get(_mid_k)
+                                    if not _row_n:
+                                        _not_found.append(_mid_k); continue
+                                    _updates_imp += [
+                                        {"range": f"Feuille 1!W{_row_n}", "values": [[_d['تاريخ']]]},
+                                        {"range": f"Feuille 1!X{_row_n}", "values": [[_d['توقيت']]]},
+                                        {"range": f"Feuille 1!Y{_row_n}", "values": [[_d['قاعة']]]},
+                                    ]
+
+                                if _updates_imp:
+                                    for _i in range(0, len(_updates_imp), 100):
+                                        sheets_service.spreadsheets().values().batchUpdate(
+                                            spreadsheetId=MEMOS_SHEET_ID,
+                                            body={"valueInputOption": "USER_ENTERED", "data": _updates_imp[_i:_i+100]}
+                                        ).execute()
+                                    clear_cache_and_reload()
+                                    st.success(f"✅ تم استيراد {len(_import_data)-len(_not_found)} مذكرة بنجاح!")
+                                    if _not_found: st.warning(f"⚠️ لم توجد في الشيت: {_not_found}")
+                                else:
+                                    st.error("❌ لا توجد بيانات للاستيراد أو أرقام المذكرات غير موجودة في الشيت")
+                except Exception as _e_imp:
+                    st.error(f"❌ خطأ في قراءة الملف: {_e_imp}")
 
 # ================================================================
 # فضاء الإدارة
@@ -4894,7 +4992,7 @@ elif st.session_state.user_type == "admin":
             <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
         </div>''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab9,tab_stats,tab_mahdar=st.tabs(["📅 جدولة ذكية","📊 إحصائيات الأساتذة","📄 المحاضر"])
+        tab9,tab_stats,tab_mahdar,tab_import=st.tabs(["📅 جدولة ذكية","📊 إحصائيات الأساتذة","📄 المحاضر","📤 استيراد جدول"])
 
         # ================================================================
         # TAB جدولة ذكية
