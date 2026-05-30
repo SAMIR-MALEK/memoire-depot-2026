@@ -6337,7 +6337,7 @@ th{{background:#0F2942;color:white;padding:10px;border:1px solid #ddd;}}
                                 _msg_em.attach(MIMEText(_html_body, "html", "utf-8"))
                                 with smtplib.SMTP_SSL("smtp.gmail.com", 465) as _srv:
                                     _srv.login(EMAIL_SENDER, EMAIL_PASSWORD)
-                                    _srv.sendmail(EMAIL_ADDRESS, _email_to, _msg_em.as_string())
+                                    _srv.sendmail(EMAIL_SENDER, _email_to, _msg_em.as_string())
                                 _ok, _msg = True, "تم"
                         except Exception as _ex_em:
                             _ok, _msg = False, str(_ex_em)
