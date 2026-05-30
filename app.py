@@ -4307,6 +4307,7 @@ elif st.session_state.user_type == "student":
 
             with tab_track:
                 st.subheader("📂 حالة ملف التخرج")
+                df_students = load_students()
                 def render_diploma(student_data, title):
                     cols_s = df_students.columns.tolist()
                     def gv(idx): return student_data.get(cols_s[idx],"غير محدد") if isinstance(student_data,dict) and len(cols_s)>idx else "غير محدد"
