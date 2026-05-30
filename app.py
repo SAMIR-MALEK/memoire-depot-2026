@@ -3985,6 +3985,7 @@ elif st.session_state.user_type == "student":
                         note_num = normalize_text(result.get('رقم المذكرة',''))
                         if note_num:
                             st.session_state.mode="view"
+                            df_memos = load_memos()
                             mr = df_memos[df_memos["رقم المذكرة"].astype(str).apply(normalize_text)==note_num]
                             if not mr.empty:
                                 s2_name = str(mr.iloc[0].get("الطالب الثاني","")).strip()
@@ -6330,11 +6331,11 @@ th{{background:#0F2942;color:white;padding:10px;border:1px solid #ddd;}}
                             else:
                                 _msg_em = MIMEMultipart("alternative")
                                 _msg_em["Subject"] = "تكليف بمناقشة مذكرات الماستر — الدورة العادية الأولى 2025/2026"
-                                _msg_em["From"] = EMAIL_ADDRESS
+                                _msg_em["From"] = EMAIL_SENDER
                                 _msg_em["To"] = _email_to
                                 _msg_em.attach(MIMEText(_html_body, "html", "utf-8"))
                                 with smtplib.SMTP_SSL("smtp.gmail.com", 465) as _srv:
-                                    _srv.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                                    _srv.login(EMAIL_SENDER, EMAIL_PASSWORD)
                                     _srv.sendmail(EMAIL_ADDRESS, _email_to, _msg_em.as_string())
                                 _ok, _msg = True, "تم"
                         except Exception as _ex_em:
