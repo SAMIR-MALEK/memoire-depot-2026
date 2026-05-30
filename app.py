@@ -6259,6 +6259,7 @@ elif st.session_state.user_type == "admin":
 
 
                 _send_fmt = st.radio("صيغة الإرسال:", ["📧 HTML فقط", "📄 PDF + HTML"], horizontal=True, key="send_fmt_tk")
+                st.session_state["_send_fmt_val"] = _send_fmt
                 if st.button("📧 إرسال التكاليف", type="primary", use_container_width=True, key="send_takleef"):
                     _sent = 0; _failed = []
                     _progress = st.progress(0)
@@ -6391,7 +6392,7 @@ elif st.session_state.user_type == "admin":
                                 _alt.attach(MIMEText(_html_body, "html", "utf-8"))
                                 _msg_em.attach(_alt)
                                 # PDF attachment
-                                if _send_fmt == "📄 PDF + HTML":
+                                if st.session_state.get("_send_fmt_val","") == "📄 PDF + HTML":
                                     try:
                                         from weasyprint import HTML as _WH
                                         _pdf_bytes = _WH(string=_html_body).write_pdf()
