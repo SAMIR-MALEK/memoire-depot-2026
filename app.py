@@ -5366,20 +5366,91 @@ elif st.session_state.user_type == "admin":
                                     st.markdown(f"- {_cf}")
                                 st.stop()
                             else:
-                                with st.spinner("🧠 DSatur + Tabu Search + Post-Optimization..."):
-                                    _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
-                                        _df_memo_exc, _df_prof_exc, gen_slots_j
-                                    )
-                                    _constraints = (_fixed, _date_lim, _ban_days, _not_bef, _not_aft,
-                                        _one_day, _allow_days, _consec, _frozen, _phase,
-                                        _alt_days, _acc18, _cluster)
+                                _fixed, _date_lim, _ban_days, _not_bef, _not_aft, _one_day, _allow_days, _consec, _frozen, _phase, _alt_days, _acc18, _cluster = build_constraints(
+                                    _df_memo_exc, _df_prof_exc, gen_slots_j
+                                )
+                                _constraints = (_fixed, _date_lim, _ban_days, _not_bef, _not_aft,
+                                    _one_day, _allow_days, _consec, _frozen, _phase,
+                                    _alt_days, _acc18, _cluster)
+                                _algo = st.session_state.get("algo_choice", "🧱 كتل الأساتذة")
+                                _base_seed = st.session_state.get("j_seed", 42)
+                                MAX_TRIES = 50
 
-                                    _seed = st.session_state.get("j_seed", 42)
-                                    _algo = st.session_state.get("algo_choice", "🧱 كتل الأساتذة")
-                                    schedule_j, quality_j, placed_j, unplaced_j, idle_j, days_j, memo_members_j, rej_log_j = run_algorithm(
+                                def _check_hard_violations(sched, memo_mbrs, days_list):
+                                    """تحقق من القيدين المطلقين"""
+                                    from datetime import datetime as _dt2
+                                    errors = []
+                                    prof_day_slots = {}
+                                    for mid, sv in sched.items():
+                                        if not sv: continue
+                                        day = sv[0]
+                                        for prof in memo_mbrs.get(mid, set()):
+                                            prof_day_slots.setdefault(prof, {})
+                                            prof_day_slots[prof][day] = prof_day_slots[prof].get(day, 0) + 1
+                                    for prof, dc in prof_day_slots.items():
+                                        total = sum(dc.values())
+                                        if total < 3: continue
+                                        # قيد 1: أيام منعزلة > 3
+                                        lonely = [d for d, c in dc.items() if c == 1]
+                                        if len(lonely) > 3:
+                                            errors.append(f"❌ {prof}: {len(lonely)} أيام منعزلة (الحد 3)")
+                                        # قيد 2: أيام متتالية > 4 (الجمعة فاصل)
+                                        sorted_d = sorted(dc.keys())
+                                        consec = 1; max_c = 1
+                                        for i in range(1, len(sorted_d)):
+                                            try:
+                                                d1 = _dt2.strptime(sorted_d[i-1], "%Y-%m-%d")
+                                                d2 = _dt2.strptime(sorted_d[i], "%Y-%m-%d")
+                                                diff = (d2 - d1).days
+                                                # الجمعة (weekday=4) فاصل
+                                                is_friday_between = any(
+                                                    (_dt2.strptime(sorted_d[i-1], "%Y-%m-%d").toordinal() + k) % 7 == 4
+                                                    for k in range(1, diff)
+                                                )
+                                                if diff <= 3 and not is_friday_between:
+                                                    consec += 1; max_c = max(max_c, consec)
+                                                else:
+                                                    consec = 1
+                                            except: pass
+                                        if max_c > 4:
+                                            errors.append(f"❌ {prof}: {max_c} أيام متتالية (الحد 4)")
+                                    return errors
+
+                                # ── حلقة المحاولات ──
+                                _prog_placeholder = st.empty()
+                                _status_placeholder = st.empty()
+                                schedule_j = None
+                                quality_j = placed_j = unplaced_j = idle_j = days_j = 0
+                                memo_members_j = {}; rej_log_j = {}
+                                _found = False
+
+                                for _try in range(MAX_TRIES):
+                                    _try_seed = _base_seed + _try
+                                    _prog_placeholder.info(f"🔄 محاولة {_try+1}/{MAX_TRIES} — بذرة {_try_seed}...")
+
+                                    _sched_t, _q_t, _pl_t, _upl_t, _id_t, _td_t, _mm_t, _rej_t = run_algorithm(
                                         _algo, ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
-                                        _constraints, improve=True, seed=_seed
+                                        _constraints, improve=True, seed=_try_seed
                                     )
+                                    hard_errs = _check_hard_violations(_sched_t, _mm_t, gen_days_j)
+                                    if hard_errs:
+                                        _status_placeholder.warning(
+                                            f"⚠️ محاولة {_try+1} فشلت:\n" + "\n".join(hard_errs[:3]) +
+                                            (f"\n... و{len(hard_errs)-3} انتهاك آخر" if len(hard_errs) > 3 else "")
+                                        )
+                                    else:
+                                        _prog_placeholder.success(f"✅ جدول صالح وجد في المحاولة {_try+1} (بذرة {_try_seed})")
+                                        _status_placeholder.empty()
+                                        schedule_j = _sched_t; quality_j = _q_t
+                                        placed_j = _pl_t; unplaced_j = _upl_t
+                                        idle_j = _id_t; days_j = _td_t
+                                        memo_members_j = _mm_t; rej_log_j = _rej_t
+                                        _found = True
+                                        break
+
+                                if not _found:
+                                    _prog_placeholder.error(f"❌ لم يُوجد جدول صالح بعد {MAX_TRIES} محاولة — جرب خوارزمية أخرى أو راجع القيود")
+                                    st.stop()
                                     st.session_state["j_schedule"] = schedule_j
                                     st.session_state["j_score"] = quality_j
                                     st.session_state["j_unplaced"] = unplaced_j
@@ -5390,12 +5461,28 @@ elif st.session_state.user_type == "admin":
                                     st.session_state["j_rej_log"] = rej_log_j
                                     # ملخص القيود المطبقة
                                     _cs = []
-                                    if _fixed: _cs.append(f"📌 {len(_fixed)} موعد مثبت")
-                                    if _ban_days: _cs.append(f"🚫 {len(_ban_days)} أستاذ أيام ممنوعة")
-                                    if _allow_days: _cs.append(f"✅ {len(_allow_days)} أستاذ أيام مسموحة فقط")
-                                    if _not_bef: _cs.append(f"⏰ {len(_not_bef)} لا قبل توقيت")
-                                    if _not_aft: _cs.append(f"⏰ {len(_not_aft)} لا بعد توقيت")
-                                    if _frozen: _cs.append(f"🔒 {len(_frozen)} أستاذ مجمّد")
+                                    # تفصيل المواعيد المثبتة
+                                    if _fixed:
+                                        for _fmid, _fsv in _fixed.items():
+                                            _fd, _fs, _fr = _fsv
+                                            _cs.append(f"📌 مذكرة {_fmid}: يوم {_fd}" + (f" توقيت {_fs}" if _fs else "") + (f" قاعة {_fr}" if _fr else "") + " ✅")
+                                    # تفصيل الأيام الممنوعة
+                                    if _ban_days:
+                                        for _bp, _bds in _ban_days.items():
+                                            _bds_fmt = ", ".join(sorted(_bds))
+                                            _cs.append(f"🚫 {_bp}: ممنوع من ({_bds_fmt}) ✅")
+                                    # تفصيل الأيام المسموحة
+                                    if _allow_days:
+                                        for _ap, _ads in _allow_days.items():
+                                            _ads_fmt = ", ".join(sorted(_ads))
+                                            _cs.append(f"✅ {_ap}: مسموح فقط ({_ads_fmt}) ✅")
+                                    if _not_bef:
+                                        for _np, _ns in _not_bef.items():
+                                            _cs.append(f"⏰ {_np}: لا قبل {_ns} ✅")
+                                    if _not_aft:
+                                        for _np, _ns in _not_aft.items():
+                                            _cs.append(f"⏰ {_np}: لا بعد {_ns} ✅")
+                                    if _frozen: _cs.append(f"🔒 {len(_frozen)} أستاذ مجمّد: {', '.join(_frozen)} ✅")
                                     if _acc18: _cs.append(f"🌙 {len(_acc18)} يقبل 18:00")
                                     if _alt_days: _cs.append(f"📅 {len(_alt_days)} مذكرة أيام بديلة")
                                     if _cluster: _cs.append(f"🏠 {len(_cluster)} أستاذ تجميع أيام")
