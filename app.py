@@ -6298,25 +6298,64 @@ elif st.session_state.user_type == "admin":
                         _html_body = f"""<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head><meta charset="UTF-8">
-<style>body{{font-family:Arial,sans-serif;direction:rtl;margin:20px;}}
-h2{{color:#0F2942;}} table{{border-collapse:collapse;width:100%;}}
-th{{background:#0F2942;color:white;padding:10px;border:1px solid #ddd;}}
-.footer{{margin-top:20px;font-size:0.9rem;color:#555;}}
-</style></head>
+<style>
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; direction: rtl; margin: 0; padding: 0; background: #f4f6f9; }}
+  .wrapper {{ max-width: 700px; margin: 30px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }}
+  .header {{ background: linear-gradient(135deg, #0F2942, #1a3a6b); padding: 30px 24px; text-align: center; }}
+  .header h1 {{ color: #FFD700; font-size: 1.3rem; margin: 0 0 6px 0; }}
+  .header p {{ color: #cdd8e8; font-size: 0.9rem; margin: 0; }}
+  .body {{ padding: 28px 32px; }}
+  .greeting {{ font-size: 1rem; color: #1a3a6b; font-weight: bold; margin-bottom: 16px; }}
+  .text {{ font-size: 0.95rem; color: #333; line-height: 1.8; margin-bottom: 14px; }}
+  .warning {{ background: #fff3cd; border-right: 4px solid #ff9800; padding: 12px 16px; border-radius: 6px; font-size: 0.9rem; color: #7a4e00; margin: 18px 0; }}
+  table {{ border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 0.88rem; }}
+  th {{ background: #0F2942; color: #FFD700; padding: 11px 10px; text-align: center; }}
+  td {{ border: 1px solid #e0e0e0; padding: 9px 10px; text-align: center; color: #333; }}
+  tr:nth-child(even) td {{ background: #f9fafc; }}
+  .eye-icon {{ font-size: 1.1rem; }}
+  .platform {{ background: #e8f0fe; border-radius: 8px; padding: 14px 18px; margin-top: 22px; text-align: center; }}
+  .platform a {{ color: #0F2942; font-weight: bold; text-decoration: none; font-size: 0.95rem; }}
+  .footer {{ background: #f4f6f9; padding: 18px 32px; text-align: center; font-size: 0.82rem; color: #777; border-top: 1px solid #e0e0e0; }}
+  .signature {{ margin-top: 24px; font-size: 0.93rem; color: #1a3a6b; }}
+</style>
+</head>
 <body>
-<h2>تكليف بمناقشة مذكرات الماستر — الدورة العادية الأولى 2025/2026</h2>
-<p>الأستاذ(ة) المحترم(ة): <strong>{_prof_name}</strong></p>
-<p>تُكلَّف بالمشاركة في لجان مناقشة مذكرات الماستر المبرمجة أدناه، وذلك ضمن الدورة العادية الأولى لسنة 2025/2026.</p>
-<p style="color:red"><strong>⚠️ تنبيه: الالتزام بالتوقيت إلزامي. لا يمكن تأجيل أي مناقشة تحت أي ظرف.</strong></p>
-<table>
-<thead><tr>
-<th>رقم المذكرة</th><th>عنوان المذكرة</th><th>التاريخ</th><th>التوقيت</th><th>القاعة</th><th>الصفة</th>
-</tr></thead>
-<tbody>{_rows_html}</tbody>
-</table>
-<div class="footer">
-<p>للاطلاع على تفاصيل أكثر، يُرجى الولوج إلى المنصة الإلكترونية: <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a></p>
-<p>مع التحيات — إدارة كلية الحقوق والعلوم السياسية، جامعة برج بوعريريج</p>
+<div class="wrapper">
+  <div class="header">
+    <h1>📋 برنامج مناقشة مذكرات الماستر</h1>
+    <p>الدورة العادية — السنة الجامعية 2025–2026</p>
+    <p>كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</p>
+  </div>
+  <div class="body">
+    <p class="greeting">الأستاذ(ة) الفاضل(ة): {_prof_name}</p>
+    <p class="text">تحية طيبة وبعد،</p>
+    <p class="text">مرفق لكم البرنامج الرسمي لمناقشة مذكرات الماستر لجميع التخصصات، للدورة العادية للسنة الجامعية 2025–2026.</p>
+    <p class="text">يمكنكم معاينة المذكرات وتحميلها مباشرةً من خلال الضغط على أيقونة 👁 المعاينة المرفقة بكل مذكرة داخل منصة المذكرات.</p>
+    <div class="warning">⚠️ نظرًا لدقة رزنامة نهاية السنة الجامعية، <strong>يُمنع تأجيل المناقشات أو تعديل توقيتها</strong>. في حال وجود أي ملاحظات، يُرجى التواصل مع مكتب فريق التكوين بالطابق الأرضي للكلية.</div>
+    <table>
+      <thead><tr>
+        <th>م</th><th>👁</th><th>رقم المذكرة</th><th>عنوان المذكرة</th><th>التاريخ</th><th>التوقيت</th><th>القاعة</th><th>الصفة</th>
+      </tr></thead>
+      <tbody>
+        {"".join(f'''<tr>
+          <td>{idx_r+1}</td>
+          <td class="eye-icon"><a href="https://memoires2026.streamlit.app" title="معاينة المذكرة">👁</a></td>
+          <td>{r["رقم"]}</td><td style="text-align:right">{r["عنوان"]}</td>
+          <td>{r["يوم"]}</td><td>{r["توقيت"]}</td><td>{r["قاعة"]}</td><td>{r["صفة"]}</td>
+        </tr>''' for idx_r, r in enumerate(_prof_rows))}
+      </tbody>
+    </table>
+    <div class="platform">
+      🌐 للاطلاع على تفاصيل أكثر وتحميل المذكرات، يُرجى الولوج إلى منصة المذكرات:<br>
+      <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a>
+    </div>
+    <div class="signature">
+      <p>عيدكم مبارك، وكل عام وأنتم بخير. 🌙</p>
+      <p><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p>
+      <p>بالنيابة عن إدارة كلية الحقوق والعلوم السياسية</p>
+    </div>
+  </div>
+  <div class="footer">هذا البريد أُرسل تلقائيًا من منصة إدارة مذكرات الماستر — جامعة برج بوعريريج 2025/2026</div>
 </div>
 </body></html>"""
 
