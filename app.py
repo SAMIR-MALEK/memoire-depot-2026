@@ -4658,8 +4658,24 @@ elif st.session_state.user_type == "professor":
                 jury_memos = pd.DataFrame()
 
                 if not df_m_jury.empty:
+                    # تحقق من صلاحية "مسؤول" في شيت الأساتذة
+                    _is_massoul = False
+                    _prof_row_ms = df_p_tk[df_p_tk["الأستاذ"].astype(str).str.strip()==prof_name.strip()] if "df_p_tk" in dir() else pd.DataFrame()
+                    if _prof_row_ms.empty:
+                        _df_profs_ms = load_prof_memos()
+                        _prof_row_ms = _df_profs_ms[_df_profs_ms["الأستاذ"].astype(str).str.strip()==prof_name.strip()]
+                    if not _prof_row_ms.empty:
+                        _massoul_val = str(_prof_row_ms.iloc[0].get("مسؤول","")).strip()
+                        _is_massoul = _massoul_val == "نعم"
+
                     masks = []
-                    for col_j, role_j in [("الأستاذ","مشرف"),("الرئيس","رئيس لجنة"),("المناقش1","مناقش"),("المناقش2","مناقش")]:
+                    # المشرف يرى دائماً مذكراته
+                    _roles_to_show = [("الأستاذ","مشرف")]
+                    # إذا مسؤول — يرى كل الأدوار
+                    if _is_massoul:
+                        _roles_to_show += [("الرئيس","رئيس لجنة"),("المناقش1","مناقش"),("المناقش2","مناقش")]
+
+                    for col_j, role_j in _roles_to_show:
                         if col_j in df_m_jury.columns:
                             mm = df_m_jury[df_m_jury[col_j].astype(str).str.strip() == prof_name.strip()].copy()
                             if not mm.empty:
@@ -4772,6 +4788,24 @@ elif st.session_state.user_type == "professor":
                             schedule_line = '<div style="margin-top:8px;"><span style="color:#F59E0B;font-size:0.82rem;">⏳ لم يُحدد موعد المناقشة بعد</span></div>'
 
                         sup_html = f'<div style="color:#94A3B8;font-size:0.8rem;margin-top:4px;">👨‍🏫 المشرف: <span style="color:#CBD5E1;">{jsup}</span></div>' if jrole != "مشرف" and jsup and jsup not in ["","nan"] else ""
+
+                        # أعضاء اللجنة للمسؤول — دائماً بغض النظر عن AI
+                        jury_members_html = ""
+                        if _is_massoul:
+                            _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
+                            if len(_jrow_full2) > 0:
+                                _jrf = _jrow_full2.iloc[0]
+                                _members2 = []
+                                _pres2 = str(_jrf.get("الرئيس","")).strip()
+                                _ex12  = str(_jrf.get("المناقش1","")).strip()
+                                _ex22  = str(_jrf.get("المناقش2","")).strip()
+                                _sup2  = str(_jrf.get("الأستاذ","")).strip()
+                                if _sup2  and _sup2  not in ["","nan"]: _members2.append(f"👨‍🏫 مشرف: {_sup2}")
+                                if _pres2 and _pres2 not in ["","nan"]: _members2.append(f"🎓 رئيس: {_pres2}")
+                                if _ex12  and _ex12  not in ["","nan"]: _members2.append(f"🔍 مناقش: {_ex12}")
+                                if _ex22  and _ex22  not in ["","nan"]: _members2.append(f"🔍 مناقش: {_ex22}")
+                                if _members2:
+                                    jury_members_html = '<div style="margin-top:6px;padding:6px 10px;background:rgba(201,162,39,0.1);border-radius:8px;font-size:0.75rem;color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(_members2) + '</div>'
 
                         # أعضاء اللجنة — تظهر للمشرف فقط إذا AI = نعم
                         jury_members_html = ""
