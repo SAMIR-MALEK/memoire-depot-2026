@@ -6256,6 +6256,66 @@ elif st.session_state.user_type == "admin":
                     _profs_to_send = [p for p in _all_profs_tk if p in _email_dict]
                     st.caption(f"سيُرسل لـ {len(_profs_to_send)} أستاذ")
 
+                # ── إرسال مؤجل ──
+                st.markdown("---")
+                st.markdown("### ⏰ إرسال مؤجل")
+                _col_sched1, _col_sched2 = st.columns([2,1])
+                with _col_sched1:
+                    _delay_h = st.number_input("أرسل بعد كم ساعة؟", min_value=0, max_value=12, value=3, step=1, key="delay_hours")
+                    _delay_m = st.number_input("وكم دقيقة إضافية؟", min_value=0, max_value=59, value=0, step=5, key="delay_minutes")
+                with _col_sched2:
+                    import datetime as _dtnow
+                    _send_at = _dtnow.datetime.now() + _dtnow.timedelta(hours=_delay_h, minutes=_delay_m)
+                    st.metric("سيُرسل في:", _send_at.strftime("%H:%M"))
+
+                if st.button("⏰ جدولة الإرسال (اترك المتصفح مفتوحاً)", use_container_width=True, key="schedule_send"):
+                    st.session_state["scheduled_send_at"] = _send_at
+                    st.session_state["scheduled_send_profs"] = [p for p in _all_profs_tk if p in _email_dict]
+                    st.success(f"✅ تم جدولة الإرسال في {_send_at.strftime('%H:%M')} — اترك المتصفح مفتوحاً")
+
+                # تحقق من الوقت المجدول
+                if "scheduled_send_at" in st.session_state and st.session_state.get("scheduled_send_at"):
+                    _now = _dtnow.datetime.now()
+                    _target = st.session_state["scheduled_send_at"]
+                    _remaining = (_target - _now).total_seconds()
+                    if _remaining > 0:
+                        _mins = int(_remaining // 60); _secs = int(_remaining % 60)
+                        st.info(f"⏳ الإرسال المجدول خلال: **{_mins} دقيقة و{_secs} ثانية** ({_target.strftime('%H:%M')})")
+                        import time as _time
+                        _time.sleep(1)
+                        st.rerun()
+                    else:
+                        # حان وقت الإرسال
+                        _profs_sched = st.session_state.pop("scheduled_send_profs", [])
+                        st.session_state.pop("scheduled_send_at", None)
+                        if _profs_sched:
+                            _sent_s = 0; _fail_s = []
+                            _prog_s = st.progress(0); _stat_s = st.empty()
+                            for _pi_s, _pn_s in enumerate(_profs_sched):
+                                _ea_s = _email_dict.get(_pn_s,"")
+                                if not _ea_s: _fail_s.append(_pn_s); continue
+                                _rows_s = []
+                                for _, _row_s in sched_tk.iterrows():
+                                    _pp_s = [str(_row_s.get(c,"")).strip() for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"]]
+                                    if _pn_s in _pp_s:
+                                        _rl_s = next((c for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"] if str(_row_s.get(c,"")).strip()==_pn_s),"")
+                                        _rar_s = {"الأستاذ":"مشرفاً","الرئيس":"رئيساً","المناقش1":"ممتحناً","المناقش2":"ممتحناً"}.get(_rl_s,"عضواً")
+                                        _rows_s.append({"رقم":str(_row_s.get("رقم المذكرة","")),"عنوان":str(_row_s.get("عنوان المذكرة","")),"يوم":str(_row_s.get(_col_w,"")),"توقيت":str(_row_s.get(_col_x,"")),"قاعة":str(_row_s.get(_col_y,"")),"صفة":_rar_s,"رابط":str(_row_s.get("رابط الملف","")).strip()})
+                                _rows_s.sort(key=lambda r:(r["يوم"],r["توقيت"]))
+                                _html_s = f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><style>body{{font-family:Arial,sans-serif;direction:rtl;margin:0;padding:0;background:#f4f6f9;}}.wrapper{{max-width:700px;margin:30px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1)}}.header{{background:linear-gradient(135deg,#0F2942,#1a3a6b);padding:30px 24px;text-align:center}}.header h1{{color:#FFD700;font-size:1.3rem;margin:0 0 6px}}.header p{{color:#cdd8e8;font-size:0.9rem;margin:0}}.body{{padding:28px 32px}}.warning{{background:#fff3cd;border-right:4px solid #ff9800;padding:12px 16px;border-radius:6px;font-size:0.9rem;color:#7a4e00;margin:18px 0}}table{{border-collapse:collapse;width:100%;font-size:0.88rem}}th{{background:#0F2942;color:#FFD700;padding:11px 10px;text-align:center}}td{{border:1px solid #e0e0e0;padding:9px 10px;text-align:center;color:#333}}tr:nth-child(even) td{{background:#f9fafc}}.platform{{background:#e8f0fe;border-radius:8px;padding:14px 18px;margin-top:22px;text-align:center}}.platform a{{color:#0F2942;font-weight:bold;text-decoration:none}}.footer{{background:#f4f6f9;padding:18px 32px;text-align:center;font-size:0.82rem;color:#777;border-top:1px solid #e0e0e0}}</style></head><body><div class="wrapper"><div class="header"><h1>📋 برنامج مناقشة مذكرات الماستر</h1><p>الدورة العادية — السنة الجامعية 2025–2026</p><p>كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</p></div><div class="body"><p style="font-size:1rem;color:#1a3a6b;font-weight:bold">الأستاذ(ة) الفاضل(ة): {_pn_s}</p><p style="font-size:0.95rem;color:#333;line-height:1.8">تحية طيبة وبعد،</p><p style="font-size:0.95rem;color:#333;line-height:1.8">مرفق لكم البرنامج الرسمي لمناقشة مذكرات الماستر لجميع التخصصات، للدورة العادية للسنة الجامعية 2025–2026.</p><p style="font-size:0.95rem;color:#333;line-height:1.8">يمكنكم معاينة المذكرات وتحميلها مباشرةً من خلال الضغط على أيقونة 👁 المرفقة بكل مذكرة في الجدول أدناه.</p><div class="warning">⚠️ نظرًا لدقة رزنامة نهاية السنة الجامعية، <strong>يُمنع تأجيل المناقشات أو تعديل توقيتها</strong>. في حال وجود أي ملاحظات، يُرجى التواصل مع مكتب فريق التكوين بالطابق الأرضي للكلية.</div><table><thead><tr><th>م</th><th>👁</th><th>رقم المذكرة</th><th>عنوان المذكرة</th><th>التاريخ</th><th>التوقيت</th><th>القاعة</th><th>الصفة</th></tr></thead><tbody>{"".join(f'<tr><td>{i2+1}</td><td>{"<a href=\'"+r2["رابط"]+"\'target=\'_blank\'>👁</a>"if r2["رابط"]and r2["رابط"]not in["","nan"]else"—"}</td><td>{r2["رقم"]}</td><td style="text-align:center;min-width:200px">{r2["عنوان"]}</td><td>{r2["يوم"]}</td><td>{r2["توقيت"]}</td><td>{r2["قاعة"]}</td><td>{r2["صفة"]}</td></tr>' for i2,r2 in enumerate(_rows_s))}</tbody></table><div class="platform">🌐 منصة المذكرات: <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a></div><div style="margin-top:24px;font-size:0.93rem;color:#1a3a6b"><p>عيدكم مبارك، وكل عام وأنتم بخير. 🌙</p><p><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p></div></div><div class="footer">هذا البريد أُرسل تلقائيًا من منصة إدارة مذكرات الماستر — جامعة برج بوعريريج 2025/2026</div></div></body></html>"""
+                                try:
+                                    import smtplib; from email.mime.multipart import MIMEMultipart; from email.mime.text import MIMEText
+                                    _m_s=MIMEMultipart("alternative"); _m_s["Subject"]="تكليف بمناقشة مذكرات الماستر — الدورة العادية الأولى 2025/2026"; _m_s["From"]=EMAIL_SENDER; _m_s["To"]=_ea_s
+                                    _m_s.attach(MIMEText(_html_s,"html","utf-8"))
+                                    with smtplib.SMTP_SSL("smtp.gmail.com",465) as _srv_s: _srv_s.login(EMAIL_SENDER,EMAIL_PASSWORD); _srv_s.sendmail(EMAIL_SENDER,_ea_s,_m_s.as_string())
+                                    _sent_s+=1
+                                except Exception as _ex_s: _fail_s.append(f"{_pn_s}: {_ex_s}")
+                                _prog_s.progress(int((_pi_s+1)/len(_profs_sched)*100))
+                                _stat_s.text(f"إرسال {_pi_s+1}/{len(_profs_sched)}")
+                            _prog_s.empty(); _stat_s.empty()
+                            st.success(f"✅ تم الإرسال المجدول: {_sent_s} تكليف")
+                            if _fail_s: st.warning("فشل: " + " | ".join(_fail_s[:5]))
+
                 if st.button("📧 إرسال التكاليف", type="primary", use_container_width=True, key="send_takleef"):
                     _sent = 0; _failed = []
                     _progress = st.progress(0)
