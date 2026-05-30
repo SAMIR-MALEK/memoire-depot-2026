@@ -4984,12 +4984,15 @@ elif st.session_state.user_type == "admin":
             <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
         </div>''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab9,tab_stats,tab_mahdar,tab_import=st.tabs(["📅 جدولة ذكية","📊 إحصائيات الأساتذة","📄 المحاضر","📤 استيراد جدول"])
+        tab_takleef,tab_import,tab_archive=st.tabs(["📋 التكاليف والتحقق","📤 استيراد جدول","🗂️ أرشيف (جدولة ذكية)"])
 
         # ================================================================
         # TAB جدولة ذكية
         # ================================================================
-        with tab9:
+        with tab_archive:
+            st.info("📌 تم تنفيذ الجدولة — البرنامج محفوظ في الشيت.")
+        if False:
+         with tab9_dummy:
             st.subheader("📅 جدولة المناقشات الذكية")
             df_memos_j = load_memos()
 
@@ -5904,7 +5907,8 @@ elif st.session_state.user_type == "admin":
                             st.warning(f"⚠️ فشل الإرسال لـ {len(sent_fail)}:")
                             for f in sent_fail[:10]: st.markdown(f"- {f}")
 
-        with tab_stats:
+        if False:
+         with tab_stats_dummy:
             st.subheader("📊 إحصائيات الأساتذة في لجان المناقشة")
             df_ps = load_memos()
             jury_stats = {}
@@ -5978,7 +5982,8 @@ elif st.session_state.user_type == "admin":
                 top20 = df_show.nlargest(20,"المجموع").set_index("الأستاذ")[["مشرف","رئيس","مناقش"]]
                 st.bar_chart(top20, color=["#2F9EA0","#FFD700","#818CF8"])
 
-        with tab_mahdar:
+        if False:
+         with tab_mahdar_dummy:
             st.subheader("📄 توليد محاضر المناقشة")
 
             df_memos_m = load_memos()
@@ -6157,6 +6162,192 @@ elif st.session_state.user_type == "admin":
                     st.dataframe(scheduled_m[cols_available], use_container_width=True, hide_index=True,
                         column_config={"رقم_تسلسلي": st.column_config.NumberColumn("# التسلسلي", width="small")})
 
+
+
+
+        with tab_takleef:
+            st.subheader("📋 التكاليف والتحقق من التعارضات")
+
+            df_m_tk = load_memos()
+            df_p_tk = load_prof_memos()
+
+            # فلتر المذكرات المبرمجة فقط
+            _col_ai_tk = next((c for c in ["نشر البرنامج","AI"] if c in df_m_tk.columns), None)
+            _col_w = "تاريخ المناقشة"; _col_x = "توقيت المناقشة"; _col_y = "القاعة"
+
+            sched_tk = df_m_tk[
+                df_m_tk[_col_w].astype(str).str.strip().apply(lambda v: v not in ["","nan"])
+            ].copy()
+
+            if sched_tk.empty:
+                st.warning("⚠️ لا توجد مذكرات مبرمجة في الشيت بعد.")
+            else:
+                st.success(f"✅ {len(sched_tk)} مذكرة مبرمجة")
+
+                # ── تحقق من التعارضات ──
+                st.markdown("---")
+                st.markdown("### 🔍 التحقق من التعارضات")
+                _room_slot = {}; _prof_slot = {}; _prof_day = {}
+                _conflicts = []
+
+                for _, row in sched_tk.iterrows():
+                    _mid = str(row.get("رقم المذكرة","")).strip()
+                    _day = str(row.get(_col_w,"")).strip()
+                    _slot = str(row.get(_col_x,"")).strip()
+                    _room = str(row.get(_col_y,"")).strip()
+                    _profs = [str(row.get(c,"")).strip() for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"]
+                              if str(row.get(c,"")).strip() not in ["","nan"]]
+
+                    # تعارض قاعة
+                    _key_r = (_day, _slot, _room)
+                    if _room and _key_r in _room_slot:
+                        _conflicts.append(f"🔴 تعارض قاعة: **{_room}** | {_day} {_slot} | مذكرة {_mid} ↔ {_room_slot[_key_r]}")
+                    elif _room: _room_slot[_key_r] = _mid
+
+                    # تعارض أستاذ
+                    for _p in _profs:
+                        _key_p = (_day, _slot, _p)
+                        if _key_p in _prof_slot:
+                            _conflicts.append(f"🔴 تعارض أستاذ: **{_p}** | {_day} {_slot} | مذكرة {_mid} ↔ {_prof_slot[_key_p]}")
+                        else: _prof_slot[_key_p] = _mid
+                        _prof_day[(_p,_day)] = _prof_day.get((_p,_day),0) + 1
+                        if _prof_day[(_p,_day)] > 3:
+                            _conflicts.append(f"🟡 تجاوز 3/يوم: **{_p}** | {_day} ({_prof_day[(_p,_day)]} مناقشات)")
+
+                if _conflicts:
+                    st.error(f"⚠️ {len(_conflicts)} تعارض:")
+                    for _c in _conflicts: st.markdown(f"- {_c}")
+                else:
+                    st.success("✅ لا تعارضات — الجدول سليم 100%")
+
+                # ── إرسال التكاليف ──
+                st.markdown("---")
+                st.markdown("### 📧 إرسال التكاليف للأساتذة")
+
+                # بناء قاموس البريد من شيت الأساتذة عمود L
+                _email_dict = {}
+                if not df_p_tk.empty:
+                    _email_col = "الإيميل" if "الإيميل" in df_p_tk.columns else "البريد الإلكتروني"
+                    _name_col  = "الأستاذ" if "الأستاذ" in df_p_tk.columns else None
+                    if _name_col and _email_col in df_p_tk.columns:
+                        for _, _pr in df_p_tk.iterrows():
+                            _pn = str(_pr.get(_name_col,"")).strip()
+                            _pe = str(_pr.get(_email_col,"")).strip()
+                            if _pn and _pe and "@" in _pe: _email_dict[_pn] = _pe
+
+                st.info(f"📬 {len(_email_dict)} أستاذ لديه بريد إلكتروني")
+
+                # اختيار الأستاذ
+                _all_profs_tk = sorted(set(
+                    str(row.get(c,"")).strip()
+                    for _, row in sched_tk.iterrows()
+                    for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"]
+                    if str(row.get(c,"")).strip() not in ["","nan"]
+                ))
+
+                _send_mode = st.radio("إرسال إلى:", ["أستاذ واحد","الكل"], horizontal=True, key="send_mode_tk")
+
+                if _send_mode == "أستاذ واحد":
+                    _sel_prof = st.selectbox("اختر الأستاذ:", _all_profs_tk, key="sel_prof_tk")
+                    _profs_to_send = [_sel_prof]
+                else:
+                    _profs_to_send = [p for p in _all_profs_tk if p in _email_dict]
+                    st.caption(f"سيُرسل لـ {len(_profs_to_send)} أستاذ")
+
+                if st.button("📧 إرسال التكاليف", type="primary", use_container_width=True, key="send_takleef"):
+                    _sent = 0; _failed = []
+                    _progress = st.progress(0)
+                    _status = st.empty()
+
+                    for _pi, _prof_name in enumerate(_profs_to_send):
+                        _email_addr = _email_dict.get(_prof_name,"")
+                        if not _email_addr:
+                            _failed.append(f"{_prof_name} (لا بريد)")
+                            continue
+
+                        # بناء برنامج الأستاذ
+                        _prof_rows = []
+                        for _, _row in sched_tk.iterrows():
+                            _profs_r = [str(_row.get(c,"")).strip() for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"]]
+                            if _prof_name in _profs_r:
+                                _role = next((c for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"] if str(_row.get(c,"")).strip()==_prof_name), "")
+                                _role_ar = {"الأستاذ":"مشرفاً","الرئيس":"رئيساً","المناقش1":"ممتحناً","المناقش2":"ممتحناً"}.get(_role,"عضواً")
+                                _prof_rows.append({
+                                    "رقم": str(_row.get("رقم المذكرة","")),
+                                    "عنوان": str(_row.get("عنوان المذكرة",""))[:50],
+                                    "يوم": str(_row.get(_col_w,"")),
+                                    "توقيت": str(_row.get(_col_x,"")),
+                                    "قاعة": str(_row.get(_col_y,"")),
+                                    "صفة": _role_ar
+                                })
+                        _prof_rows.sort(key=lambda r: (r["يوم"], r["توقيت"]))
+
+                        # بناء HTML التكليف
+                        _rows_html = "".join(f"""
+                            <tr>
+                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["رقم"]}</td>
+                                <td style="border:1px solid #ddd;padding:8px">{r["عنوان"]}</td>
+                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["يوم"]}</td>
+                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["توقيت"]}</td>
+                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["قاعة"]}</td>
+                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["صفة"]}</td>
+                            </tr>""" for r in _prof_rows)
+
+                        _html_body = f"""<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8">
+<style>body{{font-family:Arial,sans-serif;direction:rtl;margin:20px;}}
+h2{{color:#0F2942;}} table{{border-collapse:collapse;width:100%;}}
+th{{background:#0F2942;color:white;padding:10px;border:1px solid #ddd;}}
+.footer{{margin-top:20px;font-size:0.9rem;color:#555;}}
+</style></head>
+<body>
+<h2>تكليف بمناقشة مذكرات الماستر — الدورة العادية الأولى 2025/2026</h2>
+<p>الأستاذ(ة) المحترم(ة): <strong>{_prof_name}</strong></p>
+<p>تُكلَّف بالمشاركة في لجان مناقشة مذكرات الماستر المبرمجة أدناه، وذلك ضمن الدورة العادية الأولى لسنة 2025/2026.</p>
+<p style="color:red"><strong>⚠️ تنبيه: الالتزام بالتوقيت إلزامي. لا يمكن تأجيل أي مناقشة تحت أي ظرف.</strong></p>
+<table>
+<thead><tr>
+<th>رقم المذكرة</th><th>عنوان المذكرة</th><th>التاريخ</th><th>التوقيت</th><th>القاعة</th><th>الصفة</th>
+</tr></thead>
+<tbody>{_rows_html}</tbody>
+</table>
+<div class="footer">
+<p>للاطلاع على تفاصيل أكثر، يُرجى الولوج إلى المنصة الإلكترونية: <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a></p>
+<p>مع التحيات — إدارة كلية الحقوق والعلوم السياسية، جامعة برج بوعريريج</p>
+</div>
+</body></html>"""
+
+                        # إرسال مباشر بـ HTML التكليف
+                        try:
+                            import smtplib
+                            from email.mime.multipart import MIMEMultipart
+                            from email.mime.text import MIMEText
+                            _rows_em = df_p_tk[df_p_tk["الأستاذ"].astype(str).str.strip()==_prof_name.strip()]
+                            _email_to = get_email_smart(_rows_em.iloc[0]) if not _rows_em.empty else ""
+                            if not _email_to or "@" not in _email_to:
+                                _ok, _msg = False, "لا بريد"
+                            else:
+                                _msg_em = MIMEMultipart("alternative")
+                                _msg_em["Subject"] = "تكليف بمناقشة مذكرات الماستر — الدورة العادية الأولى 2025/2026"
+                                _msg_em["From"] = EMAIL_ADDRESS
+                                _msg_em["To"] = _email_to
+                                _msg_em.attach(MIMEText(_html_body, "html", "utf-8"))
+                                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as _srv:
+                                    _srv.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                                    _srv.sendmail(EMAIL_ADDRESS, _email_to, _msg_em.as_string())
+                                _ok, _msg = True, "تم"
+                        except Exception as _ex_em:
+                            _ok, _msg = False, str(_ex_em)
+                        if _ok: _sent += 1
+                        else: _failed.append(f"{_prof_name}: {_msg}")
+
+                        _progress.progress(int((_pi+1)/len(_profs_to_send)*100))
+                        _status.text(f"جاري الإرسال... {_pi+1}/{len(_profs_to_send)}")
+
+                    _progress.empty(); _status.empty()
+                    if _sent > 0: st.success(f"✅ تم إرسال {_sent} تكليف بنجاح")
+                    if _failed: st.warning("⚠️ فشل: " + " | ".join(_failed[:5]))
 
 
         with tab_import:
