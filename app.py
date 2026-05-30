@@ -6276,11 +6276,12 @@ elif st.session_state.user_type == "admin":
                                 _role_ar = {"الأستاذ":"مشرفاً","الرئيس":"رئيساً","المناقش1":"ممتحناً","المناقش2":"ممتحناً"}.get(_role,"عضواً")
                                 _prof_rows.append({
                                     "رقم": str(_row.get("رقم المذكرة","")),
-                                    "عنوان": str(_row.get("عنوان المذكرة",""))[:50],
+                                    "عنوان": str(_row.get("عنوان المذكرة","")),
                                     "يوم": str(_row.get(_col_w,"")),
                                     "توقيت": str(_row.get(_col_x,"")),
                                     "قاعة": str(_row.get(_col_y,"")),
-                                    "صفة": _role_ar
+                                    "صفة": _role_ar,
+                                    "رابط": str(_row.get("رابط الملف","")).strip()
                                 })
                         _prof_rows.sort(key=lambda r: (r["يوم"], r["توقيت"]))
 
@@ -6330,7 +6331,7 @@ elif st.session_state.user_type == "admin":
     <p class="greeting">الأستاذ(ة) الفاضل(ة): {_prof_name}</p>
     <p class="text">تحية طيبة وبعد،</p>
     <p class="text">مرفق لكم البرنامج الرسمي لمناقشة مذكرات الماستر لجميع التخصصات، للدورة العادية للسنة الجامعية 2025–2026.</p>
-    <p class="text">يمكنكم معاينة المذكرات وتحميلها مباشرةً من خلال الضغط على أيقونة 👁 المعاينة المرفقة بكل مذكرة داخل منصة المذكرات.</p>
+    <p class="text">يمكنكم معاينة المذكرات وتحميلها مباشرةً من خلال الضغط على أيقونة 👁 المرفقة بكل مذكرة في الجدول أدناه.</p>
     <div class="warning">⚠️ نظرًا لدقة رزنامة نهاية السنة الجامعية، <strong>يُمنع تأجيل المناقشات أو تعديل توقيتها</strong>. في حال وجود أي ملاحظات، يُرجى التواصل مع مكتب فريق التكوين بالطابق الأرضي للكلية.</div>
     <table>
       <thead><tr>
@@ -6339,8 +6340,9 @@ elif st.session_state.user_type == "admin":
       <tbody>
         {"".join(f'''<tr>
           <td>{idx_r+1}</td>
-          <td class="eye-icon"><a href="https://memoires2026.streamlit.app" title="معاينة المذكرة">👁</a></td>
-          <td>{r["رقم"]}</td><td style="text-align:right">{r["عنوان"]}</td>
+          <td class="eye-icon">{"<a href='" + r["رابط"] + "' target='_blank' title='فتح المذكرة'>👁</a>" if r["رابط"] and r["رابط"] not in ["","nan"] else "—"}</td>
+          <td>{r["رقم"]}</td>
+          <td style="text-align:center;min-width:200px">{r["عنوان"]}</td>
           <td>{r["يوم"]}</td><td>{r["توقيت"]}</td><td>{r["قاعة"]}</td><td>{r["صفة"]}</td>
         </tr>''' for idx_r, r in enumerate(_prof_rows))}
       </tbody>
