@@ -13,3 +13,4 @@ python-bidi
 ortools
 python-docx
 qrcode[pil]
+weasyprint
