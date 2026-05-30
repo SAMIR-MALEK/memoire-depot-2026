@@ -1255,7 +1255,7 @@ def professor_first_schedule(df_memos, days, slots_per_day, rooms, max_per_day=3
                 prof_first_phase_count[prof] = prof_first_phase_count.get(prof, 0) + 1
     
     # رتّب الأساتذة من الأكثر مذكرات إلى الأقل
-    sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]), reverse=True)
+    sorted_profs = sorted(prof_memos_map.items(), key=lambda x: len(x[1]) + random.random()*0.01, reverse=True)
     
     # تتبع المذكرات المجدولة
     scheduled_memos = set()
@@ -1660,35 +1660,37 @@ def apply_fixed_slots(fixed_slots, days, slots_per_day, rooms, can_place, place,
     failed = []
     for mid, slot_val in fixed_slots.items():
         fd, fs, fr = slot_val
-        fd, fs = str(fd).strip(), str(fs).strip()
+        fd = str(fd).strip()
+        fs = str(fs).strip() if fs else ""
         if fd not in days:
-
             failed.append(f"المذكرة {mid}: يوم التثبيت {fd} غير موجود في الأيام")
             continue
-        if fs not in slots_per_day:
-
-            failed.append(f"المذكرة {mid}: توقيت التثبيت {fs} غير موجود في التوقيتات")
+        # إذا توقيت محدد — استخدمه فقط، وإلا جرب كل التوقيتات
+        slots_to_try = [fs] if fs and fs in slots_per_day else slots_per_day
+        if fs and fs not in slots_per_day:
+            failed.append(f"المذكرة {mid}: توقيت {fs} غير موجود")
             continue
         placed = False
-        for r in ([fr] if fr and fr in rooms else rooms):
-            if can_place(mid, fd, fs, r, log=False):
-                place(mid, fd, fs, r)
-                scheduled.add(mid)
-                applied.append(f"✅ المذكرة {mid} → {fd} {fs} {r}")
-                placed = True; break
+        for slot in slots_to_try:
+            if placed: break
+            for r in ([fr] if fr and fr in rooms else rooms):
+                if can_place(mid, fd, slot, r, log=False):
+                    place(mid, fd, slot, r)
+                    scheduled.add(mid)
+                    applied.append(f"✅ المذكرة {mid} → {fd} {slot} {r}")
+                    placed = True; break
         if not placed:
-            # debug: جرب مع log=True لمعرفة السبب
-
-            failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} {fs} — تعارض")
+            failed.append(f"⚠️ المذكرة {mid}: لا يمكن تطبيق التثبيت {fd} — تعارض")
     return applied, failed
 
 
-def algo_blocks(df_memos, days, slots_per_day, rooms, constraints):
+def algo_blocks(df_memos, days, slots_per_day, rooms, constraints, seed=42):
     """
     كتل الأساتذة — توزيع عادل مع تجميع مناقشات الأستاذ
     المبدأ: نبني الجدول عمودياً (جولة لكل يوم) لضمان التوازن
     """
     import random
+    random.seed(seed)
     fixed_slots, memo_date_limits, prof_banned_days, prof_not_before, prof_not_after, \
     prof_one_day, prof_allowed_days, prof_consecutive, frozen_profs, prof_phase_split, \
     memo_alt_days, profs_accept_18, profs_cluster_days = constraints
@@ -1782,7 +1784,7 @@ def algo_blocks(df_memos, days, slots_per_day, rooms, constraints):
         if not [m for m in remaining if m not in scheduled]:
             break
         # رتب الأيام من الأقل اكتظاظاً
-        days_ordered = sorted(days, key=lambda d: day_count.get(d, 0))
+        days_ordered = sorted(days, key=lambda d: day_count.get(d, 0) + random.random()*0.1)
 
         for day in days_ordered:
             if day_count.get(day, 0) >= daily_max:
@@ -2770,7 +2772,7 @@ def run_algorithm(algo_name, df_memos, days, slots_per_day, rooms, constraints, 
         df_memos = df_memos[~df_memos["رقم المذكرة"].astype(str).isin(_frozen_memos)].copy()
 
     if algo_name == "🧱 كتل الأساتذة":
-        schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints)
+        schedule, memo_members, rej_log = algo_blocks(df_memos, days, slots_per_day, rooms, constraints, seed=seed)
     elif algo_name == "📅 الجدول أولاً":
         schedule, memo_members, rej_log = algo_day_first(df_memos, days, slots_per_day, rooms, constraints)
     elif algo_name == "🧬 GA + Tabu Search":
@@ -3352,9 +3354,9 @@ def build_constraints(df_memo_exc, df_prof_exc, slots_per_day):
             early = _norm_date(str(row.get("أقرب تاريخ","")).strip())
             late  = _norm_date(str(row.get("أبعد تاريخ","")).strip())
             
-            if day_f and day_f not in ["","nan"] and slot_f and slot_f not in ["","nan"]:
-
-                fixed_slots[mid] = (day_f, slot_f, room_f if room_f not in ["","nan"] else None)
+            if day_f and day_f not in ["","nan"]:
+                # يوم مثبت بدون توقيت → نستخدم أول توقيت متاح كافتراضي
+                fixed_slots[mid] = (day_f, slot_f if slot_f not in ["","nan"] else "", room_f if room_f not in ["","nan"] else None)
             
             if early not in ["","nan"] or late not in ["","nan"]:
                 memo_date_limits[mid] = (
