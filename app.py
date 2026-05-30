@@ -5392,8 +5392,8 @@ elif st.session_state.user_type == "admin":
                                         if total < 3: continue
                                         # قيد 1: أيام منعزلة > 3
                                         lonely = [d for d, c in dc.items() if c == 1]
-                                        if len(lonely) > 3:
-                                            errors.append(f"❌ {prof}: {len(lonely)} أيام منعزلة (الحد 3)")
+                                        if len(lonely) > 4:
+                                            errors.append(f"❌ {prof}: {len(lonely)} أيام منعزلة (الحد 4)")
                                         # قيد 2: أيام متتالية > 4 (الجمعة فاصل)
                                         sorted_d = sorted(dc.keys())
                                         consec = 1; max_c = 1
@@ -5412,8 +5412,8 @@ elif st.session_state.user_type == "admin":
                                                 else:
                                                     consec = 1
                                             except: pass
-                                        if max_c > 5:
-                                            errors.append(f"❌ {prof}: {max_c} أيام متتالية (الحد 5)")
+                                        if max_c > 6:
+                                            errors.append(f"❌ {prof}: {max_c} أيام متتالية (الحد 6)")
                                     return errors
 
                                 # ── حلقة المحاولات ──
