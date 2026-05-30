@@ -5430,7 +5430,7 @@ elif st.session_state.user_type == "admin":
 
                                     _sched_t, _q_t, _pl_t, _upl_t, _id_t, _td_t, _mm_t, _rej_t = run_algorithm(
                                         _algo, ready_memos_j, gen_days_j, gen_slots_j, gen_rooms_j,
-                                        _constraints, improve=True, seed=_try_seed
+                                        _constraints, improve=False, seed=_try_seed
                                     )
                                     hard_errs = _check_hard_violations(_sched_t, _mm_t, gen_days_j)
                                     if hard_errs:
