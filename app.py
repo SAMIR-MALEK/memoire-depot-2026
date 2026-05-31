@@ -4801,9 +4801,11 @@ elif st.session_state.user_type == "professor":
                         _prof_data = st.session_state.get("professor", {})
                         _massoul_raw = str(_prof_data.get("مسؤول","")).strip()
                         _is_massoul = _massoul_raw == "نعم"
-                        if prof_name == "رفاف لخضر":
-                            st.caption(f"DEBUG مسؤول={repr(_massoul_raw)} is_massoul={_is_massoul} role={jrole}")
-                            st.caption(f"DEBUG cols={list(jury_memos.columns)[:8]}")
+                        if prof_name == "رفاف لخضر" and jrole != "مشرف":
+                            _all_cols = list(jury_memos.columns)
+                            _has_r = "الرئيس" in _all_cols
+                            _val_r = str(_jrf.get("الرئيس","MISSING")) if len(_jrow_full2)>0 else "NO ROW"
+                            st.caption(f"DEBUG role={jrole} | الرئيس موجود={_has_r} | قيمة={_val_r} | members={_members2}")
                         _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
                         if len(_jrow_full2) > 0:
                             _jrf = _jrow_full2.iloc[0]
