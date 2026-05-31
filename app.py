@@ -4824,6 +4824,8 @@ elif st.session_state.user_type == "professor":
                                 if _sup2 and _sup2 not in ["","nan"]: _members2.append(f"👨‍🏫 مشرف: {_sup2}")
                             if _members2:
                                 jury_members_html = '<div style="margin-top:6px;padding:6px 10px;background:rgba(201,162,39,0.1);border-radius:8px;font-size:0.75rem;color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(_members2) + '</div>'
+                            if prof_name == "رفاف لخضر" and jrole != "مشرف":
+                                st.caption(f"DEBUG members={_members2} | jury_html_len={len(jury_members_html)} | is_massoul={_is_massoul}")
 
                         # أعضاء اللجنة — تظهر للمشرف فقط إذا AI = نعم
                         jury_members_html = ""
