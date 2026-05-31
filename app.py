@@ -3774,7 +3774,7 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         "{{STUDENT1_ID}}": student_id if has_student2 else "",  # طالب واحد → لا رقم ملف
         "{{STUDENT2}}":    student2_name if has_student2 else "",
         "{{STUDENT2_ID}}": student2_id if has_student2 else "",
-        "{{STUDENTS_LABEL}}": memo_data.get("STUDENTS_LABEL", "للطالبين:" if has_student2 else "للطالب:"),
+        "{{STUDENTS_LABEL}}": memo_data.get("STUDENTS_LABEL", "للطالبين" if has_student2 else "للطالب(ة)"),
         "...../......./......": def_date,
     }
 
@@ -6136,7 +6136,7 @@ elif st.session_state.user_type == "admin":
                                 memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
                                 memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
                                 _has_s2_m = bool(memo_dict["الطالب2"] and memo_dict["الطالب2"] not in ["","nan","-"])
-                                memo_dict["STUDENTS_LABEL"] = "للطالبين:" if _has_s2_m else "للطالب:"
+                                memo_dict["STUDENTS_LABEL"] = "للطالبين" if _has_s2_m else "للطالب(ة)"
                                 with st.spinner("⏳ جاري التوليد..."):
                                     docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
                                 fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
