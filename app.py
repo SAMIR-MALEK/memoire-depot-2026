@@ -4373,6 +4373,7 @@ elif st.session_state.user_type == "professor":
             with c2: p=st.text_input("كلمة المرور", type="password")
             if st.form_submit_button("تسجيل الدخول"):
                 df_prof_memos = load_prof_memos()
+                st.info(f"🔍 شيت الأساتذة: {len(df_prof_memos)} صف | أعمدة: {list(df_prof_memos.columns)[:5] if not df_prof_memos.empty else 'فارغ'}")
                 v,r=verify_professor(u,p,df_prof_memos)
                 if not v: st.error(r)
                 else:
