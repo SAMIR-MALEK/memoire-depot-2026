@@ -4804,7 +4804,7 @@ elif st.session_state.user_type == "professor":
                         if prof_name == "رفاف لخضر" and jrole != "مشرف":
                             _all_cols = list(jury_memos.columns)
                             _has_r = "الرئيس" in _all_cols
-                            st.caption(f"DEBUG role={jrole} | الرئيس موجود={_has_r} | members={_members2} | cols={_all_cols[20:27]}")
+                            st.caption(f"DEBUG role={jrole} | الرئيس موجود={_has_r} | cols[20:27]={_all_cols[20:27] if len(_all_cols)>20 else _all_cols}")
                         _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
                         if len(_jrow_full2) > 0:
                             _jrf = _jrow_full2.iloc[0]
