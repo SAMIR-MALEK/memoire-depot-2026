@@ -3846,10 +3846,10 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         if ri >= len(t.rows): break
         row = t.rows[ri]
         fill_cell(row.cells[0], num)
-        fill_cell(row.cells[1], name)
-        fill_cell(row.cells[2], rank)
-        fill_cell(row.cells[3], univ)
-        fill_cell(row.cells[4], role)
+        fill_cell(row.cells[1], name, size=13)
+        fill_cell(row.cells[2], rank, size=13)
+        fill_cell(row.cells[3], univ, size=13)
+        fill_cell(row.cells[4], role, size=13)
 
     buf = _io.BytesIO()
     doc.save(buf)
