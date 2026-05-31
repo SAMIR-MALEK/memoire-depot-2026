@@ -372,7 +372,7 @@ def load_students():
 @st.cache_data(ttl=60)
 def load_memos():
     try:
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AL1000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AM1000").execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         headers = values[0]; rows = values[1:]
@@ -6131,6 +6131,7 @@ elif st.session_state.user_type == "admin":
                                 memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
                                 memo_dict["التخصص"]        = str(row_m.get("التخصص","")).strip()
                                 memo_dict["القسم"]         = str(row_m.get("القسم","")).strip()
+                                memo_dict["رقم المحضر"]    = str(row_m.get("رقم المحضر","")).strip()
                                 memo_dict["رابط الملف"]    = str(row_m.get("رابط الملف","")).strip()
                                 memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
                                 memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
@@ -6519,6 +6520,54 @@ elif st.session_state.user_type == "admin":
                                     st.error("❌ لا توجد بيانات")
                 except Exception as _e2:
                     st.error(f"❌ {_e2}")
+
+            st.markdown("---")
+            st.subheader("📋 استيراد أرقام المحاضر")
+            st.info("ارفع ملف Excel فيه عمودان: **رقم المذكرة** (A) و**رقم المحضر** (B)")
+            _upl_seq = st.file_uploader("📂 ملف أرقام المحاضر:", type=["xlsx","xls"], key="import_seq_file")
+            if _upl_seq:
+                import openpyxl as _xl3, io as _io3
+                try:
+                    _wb3 = _xl3.load_workbook(_io3.BytesIO(_upl_seq.read()))
+                    _ws3 = _wb3.active
+                    _seq_data = []
+                    for _r3 in range(2, _ws3.max_row+1):
+                        _mid3 = _ws3.cell(_r3, 1).value
+                        _seq3 = _ws3.cell(_r3, 2).value
+                        if not _mid3 or not _seq3: continue
+                        try: _mid3 = str(int(float(str(_mid3))))
+                        except: _mid3 = str(_mid3).strip()
+                        _seq_data.append({'رقم المذكرة': _mid3, 'رقم المحضر': str(_seq3).strip()})
+                    st.success(f"✅ {len(_seq_data)} محضر جاهز")
+                    import pandas as _pd3
+                    st.dataframe(_pd3.DataFrame(_seq_data).head(10), use_container_width=True)
+                    if st.button("🚀 استيراد أرقام المحاضر", type="primary", use_container_width=True, key="do_import_seq"):
+                        with st.spinner("⏳ جاري الاستيراد..."):
+                            _am3 = load_memos()
+                            _rm3 = {}
+                            for _i3, (_, _rw3) in enumerate(_am3.iterrows()):
+                                _mk3 = str(_rw3.get("رقم المذكرة","")).strip()
+                                try: _mk3 = str(int(float(_mk3)))
+                                except: pass
+                                if _mk3: _rm3[_mk3] = _i3 + 2
+                            _upd3 = []; _nf3 = []
+                            for _d3 in _seq_data:
+                                _rn3 = _rm3.get(_d3['رقم المذكرة'])
+                                if not _rn3: _nf3.append(_d3['رقم المذكرة']); continue
+                                _upd3.append({"range": f"Feuille 1!AM{_rn3}", "values": [[_d3['رقم المحضر']]]})
+                            if _upd3:
+                                for _i4 in range(0, len(_upd3), 100):
+                                    sheets_service.spreadsheets().values().batchUpdate(
+                                        spreadsheetId=MEMOS_SHEET_ID,
+                                        body={"valueInputOption": "USER_ENTERED", "data": _upd3[_i4:_i4+100]}
+                                    ).execute()
+                                clear_cache_and_reload()
+                                st.success(f"✅ تم استيراد {len(_seq_data)-len(_nf3)} رقم محضر!")
+                                if _nf3: st.warning(f"غير موجودة: {_nf3}")
+                            else:
+                                st.error("❌ لا توجد بيانات للاستيراد")
+                except Exception as _e3:
+                    st.error(f"❌ {_e3}")
 
 st.markdown("---")
 st.markdown('<div style="text-align:center;color:#ffffff;font-size:11px;padding:16px;">إشراف مسؤول الميدان البروفيسور لخضر رفاف ©</div>', unsafe_allow_html=True)
