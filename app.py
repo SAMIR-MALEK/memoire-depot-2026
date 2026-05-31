@@ -4670,11 +4670,13 @@ elif st.session_state.user_type == "professor":
                     st.session_state["_prof_is_massoul"] = _is_massoul
 
                     masks = []
-                    # المشرف يرى دائماً مذكراته
-                    _roles_to_show = [("الأستاذ","مشرف")]
-                    # إذا مسؤول — يرى كل الأدوار
-                    if _is_massoul:
-                        _roles_to_show += [("الرئيس","رئيس لجنة"),("المناقش1","مناقش"),("المناقش2","مناقش")]
+                    # كل الأساتذة يرون برنامجهم كاملاً (مشرف + رئيس + مناقش)
+                    _roles_to_show = [
+                        ("الأستاذ","مشرف"),
+                        ("الرئيس","رئيس لجنة"),
+                        ("المناقش1","مناقش"),
+                        ("المناقش2","مناقش")
+                    ]
 
                     for col_j, role_j in _roles_to_show:
                         if col_j in df_m_jury.columns:
@@ -4790,24 +4792,27 @@ elif st.session_state.user_type == "professor":
 
                         sup_html = f'<div style="color:#94A3B8;font-size:0.8rem;margin-top:4px;">👨‍🏫 المشرف: <span style="color:#CBD5E1;">{jsup}</span></div>' if jrole != "مشرف" and jsup and jsup not in ["","nan"] else ""
 
-                        # أعضاء اللجنة للمسؤول — دائماً بغض النظر عن AI
+                        # أعضاء اللجنة
                         jury_members_html = ""
                         _is_massoul = st.session_state.get("_prof_is_massoul", False)
-                        if _is_massoul:
-                            _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
-                            if len(_jrow_full2) > 0:
-                                _jrf = _jrow_full2.iloc[0]
-                                _members2 = []
-                                _pres2 = str(_jrf.get("الرئيس","")).strip()
-                                _ex12  = str(_jrf.get("المناقش1","")).strip()
-                                _ex22  = str(_jrf.get("المناقش2","")).strip()
-                                _sup2  = str(_jrf.get("الأستاذ","")).strip()
-                                if _sup2  and _sup2  not in ["","nan"]: _members2.append(f"👨‍🏫 مشرف: {_sup2}")
+                        _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
+                        if len(_jrow_full2) > 0:
+                            _jrf = _jrow_full2.iloc[0]
+                            _members2 = []
+                            _pres2 = str(_jrf.get("الرئيس","")).strip()
+                            _ex12  = str(_jrf.get("المناقش1","")).strip()
+                            _ex22  = str(_jrf.get("المناقش2","")).strip()
+                            _sup2  = str(_jrf.get("الأستاذ","")).strip()
+                            if jrole == "مشرف" or _is_massoul:
+                                # مشرف أو مسؤول → اللجنة كاملة
                                 if _pres2 and _pres2 not in ["","nan"]: _members2.append(f"🎓 رئيس: {_pres2}")
                                 if _ex12  and _ex12  not in ["","nan"]: _members2.append(f"🔍 مناقش: {_ex12}")
                                 if _ex22  and _ex22  not in ["","nan"]: _members2.append(f"🔍 مناقش: {_ex22}")
-                                if _members2:
-                                    jury_members_html = '<div style="margin-top:6px;padding:6px 10px;background:rgba(201,162,39,0.1);border-radius:8px;font-size:0.75rem;color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(_members2) + '</div>'
+                            else:
+                                # رئيس أو مناقش → المشرف فقط
+                                if _sup2 and _sup2 not in ["","nan"]: _members2.append(f"👨‍🏫 مشرف: {_sup2}")
+                            if _members2:
+                                jury_members_html = '<div style="margin-top:6px;padding:6px 10px;background:rgba(201,162,39,0.1);border-radius:8px;font-size:0.75rem;color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(_members2) + '</div>'
 
                         # أعضاء اللجنة — تظهر للمشرف فقط إذا AI = نعم
                         jury_members_html = ""
@@ -5023,7 +5028,7 @@ elif st.session_state.user_type == "admin":
             <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
         </div>''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab_takleef,tab_import,tab_archive=st.tabs(["📋 التكاليف والتحقق","📤 استيراد جدول","🗂️ أرشيف (جدولة ذكية)"])
+        tab_takleef,tab_import,tab_mahdar,tab_archive=st.tabs(["📋 التكاليف والتحقق","📤 استيراد جدول","📄 المحاضر","🗂️ أرشيف (جدولة ذكية)"])
 
         # ================================================================
         # TAB جدولة ذكية
@@ -6021,8 +6026,7 @@ elif st.session_state.user_type == "admin":
                 top20 = df_show.nlargest(20,"المجموع").set_index("الأستاذ")[["مشرف","رئيس","مناقش"]]
                 st.bar_chart(top20, color=["#2F9EA0","#FFD700","#818CF8"])
 
-        if False:
-         with tab_mahdar_dummy:
+        with tab_mahdar:
             st.subheader("📄 توليد محاضر المناقشة")
 
             df_memos_m = load_memos()
