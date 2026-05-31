@@ -386,7 +386,11 @@ def load_prof_memos():
         result = sheets_service.spreadsheets().values().get(spreadsheetId=PROF_MEMOS_SHEET_ID, range=PROF_MEMOS_RANGE).execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
-        return pd.DataFrame(values[1:], columns=values[0])
+        headers = values[0]
+        rows = values[1:]
+        # تعبئة الصفوف الناقصة بقيم فارغة
+        padded = [r + [''] * (len(headers) - len(r)) for r in rows]
+        return pd.DataFrame(padded, columns=headers)
     except Exception as e: logger.error(f"خطأ الأساتذة: {e}"); return pd.DataFrame()
 
 @st.cache_data(ttl=60)
@@ -4373,7 +4377,6 @@ elif st.session_state.user_type == "professor":
             with c2: p=st.text_input("كلمة المرور", type="password")
             if st.form_submit_button("تسجيل الدخول"):
                 df_prof_memos = load_prof_memos()
-                st.info(f"🔍 شيت الأساتذة: {len(df_prof_memos)} صف | أعمدة: {list(df_prof_memos.columns)[:5] if not df_prof_memos.empty else 'فارغ'}")
                 v,r=verify_professor(u,p,df_prof_memos)
                 if not v: st.error(r)
                 else:
