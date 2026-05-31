@@ -3786,19 +3786,25 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         if changed:
             for old, new in mapping.items():
                 full = full.replace(old, new)
-            # ابحث عن أول run له bold=True — استخدمه لوضع النص
             target_run = next((r for r in p.runs if r.bold), None) or p.runs[0]
             for r in p.runs: r.text = ""
             target_run.text = full
 
+    def remove_para(p):
+        """حذف فقرة كاملة"""
+        p._p.getparent().remove(p._p)
+
+    # حذف فقرة الطالب الثاني قبل الاستبدال
+    paras_to_remove = []
+    for p in doc.paragraphs:
+        raw = "".join(r.text for r in p.runs)
+        if not has_student2 and ("{{STUDENT2}}" in raw or "{{STUDENT2_ID}}" in raw):
+            paras_to_remove.append(p)
+    for p in paras_to_remove:
+        p._p.getparent().remove(p._p)
+
     for p in doc.paragraphs:
         replace_in_para(p, replacements)
-        # إذا طالب واحد — احذف سطر الطالب الثاني كاملاً
-        if not has_student2:
-            full = "".join(r.text for r in p.runs)
-            if "STUDENT2" in full or (student2_name == "" and "رقم الملف" in full and student_id not in full):
-                for r in p.runs: r.text = ""
-                p._p.getparent().remove(p._p)
 
     # ── إزالة {{QR}} ──
     for p in doc.paragraphs:
