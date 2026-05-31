@@ -4803,6 +4803,7 @@ elif st.session_state.user_type == "professor":
                         _is_massoul = _massoul_raw == "نعم"
                         if prof_name == "رفاف لخضر":
                             st.caption(f"DEBUG مسؤول={repr(_massoul_raw)} is_massoul={_is_massoul} role={jrole}")
+                            st.caption(f"DEBUG cols={list(jury_memos.columns)[:8]}")
                         _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
                         if len(_jrow_full2) > 0:
                             _jrf = _jrow_full2.iloc[0]
