@@ -3767,6 +3767,7 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         "{{TITLE}}":       title,
         "{{SPECIALTY}}":   specialty,
         "{{DEPT}}":        dept,
+        "{{Dep}}":         dept,  # اسم بديل
         "{{STUDENT1}}":    student_name,
         # طالب واحد → لا رقم ملف، طالبان → رقم ملف
         "{{STUDENT1_ID}}": student_id if has_student2 else "",  # طالب واحد → لا رقم ملف
