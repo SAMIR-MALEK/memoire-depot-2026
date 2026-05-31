@@ -4798,7 +4798,9 @@ elif st.session_state.user_type == "professor":
 
                         # أعضاء اللجنة
                         jury_members_html = ""
-                        _is_massoul = st.session_state.get("_prof_is_massoul", False)
+                        # قراءة مسؤول مباشرة من بيانات الأستاذ المسجل
+                        _prof_data = st.session_state.get("professor", {})
+                        _is_massoul = str(_prof_data.get("مسؤول","")).strip() == "نعم"
                         _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
                         if len(_jrow_full2) > 0:
                             _jrf = _jrow_full2.iloc[0]
