@@ -386,11 +386,7 @@ def load_prof_memos():
         result = sheets_service.spreadsheets().values().get(spreadsheetId=PROF_MEMOS_SHEET_ID, range=PROF_MEMOS_RANGE).execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
-        headers = values[0]
-        rows = values[1:]
-        # تعبئة الصفوف الناقصة بقيم فارغة
-        padded = [r + [''] * (len(headers) - len(r)) for r in rows]
-        return pd.DataFrame(padded, columns=headers)
+        return pd.DataFrame(values[1:], columns=values[0])
     except Exception as e: logger.error(f"خطأ الأساتذة: {e}"); return pd.DataFrame()
 
 @st.cache_data(ttl=60)
@@ -4798,15 +4794,9 @@ elif st.session_state.user_type == "professor":
 
                         # أعضاء اللجنة
                         jury_members_html = ""
-                        _prof_data = st.session_state.get("professor", {})
-                        _massoul_raw = str(_prof_data.get("مسؤول","")).strip()
-                        _is_massoul = _massoul_raw == "نعم"
+                        _prof_data_m = st.session_state.get("professor", {})
+                        _is_massoul = str(_prof_data_m.get("مسؤول","")).strip() == "نعم"
                         _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
-                        if prof_name == "رفاف لخضر" and jrole != "مشرف":
-                            _has_r = "الرئيس" in jury_memos.columns
-                            _row_count = len(_jrow_full2)
-                            _pres_val = str(_jrow_full2.iloc[0].get("الرئيس","")) if _row_count>0 else "NO ROW"
-                            st.caption(f"DEBUG role={jrole} | jmid={jmid} | rows={_row_count} | الرئيس={_pres_val}")
                         if len(_jrow_full2) > 0:
                             _jrf = _jrow_full2.iloc[0]
                             _members2 = []
@@ -4824,23 +4814,7 @@ elif st.session_state.user_type == "professor":
                                 if _sup2 and _sup2 not in ["","nan"]: _members2.append(f"👨‍🏫 مشرف: {_sup2}")
                             if _members2:
                                 jury_members_html = '<div style="margin-top:6px;padding:6px 10px;background:rgba(201,162,39,0.1);border-radius:8px;font-size:0.75rem;color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(_members2) + '</div>'
-                            if prof_name == "رفاف لخضر" and jrole != "مشرف":
-                                st.caption(f"DEBUG members={_members2} | jury_html_len={len(jury_members_html)} | is_massoul={_is_massoul}")
 
-                        # أعضاء اللجنة — تظهر للمشرف فقط إذا AI = نعم
-                        jury_members_html = ""
-                        if jrole == "مشرف" and is_pub_row:
-                            _jrow_full = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)].iloc[0] if len(jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]) > 0 else None
-                            if _jrow_full is not None:
-                                _pres = str(_jrow_full.get("الرئيس","")).strip()
-                                _ex1  = str(_jrow_full.get("المناقش1","")).strip()
-                                _ex2  = str(_jrow_full.get("المناقش2","")).strip()
-                                _members = []
-                                if _pres and _pres not in ["","nan"]: _members.append(f"🎓 رئيساً: {_pres}")
-                                if _ex1  and _ex1  not in ["","nan"]: _members.append(f"🔍 ممتحناً: {_ex1}")
-                                if _ex2  and _ex2  not in ["","nan"]: _members.append(f"🔍 ممتحناً: {_ex2}")
-                                if _members:
-                                    jury_members_html = '<div style="margin-top:6px;padding:6px 10px;background:rgba(15,41,66,0.4);border-radius:8px;font-size:0.78rem;color:#94A3B8;">' + " &nbsp;|&nbsp; ".join(_members) + "</div>"
                         cards_html += f'''<div style="background:#1E293B;border:1px solid rgba(255,255,255,0.07);
                                     border-right:4px solid {r_color};border-radius:12px;
                                     padding:14px 16px;margin-bottom:10px;">
