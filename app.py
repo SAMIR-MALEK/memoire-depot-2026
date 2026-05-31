@@ -6073,7 +6073,7 @@ elif st.session_state.user_type == "admin":
                 import base64, io, zipfile
                 try:
                     import requests as _req
-                    _template_url = "https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/template_mahdar.docx"
+                    _template_url = "https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/template_mahdar.docx?v=1780245338"
                     _resp = _req.get(_template_url, timeout=10)
                     template_bytes = _resp.content
                     st.success("✅ القالب محمّل من GitHub")
