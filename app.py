@@ -5007,6 +5007,7 @@ elif st.session_state.user_type == "admin":
         df_memos = load_memos()
         df_students = load_students()
         st_s=len(df_students); t_m=len(df_memos); r_m=len(df_memos[df_memos["تم التسجيل"].astype(str).str.strip()=="نعم"])
+        df_prof_memos = load_prof_memos()
         a_m=t_m-r_m; t_p=len(df_prof_memos["الأستاذ"].unique())
         memo_col=df_students["رقم المذكرة"].astype(str).str.strip() if "رقم المذكرة" in df_students.columns else pd.Series(dtype=str)
         reg_st=(memo_col!="").sum(); unreg_st=(memo_col=="").sum()
