@@ -372,7 +372,7 @@ def load_students():
 @st.cache_data(ttl=60)
 def load_memos():
     try:
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AJ1000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AL1000").execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         headers = values[0]; rows = values[1:]
@@ -3767,7 +3767,8 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         "{{TITLE}}":       title,
         "{{SPECIALTY}}":   specialty,
         "{{DEPT}}":        dept,
-        "{{Dep}}":         dept,  # اسم بديل
+        "{{Dept}}":        dept,
+        "{{Dep}}":         dept,
         "{{STUDENT1}}":    student_name,
         # طالب واحد → لا رقم ملف، طالبان → رقم ملف
         "{{STUDENT1_ID}}": student_id if has_student2 else "",  # طالب واحد → لا رقم ملف
