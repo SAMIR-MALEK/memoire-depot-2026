@@ -4801,14 +4801,12 @@ elif st.session_state.user_type == "professor":
                         _prof_data = st.session_state.get("professor", {})
                         _massoul_raw = str(_prof_data.get("مسؤول","")).strip()
                         _is_massoul = _massoul_raw == "نعم"
+                        _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
                         if prof_name == "رفاف لخضر" and jrole != "مشرف":
                             _has_r = "الرئيس" in jury_memos.columns
-                            _row_count = len(_jrow_full2) if "_jrow_full2" in dir() else -1
-                            st.caption(f"DEBUG role={jrole} | jmid={jmid} | الرئيس={_has_r} | _jrow_full2 rows={_row_count}")
-                            if _row_count == 0:
-                                _sample_ids = jury_memos["رقم المذكرة"].astype(str).head(3).tolist()
-                                st.caption(f"DEBUG sample ids={_sample_ids} | jmid type={type(jmid)}")
-                        _jrow_full2 = jury_memos[jury_memos["رقم المذكرة"].astype(str)==str(jmid)]
+                            _row_count = len(_jrow_full2)
+                            _pres_val = str(_jrow_full2.iloc[0].get("الرئيس","")) if _row_count>0 else "NO ROW"
+                            st.caption(f"DEBUG role={jrole} | jmid={jmid} | rows={_row_count} | الرئيس={_pres_val}")
                         if len(_jrow_full2) > 0:
                             _jrf = _jrow_full2.iloc[0]
                             _members2 = []
