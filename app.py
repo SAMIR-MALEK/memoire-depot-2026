@@ -6460,114 +6460,68 @@ elif st.session_state.user_type == "admin":
 
 
         with tab_import:
-            st.subheader("📤 استيراد جدول المناقشات من Excel")
-            st.info("ارفع ملف Excel يحتوي على: **رقم المذكرة، تاريخ المناقشة، توقيت المناقشة، القاعة**")
-            _upl = st.file_uploader("📂 اختر ملف Excel:", type=["xlsx","xls"], key="import_sched_file")
+            st.subheader("📥 استيراد بيانات الطلبة")
+            st.info("ارفع ملف Excel فيه: **A=رقم التسجيل | B=اللقب | C=الاسم | D=رقم الملف** — سيقارن رقم التسجيل مع شيت الطلبة ويحدّث رقم الملف والاسم")
+            _upl = st.file_uploader("📂 ملف بيانات الطلبة:", type=["xlsx","xls"], key="import_sched_file")
             if _upl:
-                import openpyxl as _xl2, io as _io2, datetime as _dti2, pandas as _pd2
+                import openpyxl as _xl2, io as _io2, pandas as _pd2
                 try:
                     _wb2 = _xl2.load_workbook(_io2.BytesIO(_upl.read()))
                     _ws2 = _wb2.active
-                    _hdr2 = [str(_ws2.cell(1,c).value or '').strip() for c in range(1,_ws2.max_column+1)]
-                    def _fc2(h,cands):
-                        for c in cands:
-                            if c in h: return h.index(c)
-                        return -1
-                    _cm2=_fc2(_hdr2,['رقم المذكرة']); _cd2=_fc2(_hdr2,['تاريخ المناقشة','التاريخ'])
-                    _cs2=_fc2(_hdr2,['توقيت المناقشة','التوقيت']); _cr2=_fc2(_hdr2,['القاعة','قاعة'])
-                    if _cm2==-1 or _cd2==-1:
-                        st.error("❌ لم يُوجد عمود رقم المذكرة أو التاريخ")
-                    else:
-                        _dat2=[]
-                        for _r2 in range(2,_ws2.max_row+1):
-                            _mv2=_ws2.cell(_r2,_cm2+1).value
-                            _dv2=_ws2.cell(_r2,_cd2+1).value
-                            if not _mv2 or not _dv2: continue
-                            _ds2=_dv2.strftime("%Y-%m-%d") if isinstance(_dv2,_dti2.datetime) else str(_dv2).strip()
-                            _sv2=_ws2.cell(_r2,_cs2+1).value if _cs2>=0 else None
-                            _ss2=_sv2.strftime("%H:%M") if isinstance(_sv2,_dti2.time) else str(_sv2 or '').strip()[:5]
-                            _rv2=str(_ws2.cell(_r2,_cr2+1).value or '').strip() if _cr2>=0 else ''
-                            try: _mid2=str(int(float(str(_mv2))))
-                            except: _mid2=str(_mv2).strip()
-                            _dat2.append({'رقم المذكرة':_mid2,'تاريخ':_ds2,'توقيت':_ss2,'قاعة':_rv2})
-                        st.success(f"✅ {len(_dat2)} مذكرة جاهزة")
-                        st.dataframe(_pd2.DataFrame(_dat2).head(10),use_container_width=True)
-                        if st.button("🚀 استيراد إلى الشيت",type="primary",use_container_width=True,key="do_import2"):
-                            with st.spinner("⏳ جاري الاستيراد..."):
-                                _am2=load_memos(); _rm2={}
-                                for _i2,(_,_rw2) in enumerate(_am2.iterrows()):
-                                    _mk2=str(_rw2.get("رقم المذكرة","")).strip()
-                                    try: _mk2=str(int(float(_mk2)))
-                                    except: pass
-                                    if _mk2: _rm2[_mk2]=_i2+2
-                                _upd2=[]; _nf2=[]
-                                for _d2 in _dat2:
-                                    _rn2=_rm2.get(_d2['رقم المذكرة'])
-                                    if not _rn2: _nf2.append(_d2['رقم المذكرة']); continue
-                                    _upd2+=[{"range":f"Feuille 1!W{_rn2}","values":[[_d2['تاريخ']]]},
-                                            {"range":f"Feuille 1!X{_rn2}","values":[[_d2['توقيت']]]},
-                                            {"range":f"Feuille 1!Y{_rn2}","values":[[_d2['قاعة']]]}]
-                                if _upd2:
-                                    for _i3 in range(0,len(_upd2),100):
-                                        sheets_service.spreadsheets().values().batchUpdate(
-                                            spreadsheetId=MEMOS_SHEET_ID,
-                                            body={"valueInputOption":"USER_ENTERED","data":_upd2[_i3:_i3+100]}
-                                        ).execute()
-                                    clear_cache_and_reload()
-                                    st.success(f"✅ تم استيراد {len(_dat2)-len(_nf2)} مذكرة!")
-                                    if _nf2: st.warning(f"غير موجودة: {_nf2}")
-                                else:
-                                    st.error("❌ لا توجد بيانات")
-                except Exception as _e2:
-                    st.error(f"❌ {_e2}")
+                    _dat2 = []
+                    for _r2 in range(2, _ws2.max_row+1):
+                        _reg  = _ws2.cell(_r2, 1).value  # رقم التسجيل
+                        _lqb  = _ws2.cell(_r2, 2).value  # اللقب
+                        _ism  = _ws2.cell(_r2, 3).value  # الاسم
+                        _fil  = _ws2.cell(_r2, 4).value  # رقم الملف
+                        if not _reg: continue
+                        _dat2.append({
+                            'رقم التسجيل': str(_reg).strip(),
+                            'اللقب': str(_lqb or '').strip(),
+                            'الاسم': str(_ism or '').strip(),
+                            'رقم الملف': str(_fil or '').strip()
+                        })
+                    st.success(f"✅ {len(_dat2)} طالب جاهز")
+                    st.dataframe(_pd2.DataFrame(_dat2).head(10), use_container_width=True)
 
-            st.markdown("---")
-            st.subheader("📋 استيراد أرقام المحاضر")
-            st.info("ارفع ملف Excel فيه عمودان: **رقم المذكرة** (A) و**رقم المحضر** (B)")
-            _upl_seq = st.file_uploader("📂 ملف أرقام المحاضر:", type=["xlsx","xls"], key="import_seq_file")
-            if _upl_seq:
-                import openpyxl as _xl3, io as _io3
-                try:
-                    _wb3 = _xl3.load_workbook(_io3.BytesIO(_upl_seq.read()))
-                    _ws3 = _wb3.active
-                    _seq_data = []
-                    for _r3 in range(2, _ws3.max_row+1):
-                        _mid3 = _ws3.cell(_r3, 1).value
-                        _seq3 = _ws3.cell(_r3, 2).value
-                        if not _mid3 or not _seq3: continue
-                        try: _mid3 = str(int(float(str(_mid3))))
-                        except: _mid3 = str(_mid3).strip()
-                        _seq_data.append({'رقم المذكرة': _mid3, 'رقم المحضر': str(_seq3).strip()})
-                    st.success(f"✅ {len(_seq_data)} محضر جاهز")
-                    import pandas as _pd3
-                    st.dataframe(_pd3.DataFrame(_seq_data).head(10), use_container_width=True)
-                    if st.button("🚀 استيراد أرقام المحاضر", type="primary", use_container_width=True, key="do_import_seq"):
+                    if st.button("🚀 استيراد إلى شيت الطلبة", type="primary", use_container_width=True, key="do_import_students"):
                         with st.spinner("⏳ جاري الاستيراد..."):
-                            _am3 = load_memos()
-                            _rm3 = {}
-                            for _i3, (_, _rw3) in enumerate(_am3.iterrows()):
-                                _mk3 = str(_rw3.get("رقم المذكرة","")).strip()
-                                try: _mk3 = str(int(float(_mk3)))
-                                except: pass
-                                if _mk3: _rm3[_mk3] = _i3 + 2
-                            _upd3 = []; _nf3 = []
-                            for _d3 in _seq_data:
-                                _rn3 = _rm3.get(_d3['رقم المذكرة'])
-                                if not _rn3: _nf3.append(_d3['رقم المذكرة']); continue
-                                _upd3.append({"range": f"Feuille 1!AM{_rn3}", "values": [[_d3['رقم المحضر']]]})
-                            if _upd3:
-                                for _i4 in range(0, len(_upd3), 100):
+                            # قراءة شيت الطلبة — عمود C = رقم التسجيل
+                            _st_sheet = sheets_service.spreadsheets().values().get(
+                                spreadsheetId=STUDENTS_SHEET_ID,
+                                range="Feuille 1!A1:V5000"
+                            ).execute()
+                            _st_vals = _st_sheet.get('values', [])
+                            # بناء خريطة رقم التسجيل → رقم الصف
+                            _reg_map = {}
+                            for _i2, _row2 in enumerate(_st_vals[1:], 2):
+                                if len(_row2) >= 3:
+                                    _rk = str(_row2[2]).strip()  # عمود C
+                                    if _rk: _reg_map[_rk] = _i2
+
+                            _upd2 = []; _nf2 = []
+                            for _d2 in _dat2:
+                                _rn2 = _reg_map.get(_d2['رقم التسجيل'])
+                                if not _rn2:
+                                    _nf2.append(_d2['رقم التسجيل']); continue
+                                _upd2 += [
+                                    {"range": f"Feuille 1!D{_rn2}", "values": [[_d2['اللقب']]]},
+                                    {"range": f"Feuille 1!E{_rn2}", "values": [[_d2['الاسم']]]},
+                                    {"range": f"Feuille 1!V{_rn2}", "values": [[_d2['رقم الملف']]]},
+                                ]
+                            if _upd2:
+                                for _i3 in range(0, len(_upd2), 100):
                                     sheets_service.spreadsheets().values().batchUpdate(
-                                        spreadsheetId=MEMOS_SHEET_ID,
-                                        body={"valueInputOption": "USER_ENTERED", "data": _upd3[_i4:_i4+100]}
+                                        spreadsheetId=STUDENTS_SHEET_ID,
+                                        body={"valueInputOption": "USER_ENTERED", "data": _upd2[_i3:_i3+100]}
                                     ).execute()
                                 clear_cache_and_reload()
-                                st.success(f"✅ تم استيراد {len(_seq_data)-len(_nf3)} رقم محضر!")
-                                if _nf3: st.warning(f"غير موجودة: {_nf3}")
+                                st.success(f"✅ تم تحديث {len(_dat2)-len(_nf2)} طالب!")
+                                if _nf2: st.warning(f"⚠️ لم يُوجد رقم تسجيلهم: {_nf2[:10]}")
                             else:
-                                st.error("❌ لا توجد بيانات للاستيراد")
-                except Exception as _e3:
-                    st.error(f"❌ {_e3}")
+                                st.error("❌ لا توجد تطابقات")
+                except Exception as _e2:
+                    st.error(f"❌ {_e2}")
 
 st.markdown("---")
 st.markdown('<div style="text-align:center;color:#ffffff;font-size:11px;padding:16px;">إشراف مسؤول الميدان البروفيسور لخضر رفاف ©</div>', unsafe_allow_html=True)
