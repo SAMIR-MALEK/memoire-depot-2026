@@ -3738,6 +3738,7 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
     memo_num     = str(memo_data.get("رقم المذكرة","")).strip()
     title        = str(memo_data.get("عنوان المذكرة","")).strip()
     specialty    = str(memo_data.get("التخصص","")).strip()
+    dept         = str(memo_data.get("القسم","")).strip()
     def_date     = str(memo_data.get("تاريخ المناقشة","")).strip()
     student_name = str(memo_data.get("الطالب","")).strip()
     student_id   = str(memo_data.get("رقم ملف الطالب","")).strip()
@@ -3765,10 +3766,12 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         "{{MEMO_NUM}}":    memo_num,
         "{{TITLE}}":       title,
         "{{SPECIALTY}}":   specialty,
+        "{{DEPT}}":        dept,
         "{{STUDENT1}}":    student_name,
-        "{{STUDENT1_ID}}": student_id,
-        "{{STUDENT2}}":       student2_name if has_student2 else "",
-        "{{STUDENT2_ID}}":    student2_id   if has_student2 else "",
+        # طالب واحد → لا رقم ملف، طالبان → رقم ملف
+        "{{STUDENT1_ID}}": student_id if has_student2 else "",  # طالب واحد → لا رقم ملف
+        "{{STUDENT2}}":    student2_name if has_student2 else "",
+        "{{STUDENT2_ID}}": student2_id if has_student2 else "",
         "{{STUDENTS_LABEL}}": memo_data.get("STUDENTS_LABEL", "للطالبين:" if has_student2 else "للطالب:"),
         "...../......./......": def_date,
     }
@@ -3795,16 +3798,11 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
                 for r in p.runs: r.text = ""
                 p._p.getparent().remove(p._p)
 
-    # ── QR Code مكان {{QR}} ──
-    qr_url = drive_link if drive_link and drive_link not in ["","nan"] else f"مذكرة_{memo_num}"
-    qr_png = generate_qr_png(qr_url)
-
+    # ── إزالة {{QR}} ──
     for p in doc.paragraphs:
         full = "".join(r.text for r in p.runs)
         if "{{QR}}" in full:
             for r in p.runs: r.text = ""
-            run_qr = p.add_run()
-            run_qr.add_picture(_io.BytesIO(qr_png), width=_Cm(2.5))
             break
 
     # ── جدول اللجنة ──
@@ -6124,6 +6122,7 @@ elif st.session_state.user_type == "admin":
                                 memo_dict = row_m.to_dict()
                                 memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
                                 memo_dict["التخصص"]        = str(row_m.get("التخصص","")).strip()
+                                memo_dict["القسم"]         = str(row_m.get("القسم","")).strip()
                                 memo_dict["رابط الملف"]    = str(row_m.get("رابط الملف","")).strip()
                                 memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
                                 memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
