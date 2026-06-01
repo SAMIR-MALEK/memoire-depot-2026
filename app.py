@@ -6108,18 +6108,60 @@ elif st.session_state.user_type == "admin":
                     # ── فلتر اليوم ──
                     _days_m = sorted(scheduled_m["تاريخ المناقشة"].astype(str).str.strip().unique().tolist())
                     _day_opts_m = ["الكل"] + _days_m
-                    _sel_day_m = st.selectbox("📅 فلتر اليوم:", _day_opts_m, key="mahdar_day_filter")
+                    _sel_day_m = st.selectbox("📅 اختر يوم المناقشة:", _day_opts_m, key="mahdar_day_filter")
                     if _sel_day_m == "الكل":
                         _filtered_m_day = scheduled_m.copy()
                     else:
                         _filtered_m_day = scheduled_m[scheduled_m["تاريخ المناقشة"].astype(str)==_sel_day_m].copy()
-                    st.caption(f"{len(_filtered_m_day)} مذكرة")
+                    st.caption(f"📋 {len(_filtered_m_day)} مذكرة")
 
-                    # ── أزرار في نفس المستوى ──
-                    col_m1, col_m2 = st.columns(2)
+                    st.markdown("---")
+                    # ── ZIP ──
+                    _zip_label = f"📦 توليد كل محاضر {_sel_day_m}" if _sel_day_m != "الكل" else "📦 توليد كل المحاضر"
+                    if st.button(_zip_label, use_container_width=True, key="gen_zip_mahdar"):
+                            import zipfile as _zf_m, io as _io_zm
+                            _zip_buf_m = _io_zm.BytesIO()
+                            with _zf_m.ZipFile(_zip_buf_m, 'w', _zf_m.ZIP_DEFLATED) as _zfm:
+                                with st.spinner(f"⏳ جاري توليد {len(_filtered_m_day)} محضر..."):
+                                    for _, _rm in _filtered_m_day.iterrows():
+                                        _mid_m = str(_rm.get("رقم المذكرة","")).strip()
+                                        _seq_v_m = str(_rm.get("رقم المحضر","")).strip()
+                                        _seq_i_m = int(_seq_v_m) if _seq_v_m and _seq_v_m not in ["","nan"] else int(_rm.get("رقم_تسلسلي",0))
+                                        _mdict = _rm.to_dict()
+                                        _mdict["عنوان المذكرة"] = str(_rm.get("عنوان المذكرة","")).strip()
+                                        _mdict["التخصص"] = str(_rm.get("التخصص","")).strip()
+                                        _mdict["القسم"] = str(_rm.get("القسم","")).strip()
+                                        _mdict["رقم المحضر"] = _seq_v_m
+                                        _mdict["رتبة_الرئيس"] = ranks_dict.get(str(_mdict.get("الرئيس","")), "")
+                                        _mdict["رتبة_المشرف"] = ranks_dict.get(str(_mdict.get("الأستاذ","")), "")
+                                        _mdict["رتبة_المناقش1"] = ranks_dict.get(str(_mdict.get("المناقش1","")), "")
+                                        _mdict["رتبة_المناقش2"] = ranks_dict.get(str(_mdict.get("المناقش2","")), "")
+                                        _mdict["الطالب"] = str(_rm.get("الطالب الأول","")).strip()
+                                        _mdict["الطالب2"] = str(_rm.get("الطالب الثاني","")).strip()
+                                        _ids_m = students_ids.get(_norm_num(_mid_m), [])
+                                        _mdict["رقم ملف الطالب"] = _ids_m[0] if len(_ids_m)>0 else ""
+                                        _mdict["رقم ملف الطالب2"] = _ids_m[1] if len(_ids_m)>1 else ""
+                                        _hs2_m = bool(_mdict["الطالب2"] and _mdict["الطالب2"] not in ["","nan","-"])
+                                        _mdict["STUDENTS_LABEL"] = "للطالبين" if _hs2_m else "للطالب(ة)"
+                                        try:
+                                            _db_m = generate_mahdar(_mdict, _seq_i_m, template_bytes)
+                                            _zfm.writestr(f"{_seq_v_m or _mid_m}_محضر_{_mid_m}.docx", _db_m)
+                                        except: pass
+                            _zip_buf_m.seek(0)
+                            st.download_button(
+                                label=f"📥 تحميل ZIP ({len(_filtered_m_day)} محضر)",
+                                data=_zip_buf_m.getvalue(),
+                                file_name=f"محاضر_{_sel_day_m}.zip",
+                                mime="application/zip",
+                                use_container_width=True,
+                                key="dl_zip_mahdar"
+                            )
 
-                    with col_m2:
-                        st.markdown("**📦 توليد ZIP:**")
+                    st.markdown("---")
+                    # ── محضر واحد ──
+                    col_m1, col_m2 = st.columns([3,1])
+                    with col_m1:
+                        st.markdown("**📄 توليد محضر واحد:**")
                         _zip_label = f"كل محاضر {_sel_day_m}" if _sel_day_m != "الكل" else "كل المحاضر"
                         if st.button(f"📦 توليد {_zip_label}", use_container_width=True, key="gen_zip_mahdar"):
                             import zipfile as _zf_m, io as _io_zm
