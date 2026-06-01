@@ -5055,11 +5055,60 @@ elif st.session_state.user_type == "admin":
             tab_mahdar, = st.tabs(["📄 المحاضر"])
             tab_takleef = None; tab_archive = None
         else:
-            tab_takleef,tab_mahdar,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","🗂️ أرشيف (جدولة ذكية)"])
+            tab_takleef,tab_mahdar,tab_seq,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","📥 استيراد أرقام المحاضر","🗂️ أرشيف (جدولة ذكية)"])
 
         # ================================================================
         # TAB جدولة ذكية
         # ================================================================
+        if not _is_printer_user and tab_seq:
+         with tab_seq:
+            st.subheader("📥 استيراد أرقام المحاضر")
+            st.info("ارفع ملف Excel فيه: **A = رقم المذكرة | B = رقم المحضر** — سيُكتب في عمود AM في شيت المذكرات")
+            _upl_seq = st.file_uploader("📂 ملف أرقام المحاضر:", type=["xlsx","xls"], key="import_seq_file")
+            if _upl_seq:
+                import openpyxl as _xl_s, io as _io_s
+                try:
+                    _wb_s = _xl_s.load_workbook(_io_s.BytesIO(_upl_seq.read()))
+                    _ws_s = _wb_s.active
+                    _seq_data = []
+                    for _r_s in range(2, _ws_s.max_row+1):
+                        _mid_s = _ws_s.cell(_r_s, 1).value
+                        _seq_s = _ws_s.cell(_r_s, 2).value
+                        if not _mid_s or not _seq_s: continue
+                        try: _mid_s = str(int(float(str(_mid_s))))
+                        except: _mid_s = str(_mid_s).strip()
+                        _seq_data.append({'رقم المذكرة': _mid_s, 'رقم المحضر': str(_seq_s).strip()})
+                    import pandas as _pd_s
+                    st.success(f"✅ {len(_seq_data)} محضر جاهز")
+                    st.dataframe(_pd_s.DataFrame(_seq_data).head(10), use_container_width=True)
+                    if st.button("🚀 استيراد إلى الشيت", type="primary", use_container_width=True, key="do_import_seq"):
+                        with st.spinner("⏳ جاري الاستيراد..."):
+                            _am = load_memos()
+                            _rm = {}
+                            for _i_s, (_, _rw_s) in enumerate(_am.iterrows()):
+                                _mk_s = str(_rw_s.get("رقم المذكرة","")).strip()
+                                try: _mk_s = str(int(float(_mk_s)))
+                                except: pass
+                                if _mk_s: _rm[_mk_s] = _i_s + 2
+                            _upd_s = []; _nf_s = []
+                            for _d_s in _seq_data:
+                                _rn_s = _rm.get(_d_s['رقم المذكرة'])
+                                if not _rn_s: _nf_s.append(_d_s['رقم المذكرة']); continue
+                                _upd_s.append({"range": f"Feuille 1!AM{_rn_s}", "values": [[_d_s['رقم المحضر']]]})
+                            if _upd_s:
+                                for _i2_s in range(0, len(_upd_s), 100):
+                                    sheets_service.spreadsheets().values().batchUpdate(
+                                        spreadsheetId=MEMOS_SHEET_ID,
+                                        body={"valueInputOption": "USER_ENTERED", "data": _upd_s[_i2_s:_i2_s+100]}
+                                    ).execute()
+                                clear_cache_and_reload()
+                                st.success(f"✅ تم استيراد {len(_seq_data)-len(_nf_s)} رقم محضر!")
+                                if _nf_s: st.warning(f"⚠️ لم توجد في الشيت: {_nf_s[:10]}")
+                            else:
+                                st.error("❌ لا توجد تطابقات")
+                except Exception as _e_s:
+                    st.error(f"❌ {_e_s}")
+
         if not _is_printer_user and tab_archive:
          with tab_archive:
             st.info("📌 تم تنفيذ الجدولة — البرنامج محفوظ في الشيت.")
