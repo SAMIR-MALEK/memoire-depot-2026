@@ -5057,7 +5057,7 @@ elif st.session_state.user_type == "admin":
             tab_mahdar, = st.tabs(["📄 المحاضر"])
             tab_takleef = None; tab_archive = None
         else:
-            tab_takleef,tab_mahdar,tab_seq,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","📥 استيراد أرقام المحاضر","🗂️ أرشيف (جدولة ذكية)"])
+            tab_takleef,tab_mahdar,tab_seq,tab_stud,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","📥 استيراد أرقام المحاضر","👥 استيراد أرقام ملفات الطلبة","🗂️ أرشيف (جدولة ذكية)"])
 
         # ================================================================
         # TAB جدولة ذكية
@@ -5110,6 +5110,61 @@ elif st.session_state.user_type == "admin":
                                 st.error("❌ لا توجد تطابقات")
                 except Exception as _e_s:
                     st.error(f"❌ {_e_s}")
+
+        if not _is_printer_user and tab_stud:
+         with tab_stud:
+            st.subheader("👥 استيراد أرقام ملفات الطلبة")
+            st.info("ارفع ملف Excel فيه: **A = رقم التسجيل | B = رقم الملف** — المقارنة مع عمود C في شيت الطلبة، الكتابة في عمود V")
+            _upl_st = st.file_uploader("📂 ملف أرقام الملفات:", type=["xlsx","xls"], key="import_stud_file")
+            if _upl_st:
+                import openpyxl as _xl_t, io as _io_t
+                try:
+                    _wb_t = _xl_t.load_workbook(_io_t.BytesIO(_upl_st.read()))
+                    _ws_t = _wb_t.active
+                    _stud_data = []
+                    for _r_t in range(2, _ws_t.max_row+1):
+                        _reg_t = _ws_t.cell(_r_t, 1).value  # رقم التسجيل
+                        _fil_t = _ws_t.cell(_r_t, 2).value  # رقم الملف
+                        if not _reg_t or not _fil_t: continue
+                        _stud_data.append({
+                            'رقم التسجيل': str(_reg_t).strip(),
+                            'رقم الملف': str(int(float(str(_fil_t)))) if str(_fil_t).replace('.','').isdigit() else str(_fil_t).strip()
+                        })
+                    import pandas as _pd_t
+                    st.success(f"✅ {len(_stud_data)} طالب جاهز")
+                    st.dataframe(_pd_t.DataFrame(_stud_data).head(10), use_container_width=True)
+                    if st.button("🚀 استيراد إلى شيت الطلبة", type="primary", use_container_width=True, key="do_import_stud"):
+                        with st.spinner("⏳ جاري الاستيراد..."):
+                            # قراءة شيت الطلبة
+                            _st_res = sheets_service.spreadsheets().values().get(
+                                spreadsheetId=STUDENTS_SHEET_ID,
+                                range="Feuille 1!A1:V5000"
+                            ).execute()
+                            _st_vals = _st_res.get('values', [])
+                            # بناء خريطة رقم التسجيل (عمود C = index 2) → رقم الصف
+                            _reg_map_t = {}
+                            for _i_t, _row_t in enumerate(_st_vals[1:], 2):
+                                if len(_row_t) >= 3:
+                                    _rk_t = str(_row_t[2]).strip()
+                                    if _rk_t: _reg_map_t[_rk_t] = _i_t
+                            _upd_t = []; _nf_t = []
+                            for _d_t in _stud_data:
+                                _rn_t = _reg_map_t.get(_d_t['رقم التسجيل'])
+                                if not _rn_t: _nf_t.append(_d_t['رقم التسجيل']); continue
+                                _upd_t.append({"range": f"Feuille 1!V{_rn_t}", "values": [[_d_t['رقم الملف']]]})
+                            if _upd_t:
+                                for _i2_t in range(0, len(_upd_t), 100):
+                                    sheets_service.spreadsheets().values().batchUpdate(
+                                        spreadsheetId=STUDENTS_SHEET_ID,
+                                        body={"valueInputOption": "USER_ENTERED", "data": _upd_t[_i2_t:_i2_t+100]}
+                                    ).execute()
+                                clear_cache_and_reload()
+                                st.success(f"✅ تم تحديث {len(_stud_data)-len(_nf_t)} طالب!")
+                                if _nf_t: st.warning(f"⚠️ لم يُوجد رقم تسجيلهم: {_nf_t[:10]}")
+                            else:
+                                st.error("❌ لا توجد تطابقات — تحقق من أن أرقام التسجيل صحيحة")
+                except Exception as _e_t:
+                    st.error(f"❌ {_e_t}")
 
         if not _is_printer_user and tab_archive:
          with tab_archive:
