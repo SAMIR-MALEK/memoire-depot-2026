@@ -3807,6 +3807,25 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
     for p in doc.paragraphs:
         replace_in_para(p, replacements)
 
+    # ── Tab Stop ثابت لمحاذاة رقم الملف ──
+    from docx.oxml import OxmlElement as _OE2
+    from docx.oxml.ns import qn as _qn2
+    from docx.shared import Cm as _Cm2
+    for p in doc.paragraphs:
+        full = "".join(r.text for r in p.runs)
+        if "(رقم " in full and "- " in full:
+            pPr = p._p.get_or_add_pPr()
+            # احذف tab stops الموجودة
+            old_tabs = pPr.find(_qn2("w:tabs"))
+            if old_tabs is not None: pPr.remove(old_tabs)
+            # أضف tab stop ثابت عند 9 سم
+            tabs = _OE2("w:tabs")
+            tab = _OE2("w:tab")
+            tab.set(_qn2("w:val"), "left")
+            tab.set(_qn2("w:pos"), str(int(_Cm2(9).pt * 20)))
+            tabs.append(tab)
+            pPr.append(tabs)
+
     # ── إزالة {{QR}} ──
     for p in doc.paragraphs:
         full = "".join(r.text for r in p.runs)
