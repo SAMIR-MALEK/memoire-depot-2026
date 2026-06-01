@@ -3822,7 +3822,7 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
             tabs = _OE2("w:tabs")
             tab = _OE2("w:tab")
             tab.set(_qn2("w:val"), "left")
-            tab.set(_qn2("w:pos"), str(int(_Cm2(9).pt * 20)))
+            tab.set(_qn2("w:pos"), str(int(_Cm2(6).pt * 20)))
             tabs.append(tab)
             pPr.append(tabs)
 
