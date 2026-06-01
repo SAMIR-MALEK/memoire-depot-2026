@@ -5021,8 +5021,7 @@ elif st.session_state.user_type == "admin":
         with c2:
             if st.button("خروج"): logout()
         st.header("📊 لوحة تحكم الإدارة")
-        if st.button("🎓 برنامج المناقشات",key="open_wizard"):
-            st.session_state['admin_mode']='defense_wizard'; st.session_state['wizard_step']=1; st.rerun()
+
         st.markdown("<br>", unsafe_allow_html=True)
         df_prof_memos = load_prof_memos()
         df_students = load_students()
