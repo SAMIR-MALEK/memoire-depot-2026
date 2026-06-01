@@ -6158,151 +6158,70 @@ elif st.session_state.user_type == "admin":
                             )
 
                     st.markdown("---")
-                    # ── محضر واحد ──
-                    col_m1, col_m2 = st.columns([3,1])
-                    with col_m1:
-                        st.markdown("**📄 توليد محضر واحد:**")
-                        _zip_label = f"كل محاضر {_sel_day_m}" if _sel_day_m != "الكل" else "كل المحاضر"
-                        if st.button(f"📦 توليد {_zip_label}", use_container_width=True, key="gen_zip_mahdar"):
-                            import zipfile as _zf_m, io as _io_zm
-                            _zip_buf_m = _io_zm.BytesIO()
-                            with _zf_m.ZipFile(_zip_buf_m, 'w', _zf_m.ZIP_DEFLATED) as _zfm:
-                                with st.spinner(f"⏳ جاري توليد {len(_filtered_m_day)} محضر..."):
-                                    for _, _rm in _filtered_m_day.iterrows():
-                                        _mid_m = str(_rm.get("رقم المذكرة","")).strip()
-                                        _seq_v_m = str(_rm.get("رقم المحضر","")).strip()
-                                        _seq_i_m = int(_seq_v_m) if _seq_v_m and _seq_v_m not in ["","nan"] else int(_rm.get("رقم_تسلسلي",0))
-                                        _mdict = _rm.to_dict()
-                                        _mdict["عنوان المذكرة"] = str(_rm.get("عنوان المذكرة","")).strip()
-                                        _mdict["التخصص"] = str(_rm.get("التخصص","")).strip()
-                                        _mdict["القسم"] = str(_rm.get("القسم","")).strip()
-                                        _mdict["رقم المحضر"] = _seq_v_m
-                                        _mdict["رتبة_الرئيس"] = ranks_dict.get(str(_mdict.get("الرئيس","")), "")
-                                        _mdict["رتبة_المشرف"] = ranks_dict.get(str(_mdict.get("الأستاذ","")), "")
-                                        _mdict["رتبة_المناقش1"] = ranks_dict.get(str(_mdict.get("المناقش1","")), "")
-                                        _mdict["رتبة_المناقش2"] = ranks_dict.get(str(_mdict.get("المناقش2","")), "")
-                                        _mdict["الطالب"] = str(_rm.get("الطالب الأول","")).strip()
-                                        _mdict["الطالب2"] = str(_rm.get("الطالب الثاني","")).strip()
-                                        _ids_m = students_ids.get(_norm_num(_mid_m), [])
-                                        _mdict["رقم ملف الطالب"] = _ids_m[0] if len(_ids_m)>0 else ""
-                                        _mdict["رقم ملف الطالب2"] = _ids_m[1] if len(_ids_m)>1 else ""
-                                        _hs2_m = bool(_mdict["الطالب2"] and _mdict["الطالب2"] not in ["","nan","-"])
-                                        _mdict["STUDENTS_LABEL"] = "للطالبين" if _hs2_m else "للطالب(ة)"
-                                        try:
-                                            _db_m = generate_mahdar(_mdict, _seq_i_m, template_bytes)
-                                            _zfm.writestr(f"{_seq_v_m or _mid_m}_محضر_{_mid_m}.docx", _db_m)
-                                        except: pass
-                            _zip_buf_m.seek(0)
+                    st.markdown("**📄 توليد محضر واحد:**")
+                    # ترتيب رقمي من الفلتر
+                    try:
+                        _sorted_m = _filtered_m_day.copy()
+                        _sorted_m["_num"] = pd.to_numeric(_sorted_m["رقم المذكرة"], errors="coerce")
+                        _sorted_m = _sorted_m.sort_values("_num").drop(columns=["_num"])
+                    except:
+                        _sorted_m = _filtered_m_day.copy()
+
+                    def _fmt_option(r):
+                        num = str(r.get("رقم المذكرة","")).strip()
+                        prof = str(r.get("الأستاذ","")).strip()
+                        s1 = str(r.get("الطالب الأول","")).strip()
+                        s2 = str(r.get("الطالب الثاني","")).strip()
+                        parts = [num.zfill(3), prof, s1]
+                        if s2 and s2 not in ["","nan"]: parts.append(s2)
+                        return " | ".join(p for p in parts if p)
+
+                    _options = [_fmt_option(r) for _, r in _sorted_m.iterrows()]
+                    _memo_nums = _sorted_m["رقم المذكرة"].astype(str).tolist()
+
+                    sel_option = st.selectbox(
+                        "اختر المذكرة (ابحث برقم أو مشرف أو طالب):",
+                        options=_options, index=None,
+                        placeholder="اكتب للبحث...",
+                        key="sel_mahdar_memo"
+                    )
+                    sel_memo_m = _memo_nums[_options.index(sel_option)] if sel_option else None
+
+                    # توليد مباشر عند الاختيار
+                    if sel_memo_m and template_bytes:
+                        _rows_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==str(sel_memo_m)]
+                        if not _rows_m.empty:
+                            row_m = _rows_m.iloc[0]
+                            seq = int(row_m["رقم_تسلسلي"])
+                            memo_dict = row_m.to_dict()
+                            memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
+                            memo_dict["التخصص"]        = str(row_m.get("التخصص","")).strip()
+                            memo_dict["القسم"]         = str(row_m.get("القسم","")).strip()
+                            memo_dict["رقم المحضر"]    = str(row_m.get("رقم المحضر","")).strip()
+                            memo_dict["رابط الملف"]    = str(row_m.get("رابط الملف","")).strip()
+                            memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
+                            memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
+                            memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
+                            memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
+                            memo_dict["الطالب"]        = str(row_m.get("الطالب الأول","")).strip()
+                            memo_dict["الطالب2"]       = str(row_m.get("الطالب الثاني","")).strip()
+                            _ids = students_ids.get(_norm_num(sel_memo_m), [])
+                            memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
+                            memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
+                            _has_s2_m = bool(memo_dict["الطالب2"] and memo_dict["الطالب2"] not in ["","nan","-"])
+                            memo_dict["STUDENTS_LABEL"] = "للطالبين" if _has_s2_m else "للطالب(ة)"
+                            with st.spinner("⏳ جاري التوليد..."):
+                                docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
+                            fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
                             st.download_button(
-                                label=f"📥 تحميل ZIP ({len(_filtered_m_day)} محضر)",
-                                data=_zip_buf_m.getvalue(),
-                                file_name=f"محاضر_{_sel_day_m}.zip",
-                                mime="application/zip",
+                                label=f"📥 تحميل المحضر #{str(seq).zfill(3)}",
+                                data=docx_bytes,
+                                file_name=fname,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 use_container_width=True,
-                                key="dl_zip_mahdar"
+                                type="primary",
+                                key="dl_mahdar_one"
                             )
-
-                    with col_m1:
-                        st.markdown("**📄 توليد محضر واحد:**")
-                        # ترتيب رقمي من الفلتر
-                        try:
-                            _sorted_m = _filtered_m_day.copy()
-                            _sorted_m["_num"] = pd.to_numeric(_sorted_m["رقم المذكرة"], errors="coerce")
-                            _sorted_m = _sorted_m.sort_values("_num").drop(columns=["_num"])
-                        except:
-                            _sorted_m = _filtered_m_day.copy()
-
-                        def _fmt_option(r):
-                            num = str(r.get("رقم المذكرة","")).strip()
-                            prof = str(r.get("الأستاذ","")).strip()
-                            s1 = str(r.get("الطالب الأول","")).strip()
-                            s2 = str(r.get("الطالب الثاني","")).strip()
-                            parts = [num.zfill(3), prof, s1]
-                            if s2 and s2 not in ["","nan"]: parts.append(s2)
-                            return " | ".join(p for p in parts if p)
-
-                        _options = [_fmt_option(r) for _, r in _sorted_m.iterrows()]
-                        _memo_nums = _sorted_m["رقم المذكرة"].astype(str).tolist()
-
-                        sel_option = st.selectbox(
-                            "اختر المذكرة (ابحث برقم أو مشرف أو طالب):",
-                            options=_options, index=None,
-                            placeholder="اكتب للبحث...",
-                            key="sel_mahdar_memo"
-                        )
-                        sel_memo_m = _memo_nums[_options.index(sel_option)] if sel_option else None
-
-                        # توليد مباشر عند الاختيار
-                        if sel_memo_m and template_bytes:
-                            _rows_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==str(sel_memo_m)]
-                            if not _rows_m.empty:
-                                row_m = _rows_m.iloc[0]
-                                seq = int(row_m["رقم_تسلسلي"])
-                                memo_dict = row_m.to_dict()
-                                memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
-                                memo_dict["التخصص"]        = str(row_m.get("التخصص","")).strip()
-                                memo_dict["القسم"]         = str(row_m.get("القسم","")).strip()
-                                memo_dict["رقم المحضر"]    = str(row_m.get("رقم المحضر","")).strip()
-                                memo_dict["رابط الملف"]    = str(row_m.get("رابط الملف","")).strip()
-                                memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
-                                memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
-                                memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
-                                memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
-                                memo_dict["الطالب"]        = str(row_m.get("الطالب الأول","")).strip()
-                                memo_dict["الطالب2"]       = str(row_m.get("الطالب الثاني","")).strip()
-                                _ids = students_ids.get(_norm_num(sel_memo_m), [])
-                                memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
-                                memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
-                                _has_s2_m = bool(memo_dict["الطالب2"] and memo_dict["الطالب2"] not in ["","nan","-"])
-                                memo_dict["STUDENTS_LABEL"] = "للطالبين" if _has_s2_m else "للطالب(ة)"
-                                with st.spinner("⏳ جاري التوليد..."):
-                                    docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
-                                fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
-                                st.download_button(
-                                    label=f"📥 تحميل المحضر #{str(seq).zfill(3)}",
-                                    data=docx_bytes,
-                                    file_name=fname,
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    use_container_width=True,
-                                    type="primary",
-                                    key="dl_mahdar_one"
-                                )
-
-                    with col_m2:
-                        st.markdown("**📦 توليد كل المحاضر (ZIP):**")
-                        st.caption(f"سيُولَّد {len(scheduled_m)} محضر مرتب حسب اليوم والتوقيت")
-                        if st.button("📦 توليد الكل", use_container_width=True, key="gen_all_mahdar"):
-                            with st.spinner("⏳ جاري توليد المحاضر..."):
-                                zip_buf = io.BytesIO()
-                                with zipfile.ZipFile(zip_buf, "w") as zf:
-                                    for _, row_m in scheduled_m.iterrows():
-                                        seq = int(row_m["رقم_تسلسلي"])
-                                        memo_dict = row_m.to_dict()
-                                        memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
-                                        memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
-                                        memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
-                                        memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
-                                        _mnum = str(row_m.get("رقم المذكرة","")).strip()
-                                        memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
-                                        memo_dict["التخصص"] = str(row_m.get("التخصص","")).strip()
-                                        memo_dict["رابط الملف"] = str(row_m.get("رابط الملف","")).strip()
-                                        memo_dict["الطالب"]  = str(row_m.get("الطالب الأول","")).strip()
-                                        memo_dict["الطالب2"] = str(row_m.get("الطالب الثاني","")).strip()
-                                        _ids = students_ids.get(_norm_num(_mnum), [])
-                                        memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
-                                        memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
-                                        docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
-                                        mnum = str(row_m.get("رقم المذكرة","")).strip()
-                                        fname = f"{str(seq).zfill(3)}_محضر_{mnum}.docx"
-                                        zf.writestr(fname, docx_bytes)
-                            zip_buf.seek(0)
-                            b64z = base64.b64encode(zip_buf.read()).decode()
-                            st.markdown(f'''<div style="text-align:center;margin:12px 0;">
-                                <a href="data:application/zip;base64,{b64z}"
-                                   download="محاضر_المناقشات_2026.zip"
-                                   style="background:#10B981;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
-                                   📦 تحميل كل المحاضر ({len(scheduled_m)} محضر)
-                                </a></div>''', unsafe_allow_html=True)
 
                     # جدول المحاضر مع الأرقام التسلسلية
                     st.markdown("---")
