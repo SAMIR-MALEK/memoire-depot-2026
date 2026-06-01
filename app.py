@@ -3761,8 +3761,10 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
     seq_str = str(seq_num).zfill(3)
 
     # ── Placeholders ──
+    # إضافة علامة RTL لمنع عكس الأقواس
+    seq_str_rtl = "‏" + seq_str + "‏"
     replacements = {
-        "{{SEQ}}":         seq_str,
+        "{{SEQ}}":         seq_str_rtl,
         "{{DATE}}":        def_date,
         "{{MEMO_NUM}}":    memo_num,
         "{{TITLE}}":       title,
