@@ -237,6 +237,7 @@ REQUESTS_RANGE  = "Feuille 1!A1:K1000"
 ADMIN_CREDENTIALS = {"admin": "admin2026", "dsp": "dsp@2026"}
 PRINTER_CREDENTIALS = {"mem": "1234"}  # فضاء المحاضر فقط
 EMAIL_SENDER  = "domaine.dsp@univ-bba.dz"
+MAHDAR_FOLDER_ID = "1T8ABqZeSOwBBbMwpLRyxyRNrf0diYzJB"  # مجلد Drive لحفظ محاضر المناقشة
 EMAIL_PASSWORD= "oqwejylusjllfvhc"
 SMTP_SERVER   = "smtp.gmail.com"
 SMTP_PORT     = 587
@@ -373,7 +374,7 @@ def load_students():
 @st.cache_data(ttl=60)
 def load_memos():
     try:
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AM1000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AP1000").execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         headers = values[0]; rows = values[1:]
@@ -382,6 +383,22 @@ def load_memos():
     except Exception as e: logger.error(f"خطأ المذكرات: {e}"); return pd.DataFrame()
 
 @st.cache_data(ttl=60)
+def upload_mahdar_pdf(file_bytes, filename, folder_id=MAHDAR_FOLDER_ID):
+    """رفع PDF محضر المناقشة على Google Drive"""
+    try:
+        from googleapiclient.discovery import build as _gbuild
+        from googleapiclient.http import MediaIoBaseUpload as _MIU
+        import io as _io_d
+        drive_service = _gbuild('drive', 'v3', credentials=creds)
+        file_meta = {'name': filename, 'parents': [folder_id]}
+        media = _MIU(_io_d.BytesIO(file_bytes), mimetype='application/pdf', resumable=True)
+        f = drive_service.files().create(body=file_meta, media_body=media, fields='id,webViewLink').execute()
+        # جعل الملف قابلاً للعرض للجميع
+        drive_service.permissions().create(fileId=f['id'], body={'type':'anyone','role':'reader'}).execute()
+        return True, f['webViewLink']
+    except Exception as e:
+        return False, str(e)
+
 def load_prof_memos():
     try:
         result = sheets_service.spreadsheets().values().get(spreadsheetId=PROF_MEMOS_SHEET_ID, range=PROF_MEMOS_RANGE).execute()
@@ -4809,12 +4826,30 @@ elif st.session_state.user_type == "professor":
                         else:
                             preview_btn = '<span style="background:rgba(245,158,11,0.15);color:#F59E0B;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;">⏳ في انتظار موافقة المشرف</span>'
 
+                        # حالة المناقشة من الشيت
+                        _jhal = str(jm.get("الحالة","")).strip() if "الحالة" in filtered.columns else ""
+                        _jpdf = str(jm.get("رابط المحضر","")).strip() if "رابط المحضر" in filtered.columns else ""
+                        _jnote = str(jm.get("ملاحظات","")).strip() if "ملاحظات" in filtered.columns else ""
+                        _hal_html = ""
+                        if _jhal == "تمت":
+                            _hal_html = '<div style="margin-top:6px;">'
+                            _hal_html += '<span style="background:#10B981;color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem;">✅ تمت المناقشة</span>'
+                            if _jpdf and _jpdf not in ["","nan"]:
+                                _hal_html += f' <a href="{_jpdf}" target="_blank" style="background:#1a3a6b;color:#FFD700;padding:2px 10px;border-radius:12px;font-size:0.75rem;text-decoration:none;margin-right:6px;">📄 تحميل المحضر</a>'
+                            else:
+                                _hal_html += ' <span style="color:#94A3B8;font-size:0.75rem;">⏳ في انتظار رفع المحضر</span>'
+                            _hal_html += '</div>'
+                        elif _jhal == "مؤجلة":
+                            _hal_html = f'<div style="margin-top:6px;"><span style="background:#F59E0B;color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem;">🔄 مؤجلة{" — "+_jnote if _jnote else ""}</span></div>'
+                        elif _jhal == "ملغاة":
+                            _hal_html = '<div style="margin-top:6px;"><span style="background:#EF4444;color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem;">❌ ملغاة</span></div>'
+
                         if has_date and j_published:
                             schedule_line = f'''<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;">
                                 <span style="color:#10B981;font-weight:700;font-size:0.85rem;">📅 {jdate}</span>
                                 <span style="color:#94A3B8;font-size:0.85rem;">🕐 {jtime if has_time else "—"}</span>
                                 <span style="color:#94A3B8;font-size:0.85rem;">🏛️ {jroom if has_room else "—"}</span>
-                            </div>'''
+                            </div>{_hal_html}'''
                         else:
                             schedule_line = '<div style="margin-top:8px;"><span style="color:#F59E0B;font-size:0.82rem;">⏳ لم يُحدد موعد المناقشة بعد</span></div>'
 
@@ -5057,11 +5092,145 @@ elif st.session_state.user_type == "admin":
             tab_mahdar, = st.tabs(["📄 المحاضر"])
             tab_takleef = None; tab_archive = None
         else:
-            tab_takleef,tab_mahdar,tab_seq,tab_stud,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","📥 استيراد أرقام المحاضر","👥 استيراد أرقام ملفات الطلبة","🗂️ أرشيف (جدولة ذكية)"])
+            tab_takleef,tab_mahdar,tab_siyar,tab_seq,tab_stud,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","📊 سير المناقشات","📥 استيراد أرقام المحاضر","👥 استيراد أرقام ملفات الطلبة","🗂️ أرشيف (جدولة ذكية)"])
 
         # ================================================================
         # TAB جدولة ذكية
         # ================================================================
+        if not _is_printer_user and tab_siyar:
+         with tab_siyar:
+            st.subheader("📊 سير المناقشات")
+
+            df_siyar = load_memos()
+            _col_w_s = "تاريخ المناقشة"
+            _col_hal = "الحالة" if "الحالة" in df_siyar.columns else None
+            _col_note = "ملاحظات" if "ملاحظات" in df_siyar.columns else None
+            _col_pdf = "رابط المحضر" if "رابط المحضر" in df_siyar.columns else None
+
+            sched_siyar = df_siyar[
+                df_siyar[_col_w_s].astype(str).str.strip().apply(lambda x: x not in ["","nan"])
+            ].copy() if _col_w_s in df_siyar.columns else pd.DataFrame()
+
+            if sched_siyar.empty:
+                st.warning("⚠️ لا توجد مذكرات مبرمجة بعد")
+            else:
+                # ── إحصائيات ──
+                _total = len(sched_siyar)
+                _tammat = len(sched_siyar[sched_siyar.get(_col_hal, pd.Series()).astype(str)=="تمت"]) if _col_hal else 0
+                _moajala = len(sched_siyar[sched_siyar.get(_col_hal, pd.Series()).astype(str)=="مؤجلة"]) if _col_hal else 0
+                _molgha = len(sched_siyar[sched_siyar.get(_col_hal, pd.Series()).astype(str)=="ملغاة"]) if _col_hal else 0
+                _montadhar = _total - _tammat - _moajala - _molgha
+
+                _c1,_c2,_c3,_c4 = st.columns(4)
+                _c1.metric("📋 الكل", _total)
+                _c2.metric("✅ تمت", _tammat)
+                _c3.metric("⏳ منتظرة", _montadhar)
+                _c4.metric("🔄 مؤجلة/ملغاة", _moajala+_molgha)
+
+                st.markdown("---")
+
+                # ── فلتر اليوم ──
+                _days_s = ["الكل"] + sorted(sched_siyar[_col_w_s].astype(str).unique().tolist())
+                _sel_day_s = st.selectbox("📅 فلتر اليوم:", _days_s, key="siyar_day")
+                if _sel_day_s != "الكل":
+                    sched_siyar = sched_siyar[sched_siyar[_col_w_s].astype(str)==_sel_day_s]
+
+                st.markdown("---")
+                st.markdown("### تحديث حالة مذكرة")
+
+                # ── اختيار المذكرة ──
+                def _fmt_siyar(r):
+                    mid = str(r.get("رقم المذكرة","")).strip()
+                    s1 = str(r.get("الطالب الأول","")).strip()
+                    day = str(r.get(_col_w_s,"")).strip()
+                    hal = str(r.get(_col_hal,"")).strip() if _col_hal else ""
+                    return f"{mid} | {s1} | {day}" + (f" | {hal}" if hal else "")
+
+                try:
+                    _sorted_s = sched_siyar.copy()
+                    _sorted_s["_num"] = pd.to_numeric(_sorted_s["رقم المذكرة"], errors="coerce")
+                    _sorted_s = _sorted_s.sort_values([_col_w_s,"_num"]).drop(columns=["_num"])
+                except:
+                    _sorted_s = sched_siyar.copy()
+
+                _opts_s = [_fmt_siyar(r) for _, r in _sorted_s.iterrows()]
+                _mids_s = _sorted_s["رقم المذكرة"].astype(str).tolist()
+
+                _sel_s = st.selectbox("اختر المذكرة:", _opts_s, index=None, placeholder="اكتب للبحث...", key="siyar_sel")
+                _sel_mid_s = _mids_s[_opts_s.index(_sel_s)] if _sel_s else None
+
+                if _sel_mid_s:
+                    _row_s = _sorted_s[_sorted_s["رقم المذكرة"].astype(str)==_sel_mid_s].iloc[0]
+
+                    # الحالة الحالية
+                    _cur_hal = str(_row_s.get(_col_hal,"")).strip() if _col_hal else ""
+                    _cur_note = str(_row_s.get(_col_note,"")).strip() if _col_note else ""
+                    _cur_pdf = str(_row_s.get(_col_pdf,"")).strip() if _col_pdf else ""
+
+                    _col_a, _col_b = st.columns(2)
+                    with _col_a:
+                        _new_hal = st.selectbox("الحالة:", ["", "تمت", "مؤجلة", "ملغاة"],
+                            index=["","تمت","مؤجلة","ملغاة"].index(_cur_hal) if _cur_hal in ["","تمت","مؤجلة","ملغاة"] else 0,
+                            key="siyar_hal")
+                    with _col_b:
+                        _new_note = st.text_input("ملاحظات (سبب التأجيل / اليوم الجديد):", value=_cur_note, key="siyar_note")
+
+                    # رفع PDF المحضر
+                    st.markdown("**📄 رفع محضر المناقشة الممضى (PDF):**")
+                    _upl_pdf = st.file_uploader("اختر ملف PDF:", type=["pdf"], key=f"pdf_upload_{_sel_mid_s}")
+
+                    if _cur_pdf and _cur_pdf not in ["","nan"]:
+                        st.success(f"✅ محضر موجود: [فتح المحضر]({_cur_pdf})")
+
+                    if st.button("💾 حفظ التحديثات", type="primary", use_container_width=True, key="siyar_save"):
+                        with st.spinner("⏳ جاري الحفظ..."):
+                            # ابحث عن رقم الصف
+                            _all_m = load_memos()
+                            _row_map_s = {}
+                            for _i_s, (_, _rw_s) in enumerate(_all_m.iterrows()):
+                                _mk = str(_rw_s.get("رقم المذكرة","")).strip()
+                                try: _mk = str(int(float(_mk)))
+                                except: pass
+                                if _mk: _row_map_s[_mk] = _i_s + 2
+
+                            _rn_s = _row_map_s.get(str(_sel_mid_s))
+                            if not _rn_s:
+                                st.error("❌ لم يوجد الصف")
+                            else:
+                                _upd_siyar = []
+                                # عمود AN = الحالة
+                                _upd_siyar.append({"range": f"Feuille 1!AN{_rn_s}", "values": [[_new_hal]]})
+                                # عمود AO = ملاحظات
+                                _upd_siyar.append({"range": f"Feuille 1!AO{_rn_s}", "values": [[_new_note]]})
+
+                                # رفع PDF إذا موجود
+                                if _upl_pdf:
+                                    _pdf_bytes = _upl_pdf.read()
+                                    _pdf_name = f"محضر_{_sel_mid_s}.pdf"
+                                    _ok_pdf, _link_pdf = upload_mahdar_pdf(_pdf_bytes, _pdf_name)
+                                    if _ok_pdf:
+                                        _upd_siyar.append({"range": f"Feuille 1!AP{_rn_s}", "values": [[_link_pdf]]})
+                                        st.success(f"✅ رُفع المحضر: [فتح]({_link_pdf})")
+                                    else:
+                                        st.error(f"❌ فشل رفع PDF: {_link_pdf}")
+
+                                sheets_service.spreadsheets().values().batchUpdate(
+                                    spreadsheetId=MEMOS_SHEET_ID,
+                                    body={"valueInputOption": "USER_ENTERED", "data": _upd_siyar}
+                                ).execute()
+                                clear_cache_and_reload()
+                                st.success(f"✅ تم تحديث المذكرة {_sel_mid_s}")
+                                st.rerun()
+
+                st.markdown("---")
+                # ── جدول الحالات ──
+                st.markdown("### 📋 جدول المناقشات")
+                _display_cols = ["رقم المذكرة","الطالب الأول",_col_w_s,"توقيت المناقشة","القاعة","الأستاذ","الرئيس"]
+                if _col_hal: _display_cols.append(_col_hal)
+                if _col_note: _display_cols.append(_col_note)
+                _display_cols = [c for c in _display_cols if c in sched_siyar.columns]
+                st.dataframe(sched_siyar[_display_cols], use_container_width=True, hide_index=True)
+
         if not _is_printer_user and tab_seq:
          with tab_seq:
             st.subheader("📥 استيراد أرقام المحاضر")
