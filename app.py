@@ -3895,8 +3895,6 @@ def restore_session_from_url():
         if not p.empty: st.session_state.professor=p.iloc[0].to_dict(); st.session_state.logged_in=True
     elif user_type=='admin':
         if username in ADMIN_CREDENTIALS: st.session_state.admin_user=username; st.session_state.logged_in=True
-    elif user_type=='printer':
-        if username in PRINTER_CREDENTIALS: st.session_state.admin_user=username; st.session_state.logged_in=True; st.session_state.is_printer=True
     if user_type: st.session_state.user_type=user_type
 
 restore_session_from_url()
@@ -3928,12 +3926,11 @@ if st.session_state.user_type is None:
     render_countdown_banner()
     st.markdown("<p style='text-align:center;color:#ffffff;font-size:1.05rem;'>جامعة محمد البشير الإبراهيمي — كلية الحقوق والعلوم السياسية</p>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align:center;font-size:2rem;margin-bottom:2rem;'>📘 منصة مذكرات الماستر</h1>", unsafe_allow_html=True)
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     for col, icon, title, desc, utype, btn_label in [
         (col1,"🎓","فضاء الطلبة","تسجيل المذكرة، إيداع النسخة النهائية، متابعة الملف","student","دخول الطلبة"),
         (col2,"📚","فضاء الأساتذة","متابعة المذكرات، مراجعة الإيداعات، تحديث التقدم","professor","دخول الأساتذة"),
         (col3,"⚙️","فضاء الإدارة","لوحة التحكم الكاملة، برنامج المناقشات","admin","دخول الإدارة"),
-        (col4,"🖨️","فضاء المحاضر","توليد محاضر المناقشة بصيغة Word","printer","دخول المحاضر"),
     ]:
         with col:
             st.markdown(f"""<div class="card" style="text-align:center;min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;"><div style="font-size:2.8rem;margin-bottom:10px;">{icon}</div><h3 style="margin:0 0 7px;">{title}</h3><p style="color:#ffffff!important;font-size:0.83rem;">{desc}</p></div>""", unsafe_allow_html=True)
@@ -4973,185 +4970,6 @@ elif st.session_state.user_type == "professor":
 
 
 # ================================================================
-# فضاء المحاضر
-# ================================================================
-elif st.session_state.user_type == "printer":
-    if not st.session_state.logged_in:
-        render_countdown_banner()
-        st.markdown('<h2 style="color:#FFD700;">🗂️ فضاء المحاضر</h2>', unsafe_allow_html=True)
-        with st.form("printer_login"):
-            _pu = st.text_input("اسم المستخدم")
-            _pp = st.text_input("كلمة المرور", type="password")
-            if st.form_submit_button("دخول"):
-                if _pu in PRINTER_CREDENTIALS and PRINTER_CREDENTIALS[_pu] == _pp:
-                    st.session_state.admin_user = _pu
-                    st.session_state.logged_in = True
-                    st.session_state.is_printer = True
-                    st.query_params['ut'] = 'printer'
-                    st.rerun()
-                else:
-                    st.error("❌ بيانات غير صحيحة")
-    else:
-        # ── واجهة الطباعة ──
-        render_countdown_banner()
-        col_hdr, col_logout = st.columns([5,1])
-        with col_hdr:
-            st.markdown('<h2 style="color:#FFD700;">🗂️ فضاء المحاضر</h2>', unsafe_allow_html=True)
-        with col_logout:
-            if st.button("خروج", key="printer_logout"):
-                for k in ["logged_in","admin_user","user_type","is_printer"]:
-                    st.session_state.pop(k, None)
-                st.query_params.clear()
-                st.rerun()
-
-        df_memos_m = load_memos()
-        df_profs_m = load_prof_memos()
-        df_students_m = load_students()
-
-        # فلتر اليوم
-        _col_w_p = "تاريخ المناقشة"
-        scheduled_p = df_memos_m[
-            df_memos_m[_col_w_p].astype(str).str.strip().apply(lambda x: x not in ["","nan"])
-        ].copy() if _col_w_p in df_memos_m.columns else pd.DataFrame()
-
-        if scheduled_p.empty:
-            st.warning("⚠️ لا توجد مذكرات مبرمجة بعد")
-        else:
-            _days_p = sorted(scheduled_p[_col_w_p].astype(str).str.strip().unique().tolist())
-            _day_options = ["الكل"] + _days_p
-            _sel_day_p = st.selectbox("📅 اختر يوم المناقشة:", _day_options, key="printer_day_filter")
-
-            if _sel_day_p == "الكل":
-                _filtered_p = scheduled_p.copy()
-            else:
-                _filtered_p = scheduled_p[scheduled_p[_col_w_p].astype(str)==_sel_day_p].copy()
-
-            st.info(f"📋 {len(_filtered_p)} مذكرة")
-
-            # ── توليد كل محاضر اليوم ──
-            if _sel_day_p != "الكل" and not _filtered_p.empty:
-                if st.button(f"📦 توليد كل محاضر {_sel_day_p} (ZIP)", type="primary", use_container_width=True, key="gen_all_day"):
-                    try:
-                        import requests as _req2, io as _io_p, zipfile as _zf
-                        _turl = "https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/template_mahdar.docx"
-                        _tbytes = _req2.get(_turl, timeout=10, headers={"Cache-Control":"no-cache"}).content
-                        _students_ids_p = build_students_ids_map(df_memos_m, df_students_m)
-                        _ranks_p = {}
-                        if not df_profs_m.empty and "الأستاذ" in df_profs_m.columns and "الرتبة" in df_profs_m.columns:
-                            for _, _rp in df_profs_m.iterrows():
-                                _ranks_p[str(_rp.get("الأستاذ","")).strip()] = str(_rp.get("الرتبة","")).strip()
-
-                        _zip_buf = _io_p.BytesIO()
-                        with _zf.ZipFile(_zip_buf, 'w', _zf.ZIP_DEFLATED) as _zf2:
-                            with st.spinner("⏳ جاري التوليد..."):
-                                for _, _row_p in _filtered_p.iterrows():
-                                    _mid_p = str(_row_p.get("رقم المذكرة","")).strip()
-                                    _seq_p_val = str(_row_p.get("رقم المحضر","")).strip()
-                                    _seq_p = int(_seq_p_val) if _seq_p_val and _seq_p_val not in ["","nan"] else 0
-                                    _md_p = _row_p.to_dict()
-                                    _md_p["عنوان المذكرة"] = str(_row_p.get("عنوان المذكرة","")).strip()
-                                    _md_p["التخصص"] = str(_row_p.get("التخصص","")).strip()
-                                    _md_p["القسم"] = str(_row_p.get("القسم","")).strip()
-                                    _md_p["رابط الملف"] = str(_row_p.get("رابط الملف","")).strip()
-                                    _md_p["رقم المحضر"] = _seq_p_val
-                                    _md_p["رتبة_الرئيس"] = _ranks_p.get(str(_md_p.get("الرئيس","")), "")
-                                    _md_p["رتبة_المشرف"] = _ranks_p.get(str(_md_p.get("الأستاذ","")), "")
-                                    _md_p["رتبة_المناقش1"] = _ranks_p.get(str(_md_p.get("المناقش1","")), "")
-                                    _md_p["رتبة_المناقش2"] = _ranks_p.get(str(_md_p.get("المناقش2","")), "")
-                                    _md_p["الطالب"] = str(_row_p.get("الطالب الأول","")).strip()
-                                    _md_p["الطالب2"] = str(_row_p.get("الطالب الثاني","")).strip()
-                                    _ids_p = _students_ids_p.get(_norm_num(_mid_p), [])
-                                    _md_p["رقم ملف الطالب"] = _ids_p[0] if len(_ids_p)>0 else ""
-                                    _md_p["رقم ملف الطالب2"] = _ids_p[1] if len(_ids_p)>1 else ""
-                                    _has_s2_p = bool(_md_p["الطالب2"] and _md_p["الطالب2"] not in ["","nan","-"])
-                                    _md_p["STUDENTS_LABEL"] = "للطالبين" if _has_s2_p else "للطالب(ة)"
-                                    try:
-                                        _docx_p = generate_mahdar(_md_p, _seq_p, _tbytes)
-                                        _fname_p = f"{_seq_p_val or _mid_p}_محضر_{_mid_p}.docx"
-                                        _zf2.writestr(_fname_p, _docx_p)
-                                    except: pass
-                        _zip_buf.seek(0)
-                        st.download_button(
-                            label=f"📥 تحميل ZIP محاضر {_sel_day_p}",
-                            data=_zip_buf.getvalue(),
-                            file_name=f"محاضر_{_sel_day_p}.zip",
-                            mime="application/zip",
-                            use_container_width=True,
-                            key="dl_zip_day"
-                        )
-                    except Exception as _ez:
-                        st.error(f"❌ {_ez}")
-
-            # ── توليد محضر واحد ──
-            st.markdown("---")
-            st.markdown("**📄 توليد محضر واحد:**")
-
-            # كومبو قابل للبحث
-            try:
-                _sorted_p2 = _filtered_p.copy()
-                _sorted_p2["_num"] = pd.to_numeric(_sorted_p2["رقم المذكرة"], errors="coerce")
-                _sorted_p2 = _sorted_p2.sort_values("_num").drop(columns=["_num"])
-            except:
-                _sorted_p2 = _filtered_p.copy()
-
-            def _fmt_p(r):
-                num = str(r.get("رقم المذكرة","")).strip()
-                prof = str(r.get("الأستاذ","")).strip()
-                s1 = str(r.get("الطالب الأول","")).strip()
-                parts = [num.zfill(3), prof, s1]
-                return " | ".join(p for p in parts if p)
-
-            _opts_p = [_fmt_p(r) for _, r in _sorted_p2.iterrows()]
-            _mids_p = _sorted_p2["رقم المذكرة"].astype(str).tolist()
-            _sel_p = st.selectbox("اختر المذكرة:", options=_opts_p, index=None, placeholder="اكتب للبحث...", key="printer_sel_memo")
-            _sel_mid_p = _mids_p[_opts_p.index(_sel_p)] if _sel_p else None
-
-            if _sel_mid_p and _tbytes if "_tbytes" in dir() else False:
-                pass
-            elif _sel_mid_p:
-                try:
-                    import requests as _req3
-                    _turl2 = "https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/template_mahdar.docx"
-                    _tbytes2 = _req3.get(_turl2, timeout=10, headers={"Cache-Control":"no-cache"}).content
-                    _rows_p2 = _sorted_p2[_sorted_p2["رقم المذكرة"].astype(str)==str(_sel_mid_p)]
-                    if not _rows_p2.empty:
-                        _row_p2 = _rows_p2.iloc[0]
-                        _students_ids_p2 = build_students_ids_map(df_memos_m, df_students_m)
-                        _ranks_p2 = {}
-                        if not df_profs_m.empty and "الأستاذ" in df_profs_m.columns and "الرتبة" in df_profs_m.columns:
-                            for _, _rp2 in df_profs_m.iterrows():
-                                _ranks_p2[str(_rp2.get("الأستاذ","")).strip()] = str(_rp2.get("الرتبة","")).strip()
-                        _seq_v2 = str(_row_p2.get("رقم المحضر","")).strip()
-                        _seq_i2 = int(_seq_v2) if _seq_v2 and _seq_v2 not in ["","nan"] else 0
-                        _md2 = _row_p2.to_dict()
-                        _md2["عنوان المذكرة"] = str(_row_p2.get("عنوان المذكرة","")).strip()
-                        _md2["التخصص"] = str(_row_p2.get("التخصص","")).strip()
-                        _md2["القسم"] = str(_row_p2.get("القسم","")).strip()
-                        _md2["رقم المحضر"] = _seq_v2
-                        _md2["رتبة_الرئيس"] = _ranks_p2.get(str(_md2.get("الرئيس","")), "")
-                        _md2["رتبة_المشرف"] = _ranks_p2.get(str(_md2.get("الأستاذ","")), "")
-                        _md2["رتبة_المناقش1"] = _ranks_p2.get(str(_md2.get("المناقش1","")), "")
-                        _md2["رتبة_المناقش2"] = _ranks_p2.get(str(_md2.get("المناقش2","")), "")
-                        _md2["الطالب"] = str(_row_p2.get("الطالب الأول","")).strip()
-                        _md2["الطالب2"] = str(_row_p2.get("الطالب الثاني","")).strip()
-                        _ids2 = _students_ids_p2.get(_norm_num(_sel_mid_p), [])
-                        _md2["رقم ملف الطالب"] = _ids2[0] if len(_ids2)>0 else ""
-                        _md2["رقم ملف الطالب2"] = _ids2[1] if len(_ids2)>1 else ""
-                        _has_s2_2 = bool(_md2["الطالب2"] and _md2["الطالب2"] not in ["","nan","-"])
-                        _md2["STUDENTS_LABEL"] = "للطالبين" if _has_s2_2 else "للطالب(ة)"
-                        with st.spinner("⏳ جاري التوليد..."):
-                            _docx2 = generate_mahdar(_md2, _seq_i2, _tbytes2)
-                        st.download_button(
-                            label=f"📥 تحميل المحضر {_seq_v2 or _sel_mid_p}",
-                            data=_docx2,
-                            file_name=f"{_seq_v2 or _sel_mid_p}_محضر_{_sel_mid_p}.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            use_container_width=True,
-                            key="dl_printer_one"
-                        )
-                except Exception as _ep2:
-                    st.error(f"❌ {_ep2}")
-
 # فضاء الإدارة
 # ================================================================
 elif st.session_state.user_type == "admin":
@@ -5169,7 +4987,7 @@ elif st.session_state.user_type == "admin":
                     st.session_state.admin_user = u
                     st.session_state.logged_in = True
                     st.session_state.is_printer = True
-                    st.query_params['ut'] = 'printer'
+                    st.query_params['ut'] = 'admin'
                     st.rerun()
                 else:
                     st.session_state.is_printer = False
@@ -5214,12 +5032,18 @@ elif st.session_state.user_type == "admin":
             <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
         </div>''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        tab_takleef,tab_mahdar,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","🗂️ أرشيف (جدولة ذكية)"])
+        _is_printer_user = st.session_state.get("is_printer", False)
+        if _is_printer_user:
+            tab_mahdar, = st.tabs(["📄 المحاضر"])
+            tab_takleef = None; tab_archive = None
+        else:
+            tab_takleef,tab_mahdar,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","🗂️ أرشيف (جدولة ذكية)"])
 
         # ================================================================
         # TAB جدولة ذكية
         # ================================================================
-        with tab_archive:
+        if not _is_printer_user and tab_archive:
+         with tab_archive:
             st.info("📌 تم تنفيذ الجدولة — البرنامج محفوظ في الشيت.")
         if False:
          with tab9_dummy:
@@ -6396,7 +6220,8 @@ elif st.session_state.user_type == "admin":
 
 
 
-        with tab_takleef:
+        if not _is_printer_user and tab_takleef:
+         with tab_takleef:
             st.subheader("📋 التكاليف والتحقق من التعارضات")
 
             df_m_tk = load_memos()
