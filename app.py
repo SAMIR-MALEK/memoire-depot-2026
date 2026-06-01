@@ -5228,8 +5228,10 @@ elif st.session_state.user_type == "admin":
                 _display_cols = ["رقم المذكرة","الطالب الأول",_col_w_s,"توقيت المناقشة","القاعة","الأستاذ","الرئيس"]
                 if _col_hal: _display_cols.append(_col_hal)
                 if _col_note: _display_cols.append(_col_note)
-                _display_cols = [c for c in _display_cols if c in sched_siyar.columns]
-                st.dataframe(sched_siyar[_display_cols], use_container_width=True, hide_index=True)
+                _display_cols = list(dict.fromkeys([c for c in _display_cols if c in sched_siyar.columns]))
+                _siyar_show = sched_siyar[_display_cols].copy()
+                _siyar_show.columns = pd.io.common.dedup_names(_siyar_show.columns.tolist(), is_potential_multiindex=False) if hasattr(pd.io.common, 'dedup_names') else _siyar_show.columns
+                st.dataframe(_siyar_show, use_container_width=True, hide_index=True)
 
         if not _is_printer_user and tab_seq:
          with tab_seq:
