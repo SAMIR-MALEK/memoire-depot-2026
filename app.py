@@ -3774,7 +3774,7 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         "{{Dep}}":         dept,
         "{{STUDENT1}}":    student_name,
         # طالب واحد → لا رقم ملف، طالبان → رقم ملف
-        "{{STUDENT1_ID}}": student_id if has_student2 else "",  # طالب واحد → لا رقم ملف
+        "{{STUDENT1_ID}}": student_id,  # يظهر دائماً
         "{{STUDENT2}}":    student2_name if has_student2 else "",
         "{{STUDENT2_ID}}": student2_id if has_student2 else "",
         "{{STUDENTS_LABEL}}": memo_data.get("STUDENTS_LABEL", "للطالبين" if has_student2 else "للطالب(ة)"),
