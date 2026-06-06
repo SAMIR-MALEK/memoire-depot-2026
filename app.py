@@ -230,7 +230,7 @@ STUDENTS_SHEET_ID   = "1_uhwdyOERttICR6uqftU9eyJrmetpA6idL3vz5WtWX4"
 MEMOS_SHEET_ID      = "1LNJMBAye4QIQy7JHz6F8mQ6-XNC1weZx1ozDZFfjD5s"
 PROF_MEMOS_SHEET_ID = "1OnZi1o-oPMUI_W_Ew-op0a1uOhSj006hw_2jrMD6FSE"
 REQUESTS_SHEET_ID   = "1sTJ6BZRM4Qgt0w2xUkpFZqquL-hfriMYTSN3x1_12_o"
-STUDENTS_RANGE  = "Feuille 1!A1:V1000"
+STUDENTS_RANGE  = "Feuille 1!A1:V1000"  # K=البريد المهني included
 MEMOS_RANGE     = "Feuille 1!A1:AI1000"
 PROF_MEMOS_RANGE= "Feuille 1!A1:S1000"
 REQUESTS_RANGE  = "Feuille 1!A1:K1000"
@@ -6725,12 +6725,26 @@ elif st.session_state.user_type == "admin":
                             _recipients_tk1.append({"نوع":"أستاذ","اسم":_p,"صفة":_r,"بريد":_em})
                     # طلبة
                     _df_st_tk1 = load_students()
+                    # إيجاد عمود البريد في شيت الطلبة
+                    _st_email_col = next((c for c in ["البريد المهني","الإيميل","البريد الإلكتروني","email"] if c in _df_st_tk1.columns), None)
+                    # إيجاد عمود اسم الطالب
+                    _st_name_cols = [c for c in ["اللقب","الاسم"] if c in _df_st_tk1.columns]
                     for _sn in [_s1_tk1, _s2_tk1]:
                         if not _sn or _sn in ["","nan"]: continue
-                        _st_row = _df_st_tk1[_df_st_tk1.apply(lambda r: normalize_text(f"{r.get('اللقب','')} {r.get('الاسم','')}").strip() == normalize_text(_sn).strip(), axis=1)]
                         _st_email = ""
-                        if not _st_row.empty:
-                            _st_email = str(_st_row.iloc[0].get("الإيميل","")).strip() if "الإيميل" in _st_row.columns else ""
+                        if _st_email_col and _st_name_cols:
+                            # مطابقة بالاسم الكامل
+                            _df_st_tk1["_full_name"] = _df_st_tk1[_st_name_cols].apply(
+                                lambda r: normalize_text(" ".join(str(r[c]) for c in _st_name_cols)), axis=1)
+                            _st_row = _df_st_tk1[_df_st_tk1["_full_name"] == normalize_text(_sn)]
+                            if _st_row.empty:
+                                # محاولة بالاسم المعكوس
+                                _parts = _sn.strip().split()
+                                if len(_parts) >= 2:
+                                    _rev = normalize_text(" ".join(reversed(_parts)))
+                                    _st_row = _df_st_tk1[_df_st_tk1["_full_name"] == _rev]
+                            if not _st_row.empty:
+                                _st_email = str(_st_row.iloc[0].get(_st_email_col,"")).strip()
                         _recipients_tk1.append({"نوع":"طالب","اسم":_sn,"صفة":"طالب","بريد":_st_email})
 
                     st.markdown("**المستلمون:**")
