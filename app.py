@@ -6539,6 +6539,7 @@ elif st.session_state.user_type == "admin":
             # فلتر المذكرات المبرمجة فقط
             _col_ai_tk = next((c for c in ["نشر البرنامج","AI"] if c in df_m_tk.columns), None)
             _col_w = "تاريخ المناقشة"; _col_x = "توقيت المناقشة"; _col_y = "القاعة"
+            _col_w_tk = _col_w; _col_x_tk = _col_x; _col_y_tk = _col_y
 
             sched_tk = df_m_tk[
                 df_m_tk[_col_w].astype(str).str.strip().apply(lambda v: v not in ["","nan"])
@@ -6622,6 +6623,150 @@ elif st.session_state.user_type == "admin":
 
                 _send_fmt = st.radio("صيغة الإرسال:", ["📧 HTML فقط", "📄 PDF + HTML"], horizontal=True, key="send_fmt_tk")
                 st.session_state["_send_fmt_val"] = _send_fmt
+                st.markdown("---")
+                st.markdown("### 📨 إرسال تكليف مذكرة واحدة")
+                st.info("اختر مذكرة محددة وأرسل تكليفاً لجميع أعضاء اللجنة والطلبة المعنيين")
+
+                # كومبو اختيار المذكرة
+                try:
+                    _sorted_tk1 = sched_tk.copy()
+                    _sorted_tk1["_num"] = pd.to_numeric(_sorted_tk1["رقم المذكرة"], errors="coerce")
+                    _sorted_tk1 = _sorted_tk1.sort_values("_num").drop(columns=["_num"])
+                except:
+                    _sorted_tk1 = sched_tk.copy()
+
+                def _fmt_tk1(r):
+                    num = str(r.get("رقم المذكرة","")).strip()
+                    s1 = str(r.get("الطالب الأول","")).strip()
+                    prof = str(r.get("الأستاذ","")).strip()
+                    return f"{num.zfill(3)} | {prof} | {s1}"
+
+                _opts_tk1 = [_fmt_tk1(r) for _, r in _sorted_tk1.iterrows()]
+                _mids_tk1 = _sorted_tk1["رقم المذكرة"].astype(str).tolist()
+                _sel_tk1 = st.selectbox("اختر المذكرة:", _opts_tk1, index=None, placeholder="اكتب للبحث...", key="sel_tk1_memo")
+                _mid_tk1 = _mids_tk1[_opts_tk1.index(_sel_tk1)] if _sel_tk1 else None
+
+                if _mid_tk1:
+                    _row_tk1 = _sorted_tk1[_sorted_tk1["رقم المذكرة"].astype(str)==str(_mid_tk1)].iloc[0]
+                    _title_tk1 = str(_row_tk1.get("عنوان المذكرة","")).strip()
+                    _sup_tk1   = str(_row_tk1.get("الأستاذ","")).strip()
+                    _pres_tk1  = str(_row_tk1.get("الرئيس","")).strip()
+                    _ex1_tk1   = str(_row_tk1.get("المناقش1","")).strip()
+                    _ex2_tk1   = str(_row_tk1.get("المناقش2","")).strip()
+                    _s1_tk1    = str(_row_tk1.get("الطالب الأول","")).strip()
+                    _s2_tk1    = str(_row_tk1.get("الطالب الثاني","")).strip()
+                    _date_tk1  = str(_row_tk1.get(_col_w_tk,"")).strip()
+                    _slot_tk1  = str(_row_tk1.get(_col_x_tk,"")).strip()
+                    _room_tk1  = str(_row_tk1.get(_col_y_tk,"")).strip()
+                    _link_tk1  = str(_row_tk1.get("رابط الملف","")).strip()
+                    _students_label = "الطالب(ة)" if not _s2_tk1 or _s2_tk1 in ["","nan"] else "الطالبَين"
+                    _students_names = _s1_tk1 + (f" — {_s2_tk1}" if _s2_tk1 and _s2_tk1 not in ["","nan"] else "")
+
+                    def _build_email_tk1(prof_name, role_ar):
+                        _link_btn = f'<a href="{_link_tk1}" style="color:#1a3a6b;font-weight:bold;">👁️ معاينة المذكرة</a>' if _link_tk1 and _link_tk1 not in ["","nan"] else ""
+                        return f"""<!DOCTYPE html><html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>body{{font-family:Arial,sans-serif;direction:rtl;background:#f0f4f8;padding:8px}}
+.wrap{{max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}}
+.hdr{{background:linear-gradient(135deg,#0F2942,#1a3a6b);padding:20px;text-align:center;color:#FFD700;font-size:1.1rem}}
+.bdy{{padding:22px 20px;font-size:0.93rem;color:#333;line-height:1.9}}
+.box{{background:#f8fafc;border-right:4px solid #0F2942;padding:12px 16px;border-radius:8px;margin:14px 0}}
+.role{{display:inline-block;background:#0F2942;color:#FFD700;padding:3px 12px;border-radius:12px;font-size:0.82rem}}
+.ftr{{background:#f4f6f9;padding:12px;text-align:center;font-size:0.78rem;color:#777;border-top:1px solid #e0e0e0}}
+</style></head><body>
+<div class="wrap">
+<div class="hdr">📋 برمجة مناقشة مذكرة الماستر</div>
+<div class="bdy">
+<p>الأستاذ(ة) الفاضل(ة) <strong>{prof_name}</strong>،</p>
+<p>تحية طيبة وبعد،</p>
+<p>نُحيطكم علمًا بأنه تمّت برمجة مناقشة مذكرة الماستر رقم <strong>{_mid_tk1}</strong>، الموسومة بـ:</p>
+<div class="box"><strong>« {_title_tk1} »</strong></div>
+<p>من إعداد {_students_label}: <strong>{_students_names}</strong><br>
+وتحت إشراف الأستاذ(ة): <strong>{_sup_tk1}</strong></p>
+<p>وذلك يوم <strong>{_date_tk1}</strong> على الساعة <strong>{_slot_tk1}</strong> بقاعة <strong>{_room_tk1}</strong>،
+بصفتكم <span class="role">{role_ar}</span></p>
+{f'<p style="margin-top:14px;">{_link_btn}</p>' if _link_btn else ""}
+<p style="margin-top:12px;">🌐 منصة المذكرات: <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a></p>
+<p style="margin-top:18px;color:#1a3a6b;">تقبلوا تحياتي،<br><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p>
+</div>
+<div class="ftr">كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</div>
+</div></body></html>"""
+
+                    def _build_student_email_tk1(student_name):
+                        return f"""<!DOCTYPE html><html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>body{{font-family:Arial,sans-serif;direction:rtl;background:#f0f4f8;padding:8px}}
+.wrap{{max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}}
+.hdr{{background:linear-gradient(135deg,#0F2942,#1a3a6b);padding:20px;text-align:center;color:#FFD700;font-size:1.1rem}}
+.bdy{{padding:22px 20px;font-size:0.93rem;color:#333;line-height:1.9}}
+.box{{background:#f8fafc;border-right:4px solid #10B981;padding:12px 16px;border-radius:8px;margin:14px 0}}
+.ftr{{background:#f4f6f9;padding:12px;text-align:center;font-size:0.78rem;color:#777;border-top:1px solid #e0e0e0}}
+</style></head><body>
+<div class="wrap">
+<div class="hdr">🎓 موعد مناقشة مذكرة الماستر</div>
+<div class="bdy">
+<p>الطالب(ة) العزيز(ة) <strong>{student_name}</strong>،</p>
+<p>تحية طيبة وبعد،</p>
+<p>يسعدنا إعلامكم بأنه تمّت برمجة مناقشة مذكرتكم الموسومة بـ:</p>
+<div class="box"><strong>« {_title_tk1} »</strong></div>
+<p>وذلك يوم <strong>{_date_tk1}</strong> على الساعة <strong>{_slot_tk1}</strong> بقاعة <strong>{_room_tk1}</strong><br>
+تحت إشراف الأستاذ(ة): <strong>{_sup_tk1}</strong></p>
+<p style="margin-top:12px;">🌐 منصة المذكرات: <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a></p>
+<p style="margin-top:18px;color:#1a3a6b;">تقبلوا تحياتي،<br><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p>
+</div>
+<div class="ftr">كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</div>
+</div></body></html>"""
+
+                    # قائمة المستلمين
+                    _recipients_tk1 = []
+                    for _p, _r in [(_sup_tk1,"مشرفًا"), (_pres_tk1,"رئيسًا للجنة"), (_ex1_tk1,"عضوًا ممتحنًا"), (_ex2_tk1,"عضوًا ممتحنًا")]:
+                        if _p and _p not in ["","nan"]:
+                            _em = _email_dict.get(_p,"")
+                            _recipients_tk1.append({"نوع":"أستاذ","اسم":_p,"صفة":_r,"بريد":_em})
+                    # طلبة
+                    _df_st_tk1 = load_students()
+                    for _sn in [_s1_tk1, _s2_tk1]:
+                        if not _sn or _sn in ["","nan"]: continue
+                        _st_row = _df_st_tk1[_df_st_tk1.apply(lambda r: normalize_text(f"{r.get('اللقب','')} {r.get('الاسم','')}").strip() == normalize_text(_sn).strip(), axis=1)]
+                        _st_email = ""
+                        if not _st_row.empty:
+                            _st_email = str(_st_row.iloc[0].get("الإيميل","")).strip() if "الإيميل" in _st_row.columns else ""
+                        _recipients_tk1.append({"نوع":"طالب","اسم":_sn,"صفة":"طالب","بريد":_st_email})
+
+                    st.markdown("**المستلمون:**")
+                    for _rec in _recipients_tk1:
+                        _icon = "👨‍🏫" if _rec["نوع"]=="أستاذ" else "🎓"
+                        _em_show = _rec["بريد"] if _rec["بريد"] else "⚠️ لا بريد"
+                        st.caption(f"{_icon} {_rec['اسم']} — {_rec['صفة']} — {_em_show}")
+
+                    if st.button("📧 إرسال التكليف للجميع", type="primary", use_container_width=True, key="send_tk1_all"):
+                        import smtplib
+                        from email.mime.multipart import MIMEMultipart
+                        from email.mime.text import MIMEText
+                        _sent_tk1=0; _fail_tk1=[]
+                        _prog_tk1=st.progress(0); _stat_tk1=st.empty()
+                        for _pi, _rec in enumerate(_recipients_tk1):
+                            if not _rec["بريد"]:
+                                _fail_tk1.append(f"{_rec['اسم']} (لا بريد)"); continue
+                            try:
+                                _html_tk1 = _build_email_tk1(_rec["اسم"],_rec["صفة"]) if _rec["نوع"]=="أستاذ" else _build_student_email_tk1(_rec["اسم"])
+                                _msg_tk1=MIMEMultipart("alternative")
+                                _msg_tk1["Subject"]=f"برمجة مناقشة مذكرة الماستر رقم {_mid_tk1}"
+                                _msg_tk1["From"]=EMAIL_SENDER; _msg_tk1["To"]=_rec["بريد"]
+                                _msg_tk1.attach(MIMEText(_html_tk1,"html","utf-8"))
+                                with smtplib.SMTP_SSL("smtp.gmail.com",465) as _srv_tk1:
+                                    _srv_tk1.login(EMAIL_SENDER,EMAIL_PASSWORD)
+                                    _srv_tk1.sendmail(EMAIL_SENDER,_rec["بريد"],_msg_tk1.as_string())
+                                _sent_tk1+=1
+                            except Exception as _etk1:
+                                _fail_tk1.append(f"{_rec['اسم']}: {_etk1}")
+                            _prog_tk1.progress(int((_pi+1)/len(_recipients_tk1)*100))
+                            _stat_tk1.text(f"جاري الإرسال... {_pi+1}/{len(_recipients_tk1)}")
+                        _prog_tk1.empty(); _stat_tk1.empty()
+                        if _sent_tk1>0: st.success(f"✅ تم إرسال {_sent_tk1} رسالة")
+                        if _fail_tk1: st.warning("⚠️ فشل: " + " | ".join(_fail_tk1[:5]))
+
+                st.markdown("---")
                 if st.button("📧 إرسال التكاليف", type="primary", use_container_width=True, key="send_takleef"):
                     _sent = 0; _failed = []
                     _progress = st.progress(0)
