@@ -6725,24 +6725,19 @@ elif st.session_state.user_type == "admin":
                             _recipients_tk1.append({"نوع":"أستاذ","اسم":_p,"صفة":_r,"بريد":_em})
                     # طلبة
                     _df_st_tk1 = load_students()
-                    # إيجاد عمود البريد في شيت الطلبة
                     _st_email_col = next((c for c in ["البريد المهني","الإيميل","البريد الإلكتروني","email"] if c in _df_st_tk1.columns), None)
-                    # إيجاد عمود اسم الطالب
-                    _st_name_cols = [c for c in ["اللقب","الاسم"] if c in _df_st_tk1.columns]
-                    for _sn in [_s1_tk1, _s2_tk1]:
+                    # البحث برقم التسجيل — عمود C في شيت الطلبة
+                    # Q=index16, R=index17
+                    _cols_tk1 = list(sched_tk.columns)
+                    st.caption(f"DEBUG أعمدة Q،R: {_cols_tk1[16] if len(_cols_tk1)>16 else '?'} | {_cols_tk1[17] if len(_cols_tk1)>17 else '?'}")
+                    _reg1_tk1 = str(_row_tk1.iloc[16]).strip() if len(_row_tk1)>16 else ""
+                    _reg2_tk1 = str(_row_tk1.iloc[17]).strip() if len(_row_tk1)>17 else ""
+                    st.caption(f"DEBUG reg1={_reg1_tk1} | reg2={_reg2_tk1} | email_col={_st_email_col}")
+                    for _sn, _reg in [(_s1_tk1,_reg1_tk1), (_s2_tk1,_reg2_tk1)]:
                         if not _sn or _sn in ["","nan"]: continue
                         _st_email = ""
-                        if _st_email_col and _st_name_cols:
-                            # مطابقة بالاسم الكامل
-                            _df_st_tk1["_full_name"] = _df_st_tk1[_st_name_cols].apply(
-                                lambda r: normalize_text(" ".join(str(r[c]) for c in _st_name_cols)), axis=1)
-                            _st_row = _df_st_tk1[_df_st_tk1["_full_name"] == normalize_text(_sn)]
-                            if _st_row.empty:
-                                # محاولة بالاسم المعكوس
-                                _parts = _sn.strip().split()
-                                if len(_parts) >= 2:
-                                    _rev = normalize_text(" ".join(reversed(_parts)))
-                                    _st_row = _df_st_tk1[_df_st_tk1["_full_name"] == _rev]
+                        if _st_email_col and _reg and _reg not in ["","nan"]:
+                            _st_row = _df_st_tk1[_df_st_tk1.iloc[:,2].astype(str).str.strip()==_reg.strip()]
                             if not _st_row.empty:
                                 _st_email = str(_st_row.iloc[0].get(_st_email_col,"")).strip()
                         _recipients_tk1.append({"نوع":"طالب","اسم":_sn,"صفة":"طالب","بريد":_st_email})
