@@ -4186,7 +4186,7 @@ elif st.session_state.user_type == "student":
                     border:2px solid rgba(245,158,11,0.4);border-radius:16px;
                     padding:20px 24px;margin-bottom:18px;text-align:center;">
                     <div style="font-size:1.4rem;margin-bottom:10px;">📅</div>
-                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">المناقشات ستنطلق ابتداءً من 31 ماي 2026</div>
+                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">سيتم الإعلان عن برنامج المناقشات عبر المنصة</div>
                     <div style="font-size:0.88rem;color:#CBD5E1;line-height:1.7;">
                         يُرجى متابعة فضائك على المنصة باستمرار للاطلاع على موعد مناقشتك فور تحديده.
                     </div>
@@ -4196,7 +4196,7 @@ elif st.session_state.user_type == "student":
                     border:2px solid rgba(245,158,11,0.4);border-radius:16px;
                     padding:20px 24px;margin-bottom:18px;text-align:center;">
                     <div style="font-size:1.4rem;margin-bottom:10px;">📅</div>
-                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">المناقشات ستنطلق ابتداءً من 31 ماي 2026</div>
+                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">سيتم الإعلان عن برنامج المناقشات عبر المنصة</div>
                     <div style="font-size:0.88rem;color:#CBD5E1;line-height:1.7;">
                         يُرجى متابعة فضائك على المنصة باستمرار للاطلاع على موعد مناقشتك فور تحديده.
                     </div>
