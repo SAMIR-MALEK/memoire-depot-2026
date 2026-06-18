@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="منصة مذكرات الماستر", page_icon="📘", layout="wide")
 
-DEPOSIT_DEADLINE = datetime(2026, 5, 24, 0, 0)
+DEPOSIT_DEADLINE = datetime(2026, 6, 25, 0, 0)
 REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
 
 def get_days_remaining():
@@ -38,7 +38,7 @@ def render_countdown_banner():
         bg = "linear-gradient(135deg,#4A0000,#C0392B)"
         shadow = "rgba(192,57,43,0.6)"
     elif days <= 3:
-        urgency = f"⚠️ تبقى {days} أيام فقط — أودع الآن!"
+        urgency = f"⚠️ تبقى {days} أيام فقط — قم بالإيداع الآن!"
         bg = "linear-gradient(135deg,#7C0A02,#E74C3C)"
         shadow = "rgba(231,76,60,0.5)"
     elif days <= 7:
@@ -46,7 +46,7 @@ def render_countdown_banner():
         bg = "linear-gradient(135deg,#8B4513,#E67E22)"
         shadow = "rgba(230,126,34,0.4)"
     else:
-        urgency = "📌 آخر أجل لإيداع المذكرات: 23 ماي 2026"
+        urgency = "📌 آخر أجل لإيداع المذكرات (الدورة الثانية): 25 جوان 2026"
         bg = "linear-gradient(135deg,#1A3A5C,#2F6F7E)"
         shadow = "rgba(47,111,126,0.4)"
     st.markdown(f"""<div style="background:{bg};border-radius:16px;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:0 8px 28px {shadow};"><div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.9rem;">⏳</span><div><div style="color:#fff;font-size:1.05rem;font-weight:800;">{urgency}</div><div style="color:rgba(255,255,255,0.9);font-size:0.8rem;margin-top:2px;">آخر أجل لإيداع المذكرات النهائية: 23 ماي 2026</div></div></div><div style="background:rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,0.4);border-radius:12px;padding:8px 20px;text-align:center;"><div style="font-size:2.6rem;font-weight:900;color:#FFD700;line-height:1;text-shadow:0 0 20px rgba(255,215,0,0.5);">{days}</div><div style="font-size:0.72rem;color:rgba(255,255,255,0.8);letter-spacing:1px;">يوم متبقي</div></div></div>""", unsafe_allow_html=True)
