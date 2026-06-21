@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="منصة مذكرات الماستر", page_icon="📘", layout="wide")
 
-DEPOSIT_DEADLINE = datetime(2026, 6, 25, 0, 0)
+DEPOSIT_DEADLINE = datetime(2026, 5, 24, 0, 0)
 REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
 
 def get_days_remaining():
@@ -38,7 +38,7 @@ def render_countdown_banner():
         bg = "linear-gradient(135deg,#4A0000,#C0392B)"
         shadow = "rgba(192,57,43,0.6)"
     elif days <= 3:
-        urgency = f"⚠️ تبقى {days} أيام فقط — قم بالإيداع الآن!"
+        urgency = f"⚠️ تبقى {days} أيام فقط — أودع الآن!"
         bg = "linear-gradient(135deg,#7C0A02,#E74C3C)"
         shadow = "rgba(231,76,60,0.5)"
     elif days <= 7:
@@ -46,10 +46,10 @@ def render_countdown_banner():
         bg = "linear-gradient(135deg,#8B4513,#E67E22)"
         shadow = "rgba(230,126,34,0.4)"
     else:
-        urgency = "📌 آخر أجل لإيداع المذكرات (الدورة الثانية): 25 جوان 2026"
+        urgency = "📌 آخر أجل لإيداع المذكرات: 23 ماي 2026"
         bg = "linear-gradient(135deg,#1A3A5C,#2F6F7E)"
         shadow = "rgba(47,111,126,0.4)"
-    st.markdown(f"""<div style="background:{bg};border-radius:16px;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:0 8px 28px {shadow};"><div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.9rem;">⏳</span><div><div style="color:#fff;font-size:1.05rem;font-weight:800;">{urgency}</div><div style="color:rgba(255,255,255,0.9);font-size:0.8rem;margin-top:2px;">آخر أجل لإيداع المذكرات - الدورة الثانية : 25 جوان 2026</div></div></div><div style="background:rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,0.4);border-radius:12px;padding:8px 20px;text-align:center;"><div style="font-size:2.6rem;font-weight:900;color:#FFD700;line-height:1;text-shadow:0 0 20px rgba(255,215,0,0.5);">{days}</div><div style="font-size:0.72rem;color:rgba(255,255,255,0.8);letter-spacing:1px;">يوم متبقي</div></div></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div style="background:{bg};border-radius:16px;padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:0 8px 28px {shadow};"><div style="display:flex;align-items:center;gap:12px;"><span style="font-size:1.9rem;">⏳</span><div><div style="color:#fff;font-size:1.05rem;font-weight:800;">{urgency}</div><div style="color:rgba(255,255,255,0.9);font-size:0.8rem;margin-top:2px;">آخر أجل لإيداع المذكرات النهائية: 23 ماي 2026</div></div></div><div style="background:rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,0.4);border-radius:12px;padding:8px 20px;text-align:center;"><div style="font-size:2.6rem;font-weight:900;color:#FFD700;line-height:1;text-shadow:0 0 20px rgba(255,215,0,0.5);">{days}</div><div style="font-size:0.72rem;color:rgba(255,255,255,0.8);letter-spacing:1px;">يوم متبقي</div></div></div>""", unsafe_allow_html=True)
 
 
 st.markdown("""
@@ -235,7 +235,9 @@ MEMOS_RANGE     = "Feuille 1!A1:AI1000"
 PROF_MEMOS_RANGE= "Feuille 1!A1:S1000"
 REQUESTS_RANGE  = "Feuille 1!A1:K1000"
 ADMIN_CREDENTIALS = {"admin": "admin2026", "dsp": "dsp@2026"}
-PRINTER_CREDENTIALS = {"mem": "1234"}  # فضاء المحاضر فقط
+PRINTER_CREDENTIALS  = {"mem": "1234"}   # فضاء المحاضر فقط
+LIBRARY_CREDENTIALS  = {"bib": "1234"}   # مسؤول المكتبة — غيّر كلمة السر هنا
+IDAA_FOLDER_ID       = "12zHRa5dDfGTotK0QBkvN5xUQC5bTZMQV"  # مجلد الإيداع النهائي
 EMAIL_SENDER  = "domaine.dsp@univ-bba.dz"
 MAHDAR_FOLDER_ID = "1T8ABqZeSOwBBbMwpLRyxyRNrf0diYzJB"  # مجلد Drive لحفظ محاضر المناقشة
 EMAIL_PASSWORD= "oqwejylusjllfvhc"
@@ -347,19 +349,19 @@ def get_student_info_from_memo(memo_row, df_students):
     s2_name = str(memo_row.get("الطالب الثاني","")).strip()
     s1_email = s2_email = s1_reg = s2_reg = ""
     try:
-        memo_list = memo_row.tolist()
-        reg1 = normalize_text(str(memo_list[18]).strip() if len(memo_list)>18 else "")
-        reg2 = normalize_text(str(memo_list[19]).strip() if len(memo_list)>19 else "")
-    except:
-        reg1 = normalize_text(memo_row.get("رقم تسجيل الطالب 1",""))
-        reg2 = normalize_text(memo_row.get("رقم تسجيل الطالب 2",""))
-    df_students['رقم التسجيل_norm'] = df_students['رقم التسجيل'].astype(str).apply(normalize_text)
-    if reg1:
-        s = df_students[df_students["رقم التسجيل_norm"]==reg1]
-        if not s.empty: s1_email = get_email_smart(s.iloc[0]); s1_reg = reg1
-    if s2_name and reg2:
-        s = df_students[df_students["رقم التسجيل_norm"]==reg2]
-        if not s.empty: s2_email = get_email_smart(s.iloc[0]); s2_reg = reg2
+        reg1 = normalize_text(str(memo_row.get("رقم تسجيل الطالب 1","")).strip())
+        reg2 = normalize_text(str(memo_row.get("رقم تسجيل الطالب 2","")).strip())
+    except Exception:
+        reg1 = ""; reg2 = ""
+    if df_students is not None and not df_students.empty and "رقم التسجيل" in df_students.columns:
+        df_students = df_students.copy()
+        df_students['رقم التسجيل_norm'] = df_students['رقم التسجيل'].astype(str).apply(normalize_text)
+        if reg1:
+            s = df_students[df_students["رقم التسجيل_norm"]==reg1]
+            if not s.empty: s1_email = get_email_smart(s.iloc[0]); s1_reg = reg1
+        if s2_name and reg2:
+            s = df_students[df_students["رقم التسجيل_norm"]==reg2]
+            if not s.empty: s2_email = get_email_smart(s.iloc[0]); s2_reg = reg2
     return {"s1_name":s1_name,"s1_email":s1_email,"s1_reg":s1_reg,"s2_name":s2_name,"s2_email":s2_email,"s2_reg":s2_reg}
 
 @st.cache_data(ttl=60)
@@ -374,7 +376,7 @@ def load_students():
 @st.cache_data(ttl=60)
 def load_memos():
     try:
-        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AP1000").execute()
+        result = sheets_service.spreadsheets().values().get(spreadsheetId=MEMOS_SHEET_ID, range="Feuille 1!A1:AV1000").execute()
         values = result.get('values',[])
         if not values: return pd.DataFrame()
         headers = values[0]; rows = values[1:]
@@ -383,13 +385,28 @@ def load_memos():
     except Exception as e: logger.error(f"خطأ المذكرات: {e}"); return pd.DataFrame()
 
 @st.cache_data(ttl=60)
+def upload_to_drive(file_bytes, filename, folder_id, mimetype='application/pdf'):
+    """رفع ملف على Google Drive"""
+    try:
+        from googleapiclient.discovery import build as _gbuild
+        from googleapiclient.http import MediaIoBaseUpload as _MIU
+        import io as _io_d
+        drive_service = _gbuild('drive', 'v3', credentials=drive_credentials)
+        file_meta = {'name': filename, 'parents': [folder_id]}
+        media = _MIU(_io_d.BytesIO(file_bytes), mimetype=mimetype, resumable=True)
+        f = drive_service.files().create(body=file_meta, media_body=media, fields='id,webViewLink').execute()
+        drive_service.permissions().create(fileId=f['id'], body={'type':'anyone','role':'reader'}).execute()
+        return True, f['webViewLink']
+    except Exception as e:
+        return False, str(e)
+
 def upload_mahdar_pdf(file_bytes, filename, folder_id=MAHDAR_FOLDER_ID):
     """رفع PDF محضر المناقشة على Google Drive"""
     try:
         from googleapiclient.discovery import build as _gbuild
         from googleapiclient.http import MediaIoBaseUpload as _MIU
         import io as _io_d
-        drive_service = _gbuild('drive', 'v3', credentials=creds)
+        drive_service = _gbuild('drive', 'v3', credentials=drive_credentials)
         file_meta = {'name': filename, 'parents': [folder_id]}
         media = _MIU(_io_d.BytesIO(file_bytes), mimetype='application/pdf', resumable=True)
         f = drive_service.files().create(body=file_meta, media_body=media, fields='id,webViewLink').execute()
@@ -3732,19 +3749,10 @@ def validate_schedule(schedule, memo_members, days, slots_per_day):
 
 
 import io, zipfile, re as _re_mahdar, tempfile as _tempfile
-import qrcode as _qrcode
 
 def generate_qr_png(url):
-    """توليد QR Code يرمز لرابط Drive المذكرة"""
-    qr = _qrcode.QRCode(version=2, box_size=4, border=2,
-        error_correction=_qrcode.constants.ERROR_CORRECT_M)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
-    return buf.getvalue()
-
+    """QR Code معطّل"""
+    return b""
 def generate_mahdar(memo_data, seq_num, template_bytes):
     """توليد محضر مناقشة من القالب بـ placeholders"""
     import io as _io
@@ -4167,6 +4175,10 @@ elif st.session_state.user_type == "student":
             # عمود نشر البرنامج — يتحكم في ظهور الموعد للطالب
             _pub_status = str(memo_info.get("نشر البرنامج","")).strip()
             _show_schedule = _pub_status.lower() in ["نعم","yes","1","true"]
+            # إذا تمت المناقشة لا نعرض بطاقة الموعد
+            _hal_done = str(memo_info.get("الحالة","") if memo_info is not None else "").strip()
+            if _hal_done == "تمت المناقشة":
+                _show_schedule = False
 
             if _show_schedule and def_date_m and def_date_m not in ["","nan"]:
                 st.markdown(f'''<div style="background:linear-gradient(135deg,#0a1f12,#0f2d1a);
@@ -4186,7 +4198,7 @@ elif st.session_state.user_type == "student":
                     border:2px solid rgba(245,158,11,0.4);border-radius:16px;
                     padding:20px 24px;margin-bottom:18px;text-align:center;">
                     <div style="font-size:1.4rem;margin-bottom:10px;">📅</div>
-                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">سيتم الإعلان عن برنامج المناقشات عبر المنصة</div>
+                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">المناقشات ستنطلق ابتداءً من 31 ماي 2026</div>
                     <div style="font-size:0.88rem;color:#CBD5E1;line-height:1.7;">
                         يُرجى متابعة فضائك على المنصة باستمرار للاطلاع على موعد مناقشتك فور تحديده.
                     </div>
@@ -4196,7 +4208,7 @@ elif st.session_state.user_type == "student":
                     border:2px solid rgba(245,158,11,0.4);border-radius:16px;
                     padding:20px 24px;margin-bottom:18px;text-align:center;">
                     <div style="font-size:1.4rem;margin-bottom:10px;">📅</div>
-                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">سيتم الإعلان عن برنامج المناقشات عبر المنصة</div>
+                    <div style="font-size:1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">المناقشات ستنطلق ابتداءً من 31 ماي 2026</div>
                     <div style="font-size:0.88rem;color:#CBD5E1;line-height:1.7;">
                         يُرجى متابعة فضائك على المنصة باستمرار للاطلاع على موعد مناقشتك فور تحديده.
                     </div>
@@ -4290,7 +4302,7 @@ elif st.session_state.user_type == "student":
                     </div>""", unsafe_allow_html=True)
                 else:
                     days_left = get_days_remaining()
-                    st.markdown(f"""<div class="deposit-hero"><span class="deposit-hero-icon">📤</span><div class="deposit-hero-title">يمكنك الآن إيداع مذكرتك النهائية</div><div class="deposit-hero-sub" style="color:#E2E8F0!important;">آخر أجل: <strong style="color:#FFD700;">25 جوان 2026</strong> — تبقى <strong style="color:{'#EF4444' if days_left<=7 else '#FFD700'};">{days_left} يوم</strong><br>ارفع نسخة PDF من مذكرتك. سيراجعها المشرف ويوافق أو يرسل ملاحظاته.</div></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="deposit-hero"><span class="deposit-hero-icon">📤</span><div class="deposit-hero-title">يمكنك الآن إيداع مذكرتك النهائية</div><div class="deposit-hero-sub" style="color:#E2E8F0!important;">آخر أجل: <strong style="color:#FFD700;">23 ماي 2026</strong> — تبقى <strong style="color:{'#EF4444' if days_left<=7 else '#FFD700'};">{days_left} يوم</strong><br>ارفع نسخة PDF من مذكرتك. سيراجعها المشرف ويوافق أو يرسل ملاحظاته.</div></div>""", unsafe_allow_html=True)
                     uploaded_pdf = st.file_uploader("📁 اختر ملف المذكرة (PDF فقط)", type=["pdf"], key="upload_pdf")
                     if uploaded_pdf:
                         pdf_bytes = uploaded_pdf.read(); size_mb = len(pdf_bytes)/(1024*1024); uploaded_pdf.seek(0)
@@ -4323,10 +4335,28 @@ elif st.session_state.user_type == "student":
                 if deposit_link and deposit_link not in ["","nan"]: st.markdown(f"📎 [عرض الملف المودع]({deposit_link})")
                 st.markdown("""<div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:11px 15px;margin-top:9px;"><p style="color:#EF4444!important;margin:0;font-size:0.86rem;">⛔ لقد قمت بإيداع مذكرتك؛ لا يمكنك إيداع نسخة أخرى.</p></div>""", unsafe_allow_html=True)
             elif deposit_status == "قابلة للمناقشة":
-                st.markdown("""<div class="notif-card notif-card-approved"><div class="notif-icon">🟢</div><div><div class="notif-title notif-title-approved">مذكرتك معتمدة — قابلة للمناقشة ✓</div><div class="notif-desc">وافق المشرف على مذكرتك رسمياً. ستتلقى إشعاراً من الإدارة بموعد المناقشة قريباً.</div></div></div>""", unsafe_allow_html=True)
-                if deposit_link and deposit_link not in ["","nan"]: st.markdown(f"📎 [عرض الملف المودع]({deposit_link})")
+                # تحقق من حالة المناقشة
+                _hal_check = str(memo_info.get("الحالة","") if memo_info is not None else "").strip()
+                if _hal_check == "تمت المناقشة":
+                    pass  # البطاقة الرئيسية تظهر أعلى
+                else:
+                    if _hal_done != "تمت المناقشة":
+                        st.markdown("""<div class="notif-card notif-card-approved"><div class="notif-icon">🟢</div><div><div class="notif-title notif-title-approved">مذكرتك معتمدة — قابلة للمناقشة ✓</div><div class="notif-desc">وافق المشرف على مذكرتك رسمياً. ستتلقى إشعاراً من الإدارة بموعد المناقشة قريباً.</div></div></div>""", unsafe_allow_html=True)
+                        if deposit_link and deposit_link not in ["","nan"]: st.markdown(f"📎 [عرض الملف المودع]({deposit_link})")
 
-            if is_published and def_date_m and def_date_m not in ["","nan"]:
+            _hal_check2 = str(memo_info.get("الحالة","") if memo_info is not None else "").strip()
+            if _hal_check2 == "تمت المناقشة":
+                # تمت المناقشة — أظهر بطاقة إعلامية فقط
+                _def_date_done = str(memo_info.get("تاريخ المناقشة","")).strip() if memo_info is not None else ""
+                _def_slot_done = str(memo_info.get("توقيت المناقشة","")).strip() if memo_info is not None else ""
+                _def_room_done = str(memo_info.get("القاعة","")).strip() if memo_info is not None else ""
+                st.markdown(f'''<div style="background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(16,185,129,0.04));border:2px solid rgba(16,185,129,0.4);border-radius:16px;padding:22px;text-align:center;margin-bottom:16px;">
+                    <div style="font-size:2.5rem;">🎓</div>
+                    <h3 style="color:#10B981!important;margin:8px 0;">تمت مناقشة مذكرتك</h3>
+                    <p style="color:#E2E8F0!important;font-size:0.9rem;margin:4px 0;">بتاريخ <strong style="color:#FFD700;">{_def_date_done}</strong> الساعة <strong style="color:#FFD700;">{_def_slot_done}</strong> في <strong style="color:#FFD700;">{_def_room_done}</strong></p>
+                    <p style="color:#94A3B8!important;font-size:0.85rem;margin-top:10px;">يجب عليك القيام بالإيداع النهائي للحصول على تبرئة المكتبة الضرورية للحصول على الشهادة.</p>
+                </div>''', unsafe_allow_html=True)
+            elif is_published and def_date_m and def_date_m not in ["","nan"]:
                 st.markdown(f"""<div class="defense-schedule-card"><h4 style="color:#818CF8!important;margin:0 0 6px;">📅 موعد مناقشتك</h4><div class="defense-info-grid"><div class="defense-info-item"><div class="defense-info-label">📆 التاريخ</div><div class="defense-info-value">{def_date_m}</div></div><div class="defense-info-item"><div class="defense-info-label">🕐 التوقيت</div><div class="defense-info-value">{def_time_m if def_time_m and def_time_m!='nan' else '—'}</div></div><div class="defense-info-item"><div class="defense-info-label">🏛️ القاعة</div><div class="defense-info-value">{def_room_m if def_room_m and def_room_m!='nan' else '—'}</div></div></div></div>""", unsafe_allow_html=True)
                 president_s = str(memo_info.get("AE","")).strip() if "AE" in memo_info.index else ""
                 exam1_s     = str(memo_info.get("AD","")).strip() if "AD" in memo_info.index else ""
@@ -4342,14 +4372,77 @@ elif st.session_state.user_type == "student":
             tab_memo, tab_track, tab_notify = st.tabs(["📄 مذكرتي", "📂 ملف الشهادة", "🔔 الإشعارات"])
 
             with tab_memo:
-                session_date = memo_info.get("موعد الجلسة القادمة","")
-                session_html = f"<p>📅 <b>موعد الجلسة القادمة:</b> {session_date}</p>" if session_date and str(session_date) not in ["","nan"] else ""
-                st.markdown(f"""<div class="card" style="border-top:3px solid #FFD700;"><h3>✅ مذكرتك المسجلة</h3><p><b>رقم المذكرة:</b> {memo_info['رقم المذكرة']}</p><p><b>العنوان:</b> {memo_info['عنوان المذكرة']}</p><p><b>المشرف:</b> {prof_name_m}</p><p><b>التخصص:</b> {memo_info['التخصص']}</p>{session_html}</div>""", unsafe_allow_html=True)
-                s1_ln,s1_fn=get_student_name_display(s1); s1_email=get_email_smart(s1)
-                st.markdown(f"""<div class="card"><h4 style="color:#FFD700;">👤 الطالب الأول</h4><p><b>اللقب:</b> {s1_ln}</p><p><b>الإسم:</b> {s1_fn}</p><p><b>رقم التسجيل:</b> {s1.get('رقم التسجيل','')}</p><p><b>البريد:</b> {s1_email}</p></div>""", unsafe_allow_html=True)
-                if s2:
-                    s2_ln,s2_fn=get_student_name_display(s2); s2_email=get_email_smart(s2)
-                    st.markdown(f"""<div class="card"><h4 style="color:#FFD700;">👤 الطالب الثاني</h4><p><b>اللقب:</b> {s2_ln}</p><p><b>الإسم:</b> {s2_fn}</p><p><b>رقم التسجيل:</b> {s2.get('رقم التسجيل','')}</p><p><b>البريد:</b> {s2_email}</p></div>""", unsafe_allow_html=True)
+                import datetime as _dti_idaa
+                _memo_row_idaa = memo_info
+                _hal_idaa = str(_memo_row_idaa.get("الحالة","")).strip()
+                _aq_idaa  = str(_memo_row_idaa.get("رابط المذكرة النهائية","")).strip()
+                _ar_idaa  = str(_memo_row_idaa.get("رابط الملخص النهائي","")).strip()
+                _as_idaa  = str(_memo_row_idaa.get("موافقة المشرف","")).strip()
+                _at_idaa  = str(_memo_row_idaa.get("موافقة رئيس القسم","")).strip()
+                _au_idaa  = str(_memo_row_idaa.get("تبرئة المكتبة","")).strip()
+
+                if _hal_idaa == "تمت المناقشة":
+                    # الإيداع النهائي فقط
+                    st.markdown("### 📥 الإيداع النهائي")
+                    def _step(_l,_d): return f'<span style="color:{"#10B981" if _d else "#94A3B8"};font-size:0.88rem;">{"✅" if _d else "⏳"} {_l}</span>'
+                    st.markdown(" &nbsp;→&nbsp; ".join([
+                        _step("رُفعت الملفات", bool(_aq_idaa and _aq_idaa not in ["","nan"])),
+                        _step("موافقة المشرف", _as_idaa=="نعم"),
+                        _step("موافقة رئيس القسم", _at_idaa=="نعم"),
+                        _step("تبرئة المكتبة", _au_idaa=="نعم"),
+                    ]), unsafe_allow_html=True)
+                    if _au_idaa == "نعم":
+                        st.success("🎉 اكتمل الإيداع النهائي!")
+                    elif not (_aq_idaa and _aq_idaa not in ["","nan"]) or _as_idaa == "لا":
+                        _mid_i = str(_memo_row_idaa.get("رقم المذكرة","")).strip()
+                        st.info("📤 يُرجى رفع ملفَي الإيداع النهائي:")
+                        _upl_pdf_i = st.file_uploader("📄 المذكرة النهائية (PDF):", type=["pdf"], key=f"idaa_pdf_{_mid_i}")
+                        _upl_wrd_i = st.file_uploader("📝 ملف الملخص (عربي+إنجليزي):", type=["docx","doc"], key=f"idaa_word_{_mid_i}")
+                        if st.button("📤 إيداع الملفات", type="primary", use_container_width=True, key=f"do_idaa_{_mid_i}"):
+                            if not _upl_pdf_i or not _upl_wrd_i:
+                                st.error("❌ يجب رفع الملفين معاً")
+                            else:
+                                with st.spinner("⏳ جاري الرفع..."):
+                                    _ok1,_l1 = upload_to_drive(_upl_pdf_i.read(), f"مذكرة_نهائية_{_mid_i}.pdf", IDAA_FOLDER_ID, "application/pdf")
+                                    _ok2,_l2 = upload_to_drive(_upl_wrd_i.read(), f"ملخص_{_mid_i}.docx", IDAA_FOLDER_ID, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                                    if _ok1 and _ok2:
+                                        _all_mi=load_memos(); _rni=None
+                                        for _ii,(_, _rri) in enumerate(_all_mi.iterrows()):
+                                            _mki=str(_rri.get("رقم المذكرة","")).strip()
+                                            try: _mki=str(int(float(_mki)))
+                                            except: pass
+                                            if _mki==str(int(float(_mid_i))): _rni=_ii+2; break
+                                        if _rni:
+                                            sheets_service.spreadsheets().values().batchUpdate(
+                                                spreadsheetId=MEMOS_SHEET_ID,
+                                                body={"valueInputOption":"USER_ENTERED","data":[
+                                                    {"range":f"Feuille 1!AQ{_rni}","values":[[_l1]]},
+                                                    {"range":f"Feuille 1!AR{_rni}","values":[[_l2]]},
+                                                    {"range":f"Feuille 1!AV{_rni}","values":[[_dti_idaa.datetime.now().strftime("%Y-%m-%d")]]},
+                                                ]}
+                                            ).execute()
+                                            clear_cache_and_reload()
+                                            st.success("✅ تم الإيداع — في انتظار موافقة المشرف"); st.rerun()
+                                    else:
+                                        if not _ok1: st.error(f"❌ {_l1}")
+                                        if not _ok2: st.error(f"❌ {_l2}")
+                    else:
+                        st.info("✅ تم رفع الملفات — في انتظار الموافقات")
+                        if _aq_idaa not in ["","nan"]: st.markdown(f"[📄 تحميل المذكرة النهائية]({_aq_idaa})")
+                        if _ar_idaa not in ["","nan"]: st.markdown(f"[📝 تحميل الملخص]({_ar_idaa})")
+                    if _as_idaa == "لا":
+                        st.error("❌ رفض المشرف الإيداع — يُرجى تصحيح الملاحظات وإعادة الرفع")
+
+                else:
+                    # ما قبل المناقشة — المعلومات العادية
+                    session_date = memo_info.get("موعد الجلسة القادمة","")
+                    session_html = f"<p>📅 <b>موعد الجلسة القادمة:</b> {session_date}</p>" if session_date and str(session_date) not in ["","nan"] else ""
+                    st.markdown(f"""<div class="card" style="border-top:3px solid #FFD700;"><h3>✅ مذكرتك المسجلة</h3><p><b>رقم المذكرة:</b> {memo_info['رقم المذكرة']}</p><p><b>العنوان:</b> {memo_info['عنوان المذكرة']}</p><p><b>المشرف:</b> {prof_name_m}</p><p><b>التخصص</b></p>{session_html}</div>""", unsafe_allow_html=True)
+                    s1_ln,s1_fn=get_student_name_display(s1); s1_email=get_email_smart(s1)
+                    st.markdown(f"""<div class="card"><h4 style="color:#FFD700;">👤 الطالب الأول</h4><p><b>{s1_ln} {s1_fn}</b></p></div>""", unsafe_allow_html=True)
+                    if s2:
+                        s2_ln,s2_fn=get_student_name_display(s2); s2_email=get_email_smart(s2)
+                        st.markdown(f"""<div class="card"><h4 style="color:#FFD700;">👤 الطالب الثاني</h4><p><b>{s2_ln} {s2_fn}</b></p></div>""", unsafe_allow_html=True)
 
             with tab_track:
                 st.subheader("📂 حالة ملف التخرج")
@@ -4905,6 +4998,99 @@ elif st.session_state.user_type == "professor":
                         scrolling=True
                     )
 
+                    # ── موافقة المشرف على الإيداع النهائي ──
+                    _massoul_val_ap = str(st.session_state.get("professor",{}).get("مسؤول","")).strip()
+                    _is_dept_head = _massoul_val_ap in ["رئيس ق.ع","رئيس ق.خ","رئيس ق.ع.","رئيس ق.خ."]
+                    _prof_dept = "القانون العام" if "ع" in _massoul_val_ap else ("القانون الخاص" if "خ" in _massoul_val_ap else "")
+
+                    # موافقة رئيس القسم
+                    if _is_dept_head:
+                        for _, _jm_dh in filtered.iterrows():
+                            _mid_dh = str(_jm_dh.get("رقم المذكرة","")).strip()
+                            _hal_dh = str(_jm_dh.get("الحالة","")).strip() if "الحالة" in filtered.columns else ""
+                            _aq_dh  = str(_jm_dh.get("رابط المذكرة النهائية","")).strip() if "رابط المذكرة النهائية" in filtered.columns else ""
+                            _as_dh  = str(_jm_dh.get("موافقة المشرف","")).strip() if "موافقة المشرف" in filtered.columns else ""
+                            _at_dh  = str(_jm_dh.get("موافقة رئيس القسم","")).strip() if "موافقة رئيس القسم" in filtered.columns else ""
+                            _dept_dh = str(_jm_dh.get("القسم","")).strip() if "القسم" in filtered.columns else ""
+                            if _hal_dh == "تمت المناقشة" and _as_dh == "نعم" and _aq_dh not in ["","nan"] and _prof_dept in _dept_dh:
+                                st.markdown(f"**📋 موافقة رئيس القسم — مذكرة {_mid_dh}:**")
+                                _c1_dh,_c2_dh = st.columns([3,1])
+                                with _c1_dh:
+                                    st.caption(f"{'✅ وافقت' if _at_dh=='نعم' else '⏳ في انتظار موافقتك كرئيس قسم'}")
+                                with _c2_dh:
+                                    if _at_dh != "نعم":
+                                        if st.button("✅ أوافق", key=f"ap_dh_{_mid_dh}", use_container_width=True):
+                                            _all_dh=load_memos(); _rn_dh=None
+                                            for _ii_dh,(_, _rr_dh) in enumerate(_all_dh.iterrows()):
+                                                _mk_dh=str(_rr_dh.get("رقم المذكرة","")).strip()
+                                                try: _mk_dh=str(int(float(_mk_dh)))
+                                                except: pass
+                                                if _mk_dh==str(int(float(_mid_dh))): _rn_dh=_ii_dh+2; break
+                                            if _rn_dh:
+                                                sheets_service.spreadsheets().values().batchUpdate(
+                                                    spreadsheetId=MEMOS_SHEET_ID,
+                                                    body={"valueInputOption":"USER_ENTERED","data":[
+                                                        {"range":f"Feuille 1!AT{_rn_dh}","values":[["نعم"]]}
+                                                    ]}
+                                                ).execute()
+                                                clear_cache_and_reload()
+                                                st.success(f"✅ موافقة رئيس القسم على مذكرة {_mid_dh}"); st.rerun()
+
+                    if jrole == "مشرف":
+                        for _, _jm_ap in filtered.iterrows():
+                            _mid_ap = str(_jm_ap.get("رقم المذكرة","")).strip()
+                            _hal_ap = str(_jm_ap.get("الحالة","")).strip() if "الحالة" in filtered.columns else ""
+                            _aq_ap  = str(_jm_ap.get("رابط المذكرة النهائية","")).strip() if "رابط المذكرة النهائية" in filtered.columns else ""
+                            _as_ap  = str(_jm_ap.get("موافقة المشرف","")).strip() if "موافقة المشرف" in filtered.columns else ""
+                            if _hal_ap == "تمت المناقشة" and _aq_ap and _aq_ap not in ["","nan"]:
+                                st.markdown(f"**📥 إيداع نهائي — مذكرة {_mid_ap}:**")
+                                _c1_ap,_c2_ap,_c3_ap = st.columns([2,1,1])
+                                with _c1_ap:
+                                    st.caption(f"{'✅ وافقت' if _as_ap=='نعم' else '⏳ في انتظار موافقتك'}")
+                                with _c2_ap:
+                                    if _aq_ap not in ["","nan"]: st.markdown(f"[📄 المذكرة]({_aq_ap})")
+                                with _c3_ap:
+                                    if _as_ap != "نعم":
+                                        _bc1,_bc2 = st.columns(2)
+                                        with _bc1:
+                                            if st.button("✅ أوافق", key=f"ap_sup_{_mid_ap}", use_container_width=True):
+                                                _all_map=load_memos(); _rn_ap=None
+                                                for _ii_ap,(_, _rr_ap) in enumerate(_all_map.iterrows()):
+                                                    _mk_ap=str(_rr_ap.get("رقم المذكرة","")).strip()
+                                                    try: _mk_ap=str(int(float(_mk_ap)))
+                                                    except: pass
+                                                    if _mk_ap==str(int(float(_mid_ap))): _rn_ap=_ii_ap+2; break
+                                                if _rn_ap:
+                                                    sheets_service.spreadsheets().values().batchUpdate(
+                                                        spreadsheetId=MEMOS_SHEET_ID,
+                                                        body={"valueInputOption":"USER_ENTERED","data":[
+                                                            {"range":f"Feuille 1!AS{_rn_ap}","values":[["نعم"]]}
+                                                        ]}
+                                                    ).execute()
+                                                    clear_cache_and_reload()
+                                                    st.success(f"✅ تمت الموافقة على مذكرة {_mid_ap}")
+                                                    st.rerun()
+                                        with _bc2:
+                                            if st.button("❌ أرفض", key=f"rj_sup_{_mid_ap}", use_container_width=True):
+                                                _all_map2=load_memos(); _rn_ap2=None
+                                                for _ii_ap2,(_, _rr_ap2) in enumerate(_all_map2.iterrows()):
+                                                    _mk_ap2=str(_rr_ap2.get("رقم المذكرة","")).strip()
+                                                    try: _mk_ap2=str(int(float(_mk_ap2)))
+                                                    except: pass
+                                                    if _mk_ap2==str(int(float(_mid_ap))): _rn_ap2=_ii_ap2+2; break
+                                                if _rn_ap2:
+                                                    sheets_service.spreadsheets().values().batchUpdate(
+                                                        spreadsheetId=MEMOS_SHEET_ID,
+                                                        body={"valueInputOption":"USER_ENTERED","data":[
+                                                            {"range":f"Feuille 1!AS{_rn_ap2}","values":[["لا"]]},
+                                                            {"range":f"Feuille 1!AQ{_rn_ap2}","values":[[""]]},
+                                                            {"range":f"Feuille 1!AR{_rn_ap2}","values":[[""]]}
+                                                        ]}
+                                                    ).execute()
+                                                    clear_cache_and_reload()
+                                                    st.warning(f"❌ رُفض إيداع مذكرة {_mid_ap} — سيُعاد فتح الرفع للطالب")
+                                                    st.rerun()
+
                     # تصدير HTML
                     st.markdown("---")
                     rows_html = ""
@@ -5043,10 +5229,19 @@ elif st.session_state.user_type == "admin":
                     st.session_state.admin_user = u
                     st.session_state.logged_in = True
                     st.session_state.is_printer = True
+                    st.session_state.is_library = False
+                    st.query_params['ut'] = 'admin'
+                    st.rerun()
+                elif u in LIBRARY_CREDENTIALS and LIBRARY_CREDENTIALS[u] == p:
+                    st.session_state.admin_user = u
+                    st.session_state.logged_in = True
+                    st.session_state.is_library = True
+                    st.session_state.is_printer = False
                     st.query_params['ut'] = 'admin'
                     st.rerun()
                 else:
                     st.session_state.is_printer = False
+                    st.session_state.is_library = False
                 v,r=verify_admin(u,p)
                 if not v: st.error(r)
                 else:
@@ -5057,47 +5252,112 @@ elif st.session_state.user_type == "admin":
         c1,c2=st.columns([4,1])
         with c2:
             if st.button("خروج"): logout()
-        st.header("📊 لوحة تحكم الإدارة")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        df_prof_memos = load_prof_memos()
-        df_students = load_students()
-        df_memos = load_memos()
-        df_students = load_students()
-        st_s=len(df_students); t_m=len(df_memos); r_m=len(df_memos[df_memos["تم التسجيل"].astype(str).str.strip()=="نعم"])
-        df_prof_memos = load_prof_memos()
-        a_m=t_m-r_m; t_p=len(df_prof_memos["الأستاذ"].unique()) if "الأستاذ" in df_prof_memos.columns else 0
-        memo_col=df_students["رقم المذكرة"].astype(str).str.strip() if "رقم المذكرة" in df_students.columns else pd.Series(dtype=str)
-        reg_st=(memo_col!="").sum(); unreg_st=(memo_col=="").sum()
-        st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
-        # إحصائيات المناقشات
-        df_kpi = load_memos()
-        total_memos = len(df_kpi)
-        def _has_jury(r):
-            def f(v): return str(v).strip() not in ["","nan","—","None"]
-            return f(r.get("الرئيس","")) and f(r.get("المناقش1","")) and f(r.get("المناقش2",""))
-        has_jury_mask = df_kpi.apply(_has_jury, axis=1)
-        no_jury = (~has_jury_mask).sum()
-        scheduled = df_kpi["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"]).sum() if "تاريخ المناقشة" in df_kpi.columns else 0
-        defended = df_kpi[df_kpi.get("حالة المناقشة", pd.Series(dtype=str)).astype(str).str.strip()=="تمت"].shape[0] if "حالة المناقشة" in df_kpi.columns else 0
-        st.markdown(f'''<div class="kpi-grid">
-            <div class="kpi-card"><div class="kpi-value">{total_memos}</div><div class="kpi-label">📚 إجمالي المذكرات</div></div>
-            <div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{int(scheduled)}</div><div class="kpi-label">📅 مبرمجة</div></div>
-            <div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{int(no_jury)}</div><div class="kpi-label">⚠️ ناقصة اللجان</div></div>
-            <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
-        </div>''', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        if not st.session_state.get("is_library", False):
+            st.header("📊 لوحة تحكم الإدارة")
+    
+            st.markdown("<br>", unsafe_allow_html=True)
+            df_prof_memos = load_prof_memos()
+            df_students = load_students()
+            df_memos = load_memos()
+            df_students = load_students()
+            st_s=len(df_students); t_m=len(df_memos); r_m=len(df_memos[df_memos["تم التسجيل"].astype(str).str.strip()=="نعم"])
+            df_prof_memos = load_prof_memos()
+            a_m=t_m-r_m; t_p=len(df_prof_memos["الأستاذ"].unique()) if "الأستاذ" in df_prof_memos.columns else 0
+            memo_col=df_students["رقم المذكرة"].astype(str).str.strip() if "رقم المذكرة" in df_students.columns else pd.Series(dtype=str)
+            reg_st=(memo_col!="").sum(); unreg_st=(memo_col=="").sum()
+            st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
+            # إحصائيات المناقشات
+            if not st.session_state.get("is_library", False):
+                df_kpi = load_memos()
+                total_memos = len(df_kpi)
+                def _has_jury(r):
+                    def f(v): return str(v).strip() not in ["","nan","—","None"]
+                    return f(r.get("الرئيس","")) and f(r.get("المناقش1","")) and f(r.get("المناقش2",""))
+                has_jury_mask = df_kpi.apply(_has_jury, axis=1)
+                no_jury = (~has_jury_mask).sum()
+                scheduled = df_kpi["تاريخ المناقشة"].astype(str).str.strip().apply(lambda x: x not in ["","nan"]).sum() if "تاريخ المناقشة" in df_kpi.columns else 0
+                defended = df_kpi[df_kpi.get("حالة المناقشة", pd.Series(dtype=str)).astype(str).str.strip()=="تمت"].shape[0] if "حالة المناقشة" in df_kpi.columns else 0
+                st.markdown(f'''<div class="kpi-grid">
+                    <div class="kpi-card"><div class="kpi-value">{total_memos}</div><div class="kpi-label">📚 إجمالي المذكرات</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #10B981;"><div class="kpi-value" style="color:#10B981;">{int(scheduled)}</div><div class="kpi-label">📅 مبرمجة</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #EF4444;"><div class="kpi-value" style="color:#EF4444;">{int(no_jury)}</div><div class="kpi-label">⚠️ ناقصة اللجان</div></div>
+                    <div class="kpi-card" style="border-top:3px solid #FFD700;"><div class="kpi-value" style="color:#FFD700;">{total_memos - int(scheduled)}</div><div class="kpi-label">⏳ غير مبرمجة</div></div>
+                </div>''', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
         _is_printer_user = st.session_state.get("is_printer", False)
+        _is_library_user = st.session_state.get("is_library", False)
+        if _is_library_user:
+            st.markdown('<h2 style="color:#FFD700;">📚 فضاء المكتبة</h2>', unsafe_allow_html=True)
         if _is_printer_user:
             tab_mahdar, = st.tabs(["📄 المحاضر"])
-            tab_takleef = None; tab_archive = None
+            tab_takleef = None; tab_archive = None; tab_siyar = None; tab_seq = None; tab_stud = None
+        elif _is_library_user:
+            tab_maktaba, = st.tabs(["📚 الإيداع النهائي"])
+            tab_takleef = None; tab_mahdar = None; tab_archive = None; tab_siyar = None; tab_seq = None; tab_stud = None
         else:
             tab_takleef,tab_mahdar,tab_siyar,tab_seq,tab_stud,tab_archive=st.tabs(["📋 التكاليف والتحقق","📄 المحاضر","📊 سير المناقشات","📥 استيراد أرقام المحاضر","👥 استيراد أرقام ملفات الطلبة","🗂️ أرشيف (جدولة ذكية)"])
+            tab_maktaba = None
+
+        if _is_library_user and tab_maktaba:
+         with tab_maktaba:
+            st.subheader("📚 الإيداع النهائي — مسؤول المكتبة")
+            _df_lib = load_memos()
+            _lib_col_as = "موافقة المشرف" if "موافقة المشرف" in _df_lib.columns else None
+            _lib_col_aq = "رابط المذكرة النهائية" if "رابط المذكرة النهائية" in _df_lib.columns else None
+            _lib_col_ar = "رابط الملخص النهائي" if "رابط الملخص النهائي" in _df_lib.columns else None
+            _lib_col_au = "تبرئة المكتبة" if "تبرئة المكتبة" in _df_lib.columns else None
+
+            if _lib_col_as and _lib_col_aq:
+                _lib_memos = _df_lib[
+                    (_df_lib[_lib_col_as].astype(str).str.strip() == "نعم") &
+                    (_df_lib[_lib_col_aq].astype(str).str.strip().apply(lambda x: x not in ["","nan"]))
+                ].copy()
+            else:
+                _lib_memos = pd.DataFrame()
+
+            if _lib_memos.empty:
+                st.info("⏳ لا توجد مذكرات في انتظار تبرئة المكتبة بعد")
+            else:
+                st.success(f"📋 {len(_lib_memos)} مذكرة في انتظار المراجعة")
+                for _, _lrow in _lib_memos.iterrows():
+                    _lmid = str(_lrow.get("رقم المذكرة","")).strip()
+                    _ltitle = str(_lrow.get("عنوان المذكرة","")).strip()[:60]
+                    _ls1 = str(_lrow.get("الطالب الأول","")).strip()
+                    _laq = str(_lrow.get(_lib_col_aq,"")).strip() if _lib_col_aq else ""
+                    _lar = str(_lrow.get(_lib_col_ar,"")).strip() if _lib_col_ar else ""
+                    _lau = str(_lrow.get(_lib_col_au,"")).strip() if _lib_col_au else ""
+                    with st.expander(f"مذكرة {_lmid} — {_ls1}"):
+                        st.markdown(f"**{_ltitle}**")
+                        _lc1,_lc2 = st.columns(2)
+                        with _lc1:
+                            if _laq not in ["","nan"]: st.markdown(f"[📄 تحميل المذكرة النهائية]({_laq})")
+                        with _lc2:
+                            if _lar not in ["","nan"]: st.markdown(f"[📝 تحميل الملخص]({_lar})")
+                        if _lau == "نعم":
+                            st.success("✅ تمت تبرئة المكتبة")
+                        else:
+                            if st.button("✅ منح تبرئة المكتبة", type="primary", key=f"lib_{_lmid}", use_container_width=True):
+                                with st.spinner("⏳ جاري الحفظ..."):
+                                    _all_lib=load_memos(); _rn_lib=None
+                                    for _il,(_, _rl) in enumerate(_all_lib.iterrows()):
+                                        _mkl=str(_rl.get("رقم المذكرة","")).strip()
+                                        try: _mkl=str(int(float(_mkl)))
+                                        except: pass
+                                        if _mkl==str(int(float(_lmid))): _rn_lib=_il+2; break
+                                    if _rn_lib:
+                                        sheets_service.spreadsheets().values().batchUpdate(
+                                            spreadsheetId=MEMOS_SHEET_ID,
+                                            body={"valueInputOption":"USER_ENTERED","data":[
+                                                {"range":f"Feuille 1!AU{_rn_lib}","values":[["نعم"]]}
+                                            ]}
+                                        ).execute()
+                                        clear_cache_and_reload()
+                                        st.success(f"✅ تبرئة المكتبة لمذكرة {_lmid}"); st.rerun()
 
         # ================================================================
         # TAB جدولة ذكية
         # ================================================================
-        if not _is_printer_user and tab_siyar:
+        if not _is_printer_user and not _is_library_user and tab_siyar:
          with tab_siyar:
             st.subheader("📊 سير المناقشات")
 
@@ -5233,7 +5493,7 @@ elif st.session_state.user_type == "admin":
                 _siyar_show.columns = pd.io.common.dedup_names(_siyar_show.columns.tolist(), is_potential_multiindex=False) if hasattr(pd.io.common, 'dedup_names') else _siyar_show.columns
                 st.dataframe(_siyar_show, use_container_width=True, hide_index=True)
 
-        if not _is_printer_user and tab_seq:
+        if not _is_printer_user and not _is_library_user and tab_seq:
          with tab_seq:
             st.subheader("📥 استيراد أرقام المحاضر")
             st.info("ارفع ملف Excel فيه: **A = رقم المذكرة | B = رقم المحضر** — سيُكتب في عمود AM في شيت المذكرات")
@@ -5282,7 +5542,7 @@ elif st.session_state.user_type == "admin":
                 except Exception as _e_s:
                     st.error(f"❌ {_e_s}")
 
-        if not _is_printer_user and tab_stud:
+        if not _is_printer_user and not _is_library_user and tab_stud:
          with tab_stud:
             st.subheader("👥 استيراد أرقام ملفات الطلبة")
             st.info("ارفع ملف Excel فيه: **A = رقم التسجيل | B = رقم الملف** — المقارنة مع عمود C في شيت الطلبة، الكتابة في عمود V")
@@ -5337,7 +5597,7 @@ elif st.session_state.user_type == "admin":
                 except Exception as _e_t:
                     st.error(f"❌ {_e_t}")
 
-        if not _is_printer_user and tab_archive:
+        if not _is_printer_user and not _is_library_user and tab_archive:
          with tab_archive:
             st.info("📌 تم تنفيذ الجدولة — البرنامج محفوظ في الشيت.")
         if False:
@@ -6187,752 +6447,4 @@ elif st.session_state.user_type == "admin":
         # TAB إرسال إيميلات اللجان
         # ================================================================
         # نضعها كقسم منفصل داخل تاب الجدولة
-        with st.expander("📧 إرسال إيميلات إعلام الأساتذة بلجان المناقشة", expanded=False):
-            df_profs_email = load_prof_memos()
-            df_memos_email = load_memos()
-
-            if df_profs_email.empty:
-                st.warning("لا توجد بيانات أساتذة")
-            else:
-                # تحديد الأساتذة الذين لديهم مذكرات عالقة (مودعة ولم يبدِ رأيه)
-                pending_profs = set()
-                if not df_memos_email.empty and "حالة الإيداع" in df_memos_email.columns and "الأستاذ" in df_memos_email.columns:
-                    pending_mask = df_memos_email["حالة الإيداع"].astype(str).str.strip() == "مودعة"
-                    pending_profs = set(df_memos_email[pending_mask]["الأستاذ"].astype(str).str.strip().unique())
-
-                prof_col_e = "الأستاذ" if "الأستاذ" in df_profs_email.columns else df_profs_email.columns[0]
-                valid_profs = df_profs_email[df_profs_email[prof_col_e].astype(str).str.strip().apply(lambda x: bool(x) and x not in ["","nan","None"])]
-                st.info(f"**{len(valid_profs)} أستاذ** | **{len(pending_profs)} منهم** لديهم مذكرات تنتظر رأيهم")
-
-                send_mode = st.radio("طريقة الإرسال:", ["📩 أستاذ محدد", "🚀 جميع الأساتذة"], horizontal=True, key="jury_email_mode")
-
-                if send_mode == "📩 أستاذ محدد":
-                    prof_col = "الأستاذ" if "الأستاذ" in df_profs_email.columns else df_profs_email.columns[0]
-                    profs_list = sorted(df_profs_email[prof_col].astype(str).str.strip().unique().tolist())
-                    sel_prof = st.selectbox("اختر الأستاذ:", profs_list, key="jury_email_sel_prof")
-
-                    if sel_prof:
-                        prof_row = df_profs_email[df_profs_email[prof_col].astype(str).str.strip() == sel_prof].iloc[0]
-                        has_pending = sel_prof in pending_profs
-                        if has_pending:
-                            st.warning(f"⚠️ لدى **{sel_prof}** مذكرات تنتظر رأيه — سيتضمن الإيميل الفقرة التنبيهية")
-                        else:
-                            st.success("✅ لا توجد مذكرات عالقة لهذا الأستاذ")
-
-                        if st.button("📧 إرسال الإيميل", type="primary", use_container_width=True, key="jury_email_send_one"):
-                            with st.spinner("⏳ جاري الإرسال..."):
-                                # أرقام المذكرات العالقة لهذا الأستاذ
-                                pending_nums = df_memos_email[
-                                    (df_memos_email["حالة الإيداع"].astype(str).str.strip()=="مودعة") &
-                                    (df_memos_email["الأستاذ"].astype(str).str.strip()==sel_prof)
-                                ]["رقم المذكرة"].astype(str).tolist() if "حالة الإيداع" in df_memos_email.columns else []
-                                ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending, pending_memo_list=pending_nums)
-                            if ok: st.success(f"✅ تم الإرسال: {msg}")
-                            else: st.error(msg)
-
-                else:
-                    st.markdown(f"سيُرسل لـ **{len(valid_profs)} أستاذ** — الأساتذة الذين لديهم مذكرات عالقة سيتلقون الفقرة التنبيهية الإضافية.")
-
-                    if st.button("🚀 إرسال للجميع", type="primary", use_container_width=True, key="jury_email_send_all"):
-                        prof_col = "الأستاذ" if "الأستاذ" in df_profs_email.columns else df_profs_email.columns[0]
-                        sent_ok, sent_fail = [], []
-                        progress = st.progress(0)
-                        total = len(valid_profs)
-                        for i, (_, prof_row) in enumerate(valid_profs.iterrows()):
-                            pname = str(prof_row.get(prof_col, "")).strip()
-                            has_pending = pname in pending_profs
-                            pending_nums_a = df_memos_email[
-                                    (df_memos_email["حالة الإيداع"].astype(str).str.strip()=="مودعة") &
-                                    (df_memos_email["الأستاذ"].astype(str).str.strip()==pname)
-                                ]["رقم المذكرة"].astype(str).tolist() if "حالة الإيداع" in df_memos_email.columns else []
-                            ok, msg = send_jury_notification_email(prof_row, has_pending_memos=has_pending, pending_memo_list=pending_nums_a)
-                            if ok: sent_ok.append(pname)
-                            else: sent_fail.append(f"{pname}: {msg}")
-                            progress.progress((i+1)/total)
-                            import time as _time; _time.sleep(0.3)
-                        progress.empty()
-                        st.success(f"✅ أُرسل بنجاح لـ {len(sent_ok)} أستاذ")
-                        if sent_fail:
-                            st.warning(f"⚠️ فشل الإرسال لـ {len(sent_fail)}:")
-                            for f in sent_fail[:10]: st.markdown(f"- {f}")
-
-        if False:
-         with tab_stats_dummy:
-            st.subheader("📊 إحصائيات الأساتذة في لجان المناقشة")
-            df_ps = load_memos()
-            jury_stats = {}
-            for _, row in df_ps.iterrows():
-                for col, role in [("الأستاذ","مشرف"),("الرئيس","رئيس"),("المناقش1","مناقش"),("المناقش2","مناقش")]:
-                    v = str(row.get(col,"")).strip()
-                    if v and v not in ["","nan","—"]:
-                        jury_stats.setdefault(v, {"مشرف":0,"رئيس":0,"مناقش":0,"المجموع":0})
-                        jury_stats[v][role] += 1
-                        jury_stats[v]["المجموع"] += 1
-
-            if not jury_stats:
-                st.warning("لا توجد لجان مسجلة بعد.")
-            else:
-                df_js = pd.DataFrame([{"الأستاذ":p,**c} for p,c in sorted(jury_stats.items(), key=lambda x:x[1]["المجموع"], reverse=True)])
-                avg = df_js["المجموع"].mean()
-                std = df_js["المجموع"].std()
-
-                # KPIs
-                k1,k2,k3,k4 = st.columns(4)
-                with k1: st.markdown(f'''<div class="kpi-card"><div class="kpi-value">{len(df_js)}</div><div class="kpi-label">👨‍🏫 عدد الأساتذة</div></div>''', unsafe_allow_html=True)
-                with k2: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#2F9EA0;">{int(df_js["مشرف"].sum())}</div><div class="kpi-label">📚 إشراف</div></div>''', unsafe_allow_html=True)
-                with k3: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#FFD700;">{int(df_js["رئيس"].sum())}</div><div class="kpi-label">🏛️ رئاسة</div></div>''', unsafe_allow_html=True)
-                with k4: st.markdown(f'''<div class="kpi-card"><div class="kpi-value" style="color:#818CF8;">{int(df_js["مناقش"].sum())}</div><div class="kpi-label">📋 مناقشة</div></div>''', unsafe_allow_html=True)
-
-                st.markdown(f"**المعدل:** {avg:.1f} دور | **الانحراف:** {std:.1f}")
-                st.markdown("---")
-
-                # تحذيرات
-                overloaded = df_js[df_js["المجموع"] > avg + std]
-                underloaded = df_js[df_js["المجموع"] < max(1, avg - std)]
-
-                if not overloaded.empty:
-                    st.warning(f"🔴 {len(overloaded)} أستاذ فوق المعدل بكثير (>{avg+std:.0f} دور)")
-                    st.dataframe(overloaded, use_container_width=True, hide_index=True,
-                        column_config={
-                            "مشرف": st.column_config.ProgressColumn("مشرف", min_value=0, max_value=int(df_js["مشرف"].max()), format="%d"),
-                            "رئيس": st.column_config.ProgressColumn("رئيس", min_value=0, max_value=int(df_js["رئيس"].max()), format="%d"),
-                            "مناقش": st.column_config.ProgressColumn("مناقش", min_value=0, max_value=int(df_js["مناقش"].max()), format="%d"),
-                            "المجموع": st.column_config.ProgressColumn("المجموع", min_value=0, max_value=int(df_js["المجموع"].max()), format="%d"),
-                        })
-
-                if not underloaded.empty:
-                    st.info(f"🔵 {len(underloaded)} أستاذ دون المعدل بكثير (<{max(1,avg-std):.0f} دور)")
-                    st.dataframe(underloaded, use_container_width=True, hide_index=True,
-                        column_config={
-                            "مشرف": st.column_config.ProgressColumn("مشرف", min_value=0, max_value=int(df_js["مشرف"].max()), format="%d"),
-                            "رئيس": st.column_config.ProgressColumn("رئيس", min_value=0, max_value=int(df_js["رئيس"].max()), format="%d"),
-                            "مناقش": st.column_config.ProgressColumn("مناقش", min_value=0, max_value=int(df_js["مناقش"].max()), format="%d"),
-                            "المجموع": st.column_config.ProgressColumn("المجموع", min_value=0, max_value=int(df_js["المجموع"].max()), format="%d"),
-                        })
-
-                st.markdown("##### الجدول الكامل")
-                filter_role = st.radio("تصفية:", ["الكل","مشرف فقط","رئيس فقط","مناقش فقط"], horizontal=True, key="stats_filter")
-                df_show = df_js.copy()
-                if filter_role == "مشرف فقط": df_show = df_show[df_show["مشرف"]>0]
-                elif filter_role == "رئيس فقط": df_show = df_show[df_show["رئيس"]>0]
-                elif filter_role == "مناقش فقط": df_show = df_show[df_show["مناقش"]>0]
-
-                st.dataframe(df_show, use_container_width=True, hide_index=True,
-                    column_config={
-                        "الأستاذ": st.column_config.TextColumn("👨‍🏫 الأستاذ", width="large"),
-                        "مشرف": st.column_config.ProgressColumn("📚 مشرف", min_value=0, max_value=int(df_js["مشرف"].max()), format="%d"),
-                        "رئيس": st.column_config.ProgressColumn("🏛️ رئيس", min_value=0, max_value=int(df_js["رئيس"].max()), format="%d"),
-                        "مناقش": st.column_config.ProgressColumn("📋 مناقش", min_value=0, max_value=int(df_js["مناقش"].max()), format="%d"),
-                        "المجموع": st.column_config.ProgressColumn("🔢 المجموع", min_value=0, max_value=int(df_js["المجموع"].max()), format="%d"),
-                    }, height=min(500, 50+len(df_show)*38))
-
-                st.markdown("---")
-                st.markdown("##### 📊 أعلى 20 أستاذاً")
-                top20 = df_show.nlargest(20,"المجموع").set_index("الأستاذ")[["مشرف","رئيس","مناقش"]]
-                st.bar_chart(top20, color=["#2F9EA0","#FFD700","#818CF8"])
-
-        with tab_mahdar:
-            st.subheader("📄 توليد محاضر المناقشة")
-
-            df_memos_m = load_memos()
-            df_profs_m = load_prof_memos()
-            df_students_m = load_students()
-
-            # قاموس الرتب من شيت الأساتذة (عمود P)
-            ranks_dict = {}
-            if not df_profs_m.empty:
-                rank_col = "الرتبة" if "الرتبة" in df_profs_m.columns else None
-                name_col = "الأستاذ" if "الأستاذ" in df_profs_m.columns else None
-                if rank_col and name_col:
-                    for _, pr in df_profs_m.iterrows():
-                        pname = str(pr.get(name_col,"")).strip()
-                        prank = str(pr.get(rank_col,"")).strip()
-                        if pname and pname not in ["","nan"]:
-                            ranks_dict[pname] = prank
-
-            # قاموس رقم ملف الطلبة من شيت الطلبة
-            # الربط: رقم المذكرة (عمود F في شيت الطلبة) = رقم المذكرة (عمود C في شيت المذكرات)
-            # قد يكون لمذكرة طالبان → صفان بنفس رقم المذكرة
-            def _norm_num(v):
-                """تحويل رقم لصيغة موحدة بدون .0"""
-                try: return str(int(float(str(v).strip())))
-                except: return str(v).strip()
-
-            students_ids = {}  # رقم المذكرة -> [رقم_ملف_1, رقم_ملف_2]
-            if not df_students_m.empty:
-                for _, sr in df_students_m.iterrows():
-                    memo_ref = _norm_num(sr.get("رقم المذكرة",""))
-                    if not memo_ref or memo_ref in ["","nan"]: continue
-                    s_id = str(sr.get("رقم ملف الطالب","")).strip()
-                    if s_id and s_id not in ["","nan"]:
-                        students_ids.setdefault(memo_ref, []).append(s_id)
-
-            # المذكرات المبرمجة فقط — مرتبة حسب اليوم والتوقيت
-            if "تاريخ المناقشة" in df_memos_m.columns:
-                scheduled_m = df_memos_m[
-                    df_memos_m["تاريخ المناقشة"].astype(str).str.strip().apply(
-                        lambda x: x not in ["","nan"])
-                ].copy()
-                # ترتيب حسب اليوم ثم التوقيت
-                scheduled_m = scheduled_m.sort_values(
-                    ["تاريخ المناقشة","توقيت المناقشة"],
-                    na_position="last"
-                ).reset_index(drop=True)
-                scheduled_m["رقم_تسلسلي"] = range(1, len(scheduled_m)+1)
-            else:
-                scheduled_m = pd.DataFrame()
-
-            if scheduled_m.empty:
-                st.warning("لا توجد مذكرات مبرمجة بعد.")
-            else:
-                st.success(f"✅ {len(scheduled_m)} مذكرة مبرمجة — جاهزة للمحاضر")
-
-                # تحميل القالب
-                import base64, io, zipfile
-                try:
-                    import requests as _req
-                    _template_url = "https://raw.githubusercontent.com/SAMIR-MALEK/memoire-depot-2026/main/template_mahdar.docx"
-                    _resp = _req.get(_template_url, timeout=10, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"})
-                    template_bytes = _resp.content
-                    st.success("✅ القالب محمّل من GitHub")
-                except:
-                    st.error("❌ تعذّر تحميل القالب — تأكد من رفع template_mahdar.docx على GitHub")
-                    template_bytes = None
-
-                if template_bytes:
-                    # ── فلتر اليوم ──
-                    _days_m = sorted(scheduled_m["تاريخ المناقشة"].astype(str).str.strip().unique().tolist())
-                    _day_opts_m = ["الكل"] + _days_m
-                    _sel_day_m = st.selectbox("📅 اختر يوم المناقشة:", _day_opts_m, key="mahdar_day_filter")
-                    if _sel_day_m == "الكل":
-                        _filtered_m_day = scheduled_m.copy()
-                    else:
-                        _filtered_m_day = scheduled_m[scheduled_m["تاريخ المناقشة"].astype(str)==_sel_day_m].copy()
-                    st.caption(f"📋 {len(_filtered_m_day)} مذكرة")
-
-                    st.markdown("---")
-                    # ── ZIP ──
-                    _zip_label = f"📦 توليد كل محاضر {_sel_day_m}" if _sel_day_m != "الكل" else "📦 توليد كل المحاضر"
-                    if st.button(_zip_label, use_container_width=True, key="gen_zip_mahdar"):
-                            import zipfile as _zf_m, io as _io_zm
-                            _zip_buf_m = _io_zm.BytesIO()
-                            with _zf_m.ZipFile(_zip_buf_m, 'w', _zf_m.ZIP_DEFLATED) as _zfm:
-                                with st.spinner(f"⏳ جاري توليد {len(_filtered_m_day)} محضر..."):
-                                    for _, _rm in _filtered_m_day.iterrows():
-                                        _mid_m = str(_rm.get("رقم المذكرة","")).strip()
-                                        _seq_v_m = str(_rm.get("رقم المحضر","")).strip()
-                                        _seq_i_m = int(_seq_v_m) if _seq_v_m and _seq_v_m not in ["","nan"] else int(_rm.get("رقم_تسلسلي",0))
-                                        _mdict = _rm.to_dict()
-                                        _mdict["عنوان المذكرة"] = str(_rm.get("عنوان المذكرة","")).strip()
-                                        _mdict["التخصص"] = str(_rm.get("التخصص","")).strip()
-                                        _mdict["القسم"] = str(_rm.get("القسم","")).strip()
-                                        _mdict["رقم المحضر"] = _seq_v_m
-                                        _mdict["رتبة_الرئيس"] = ranks_dict.get(str(_mdict.get("الرئيس","")), "")
-                                        _mdict["رتبة_المشرف"] = ranks_dict.get(str(_mdict.get("الأستاذ","")), "")
-                                        _mdict["رتبة_المناقش1"] = ranks_dict.get(str(_mdict.get("المناقش1","")), "")
-                                        _mdict["رتبة_المناقش2"] = ranks_dict.get(str(_mdict.get("المناقش2","")), "")
-                                        _mdict["الطالب"] = str(_rm.get("الطالب الأول","")).strip()
-                                        _mdict["الطالب2"] = str(_rm.get("الطالب الثاني","")).strip()
-                                        _ids_m = students_ids.get(_norm_num(_mid_m), [])
-                                        _mdict["رقم ملف الطالب"] = _ids_m[0] if len(_ids_m)>0 else ""
-                                        _mdict["رقم ملف الطالب2"] = _ids_m[1] if len(_ids_m)>1 else ""
-                                        _hs2_m = bool(_mdict["الطالب2"] and _mdict["الطالب2"] not in ["","nan","-"])
-                                        _mdict["STUDENTS_LABEL"] = "للطالبين" if _hs2_m else "للطالب(ة)"
-                                        try:
-                                            _db_m = generate_mahdar(_mdict, _seq_i_m, template_bytes)
-                                            _zfm.writestr(f"{_seq_v_m or _mid_m}_محضر_{_mid_m}.docx", _db_m)
-                                        except: pass
-                            _zip_buf_m.seek(0)
-                            st.download_button(
-                                label=f"📥 تحميل ZIP ({len(_filtered_m_day)} محضر)",
-                                data=_zip_buf_m.getvalue(),
-                                file_name=f"محاضر_{_sel_day_m}.zip",
-                                mime="application/zip",
-                                use_container_width=True,
-                                key="dl_zip_mahdar"
-                            )
-
-                    st.markdown("---")
-                    st.markdown("**📄 توليد محضر واحد:**")
-                    # ترتيب رقمي من الفلتر
-                    try:
-                        _sorted_m = _filtered_m_day.copy()
-                        _sorted_m["_num"] = pd.to_numeric(_sorted_m["رقم المذكرة"], errors="coerce")
-                        _sorted_m = _sorted_m.sort_values("_num").drop(columns=["_num"])
-                    except:
-                        _sorted_m = _filtered_m_day.copy()
-
-                    def _fmt_option(r):
-                        num = str(r.get("رقم المذكرة","")).strip()
-                        prof = str(r.get("الأستاذ","")).strip()
-                        s1 = str(r.get("الطالب الأول","")).strip()
-                        s2 = str(r.get("الطالب الثاني","")).strip()
-                        parts = [num.zfill(3), prof, s1]
-                        if s2 and s2 not in ["","nan"]: parts.append(s2)
-                        return " | ".join(p for p in parts if p)
-
-                    _options = [_fmt_option(r) for _, r in _sorted_m.iterrows()]
-                    _memo_nums = _sorted_m["رقم المذكرة"].astype(str).tolist()
-
-                    sel_option = st.selectbox(
-                        "اختر المذكرة (ابحث برقم أو مشرف أو طالب):",
-                        options=_options, index=None,
-                        placeholder="اكتب للبحث...",
-                        key="sel_mahdar_memo"
-                    )
-                    sel_memo_m = _memo_nums[_options.index(sel_option)] if sel_option else None
-
-                    # توليد مباشر عند الاختيار
-                    if sel_memo_m and template_bytes:
-                        _rows_m = scheduled_m[scheduled_m["رقم المذكرة"].astype(str)==str(sel_memo_m)]
-                        if not _rows_m.empty:
-                            row_m = _rows_m.iloc[0]
-                            seq = int(row_m["رقم_تسلسلي"])
-                            memo_dict = row_m.to_dict()
-                            memo_dict["عنوان المذكرة"] = str(row_m.get("عنوان المذكرة","")).strip()
-                            memo_dict["التخصص"]        = str(row_m.get("التخصص","")).strip()
-                            memo_dict["القسم"]         = str(row_m.get("القسم","")).strip()
-                            memo_dict["رقم المحضر"]    = str(row_m.get("رقم المحضر","")).strip()
-                            memo_dict["رابط الملف"]    = str(row_m.get("رابط الملف","")).strip()
-                            memo_dict["رتبة_الرئيس"]   = ranks_dict.get(str(memo_dict.get("الرئيس","")), "")
-                            memo_dict["رتبة_المشرف"]   = ranks_dict.get(str(memo_dict.get("الأستاذ","")), "")
-                            memo_dict["رتبة_المناقش1"] = ranks_dict.get(str(memo_dict.get("المناقش1","")), "")
-                            memo_dict["رتبة_المناقش2"] = ranks_dict.get(str(memo_dict.get("المناقش2","")), "")
-                            memo_dict["الطالب"]        = str(row_m.get("الطالب الأول","")).strip()
-                            memo_dict["الطالب2"]       = str(row_m.get("الطالب الثاني","")).strip()
-                            _ids = students_ids.get(_norm_num(sel_memo_m), [])
-                            memo_dict["رقم ملف الطالب"]  = _ids[0] if len(_ids) > 0 else ""
-                            memo_dict["رقم ملف الطالب2"] = _ids[1] if len(_ids) > 1 else ""
-                            _has_s2_m = bool(memo_dict["الطالب2"] and memo_dict["الطالب2"] not in ["","nan","-"])
-                            memo_dict["STUDENTS_LABEL"] = "للطالبين" if _has_s2_m else "للطالب(ة)"
-                            with st.spinner("⏳ جاري التوليد..."):
-                                docx_bytes = generate_mahdar(memo_dict, seq, template_bytes)
-                            fname = f"{str(seq).zfill(3)}_محضر_{sel_memo_m}.docx"
-                            st.download_button(
-                                label=f"📥 تحميل المحضر #{str(seq).zfill(3)}",
-                                data=docx_bytes,
-                                file_name=fname,
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                use_container_width=True,
-                                type="primary",
-                                key="dl_mahdar_one"
-                            )
-
-                    # جدول المحاضر مع الأرقام التسلسلية
-                    st.markdown("---")
-                    st.markdown("**📋 قائمة المحاضر بالأرقام التسلسلية:**")
-                    cols_show = ["رقم_تسلسلي","رقم المذكرة","تاريخ المناقشة","توقيت المناقشة","القاعة","الأستاذ","الرئيس","المناقش1","المناقش2"]
-                    cols_available = [c for c in cols_show if c in scheduled_m.columns]
-                    st.dataframe(scheduled_m[cols_available], use_container_width=True, hide_index=True,
-                        column_config={"رقم_تسلسلي": st.column_config.NumberColumn("# التسلسلي", width="small")})
-
-
-
-
-        if not _is_printer_user and tab_takleef:
-         with tab_takleef:
-            st.subheader("📋 التكاليف والتحقق من التعارضات")
-
-            df_m_tk = load_memos()
-            df_p_tk = load_prof_memos()
-
-            # فلتر المذكرات المبرمجة فقط
-            _col_ai_tk = next((c for c in ["نشر البرنامج","AI"] if c in df_m_tk.columns), None)
-            _col_w = "تاريخ المناقشة"; _col_x = "توقيت المناقشة"; _col_y = "القاعة"
-            _col_w_tk = _col_w; _col_x_tk = _col_x; _col_y_tk = _col_y
-
-            sched_tk = df_m_tk[
-                df_m_tk[_col_w].astype(str).str.strip().apply(lambda v: v not in ["","nan"])
-            ].copy()
-
-            if sched_tk.empty:
-                st.warning("⚠️ لا توجد مذكرات مبرمجة في الشيت بعد.")
-            else:
-                st.success(f"✅ {len(sched_tk)} مذكرة مبرمجة")
-
-                # ── تحقق من التعارضات ──
-                st.markdown("---")
-                st.markdown("### 🔍 التحقق من التعارضات")
-                _room_slot = {}; _prof_slot = {}; _prof_day = {}
-                _conflicts = []
-
-                for _, row in sched_tk.iterrows():
-                    _mid = str(row.get("رقم المذكرة","")).strip()
-                    _day = str(row.get(_col_w,"")).strip()
-                    _slot = str(row.get(_col_x,"")).strip()
-                    _room = str(row.get(_col_y,"")).strip()
-                    _profs = [str(row.get(c,"")).strip() for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"]
-                              if str(row.get(c,"")).strip() not in ["","nan"]]
-
-                    # تعارض قاعة
-                    _key_r = (_day, _slot, _room)
-                    if _room and _key_r in _room_slot:
-                        _conflicts.append(f"🔴 تعارض قاعة: **{_room}** | {_day} {_slot} | مذكرة {_mid} ↔ {_room_slot[_key_r]}")
-                    elif _room: _room_slot[_key_r] = _mid
-
-                    # تعارض أستاذ
-                    for _p in _profs:
-                        _key_p = (_day, _slot, _p)
-                        if _key_p in _prof_slot:
-                            _conflicts.append(f"🔴 تعارض أستاذ: **{_p}** | {_day} {_slot} | مذكرة {_mid} ↔ {_prof_slot[_key_p]}")
-                        else: _prof_slot[_key_p] = _mid
-                        _prof_day[(_p,_day)] = _prof_day.get((_p,_day),0) + 1
-                        if _prof_day[(_p,_day)] > 3:
-                            _conflicts.append(f"🟡 تجاوز 3/يوم: **{_p}** | {_day} ({_prof_day[(_p,_day)]} مناقشات)")
-
-                if _conflicts:
-                    st.error(f"⚠️ {len(_conflicts)} تعارض:")
-                    for _c in _conflicts: st.markdown(f"- {_c}")
-                else:
-                    st.success("✅ لا تعارضات — الجدول سليم 100%")
-
-                # ── إرسال التكاليف ──
-                st.markdown("---")
-                st.markdown("### 📧 إرسال التكاليف للأساتذة")
-
-                # بناء قاموس البريد من شيت الأساتذة عمود L
-                _email_dict = {}
-                if not df_p_tk.empty:
-                    _email_col = "الإيميل" if "الإيميل" in df_p_tk.columns else "البريد الإلكتروني"
-                    _name_col  = "الأستاذ" if "الأستاذ" in df_p_tk.columns else None
-                    if _name_col and _email_col in df_p_tk.columns:
-                        for _, _pr in df_p_tk.iterrows():
-                            _pn = str(_pr.get(_name_col,"")).strip()
-                            _pe = str(_pr.get(_email_col,"")).strip()
-                            if _pn and _pe and "@" in _pe: _email_dict[_pn] = _pe
-
-                st.info(f"📬 {len(_email_dict)} أستاذ لديه بريد إلكتروني")
-
-                # اختيار الأستاذ
-                _all_profs_tk = sorted(set(
-                    str(row.get(c,"")).strip()
-                    for _, row in sched_tk.iterrows()
-                    for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"]
-                    if str(row.get(c,"")).strip() not in ["","nan"]
-                ))
-
-                _send_mode = st.radio("إرسال إلى:", ["أستاذ واحد","الكل"], horizontal=True, key="send_mode_tk")
-
-                if _send_mode == "أستاذ واحد":
-                    _sel_prof = st.selectbox("اختر الأستاذ:", _all_profs_tk, key="sel_prof_tk")
-                    _profs_to_send = [_sel_prof]
-                else:
-                    _profs_to_send = [p for p in _all_profs_tk if p in _email_dict]
-                    st.caption(f"سيُرسل لـ {len(_profs_to_send)} أستاذ")
-
-
-                _send_fmt = st.radio("صيغة الإرسال:", ["📧 HTML فقط", "📄 PDF + HTML"], horizontal=True, key="send_fmt_tk")
-                st.session_state["_send_fmt_val"] = _send_fmt
-                st.markdown("---")
-                st.markdown("### 📨 إرسال تكليف مذكرة واحدة")
-                st.info("اختر مذكرة محددة وأرسل تكليفاً لجميع أعضاء اللجنة والطلبة المعنيين")
-
-                # كومبو اختيار المذكرة
-                try:
-                    _sorted_tk1 = sched_tk.copy()
-                    _sorted_tk1["_num"] = pd.to_numeric(_sorted_tk1["رقم المذكرة"], errors="coerce")
-                    _sorted_tk1 = _sorted_tk1.sort_values("_num").drop(columns=["_num"])
-                except:
-                    _sorted_tk1 = sched_tk.copy()
-
-                def _fmt_tk1(r):
-                    num = str(r.get("رقم المذكرة","")).strip()
-                    s1 = str(r.get("الطالب الأول","")).strip()
-                    prof = str(r.get("الأستاذ","")).strip()
-                    return f"{num.zfill(3)} | {prof} | {s1}"
-
-                _opts_tk1 = [_fmt_tk1(r) for _, r in _sorted_tk1.iterrows()]
-                _mids_tk1 = _sorted_tk1["رقم المذكرة"].astype(str).tolist()
-                _sel_tk1 = st.selectbox("اختر المذكرة:", _opts_tk1, index=None, placeholder="اكتب للبحث...", key="sel_tk1_memo")
-                _mid_tk1 = _mids_tk1[_opts_tk1.index(_sel_tk1)] if _sel_tk1 else None
-
-                if _mid_tk1:
-                    _row_tk1 = _sorted_tk1[_sorted_tk1["رقم المذكرة"].astype(str)==str(_mid_tk1)].iloc[0]
-                    _title_tk1 = str(_row_tk1.get("عنوان المذكرة","")).strip()
-                    _sup_tk1   = str(_row_tk1.get("الأستاذ","")).strip()
-                    _pres_tk1  = str(_row_tk1.get("الرئيس","")).strip()
-                    _ex1_tk1   = str(_row_tk1.get("المناقش1","")).strip()
-                    _ex2_tk1   = str(_row_tk1.get("المناقش2","")).strip()
-                    _s1_tk1    = str(_row_tk1.get("الطالب الأول","")).strip()
-                    _s2_tk1    = str(_row_tk1.get("الطالب الثاني","")).strip()
-                    _date_tk1  = str(_row_tk1.get(_col_w_tk,"")).strip()
-                    _slot_tk1  = str(_row_tk1.get(_col_x_tk,"")).strip()
-                    _room_tk1  = str(_row_tk1.get(_col_y_tk,"")).strip()
-                    _link_tk1  = str(_row_tk1.get("رابط الملف","")).strip()
-                    _students_label = "الطالب(ة)" if not _s2_tk1 or _s2_tk1 in ["","nan"] else "الطالبَين"
-                    _students_names = _s1_tk1 + (f" — {_s2_tk1}" if _s2_tk1 and _s2_tk1 not in ["","nan"] else "")
-
-                    def _build_email_tk1(prof_name, role_ar):
-                        _link_btn = f'<a href="{_link_tk1}" style="color:#1a3a6b;font-weight:bold;">👁️ معاينة المذكرة</a>' if _link_tk1 and _link_tk1 not in ["","nan"] else ""
-                        return f"""<!DOCTYPE html><html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<style>body{{font-family:Arial,sans-serif;direction:rtl;background:#f0f4f8;padding:8px}}
-.wrap{{max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}}
-.hdr{{background:linear-gradient(135deg,#0F2942,#1a3a6b);padding:20px;text-align:center;color:#FFD700;font-size:1.1rem}}
-.bdy{{padding:22px 20px;font-size:0.93rem;color:#333;line-height:1.9}}
-.box{{background:#f8fafc;border-right:4px solid #0F2942;padding:12px 16px;border-radius:8px;margin:14px 0}}
-.role{{display:inline-block;background:#0F2942;color:#FFD700;padding:3px 12px;border-radius:12px;font-size:0.82rem}}
-.ftr{{background:#f4f6f9;padding:12px;text-align:center;font-size:0.78rem;color:#777;border-top:1px solid #e0e0e0}}
-</style></head><body>
-<div class="wrap">
-<div class="hdr">📋 برمجة مناقشة مذكرة الماستر</div>
-<div class="bdy">
-<p>الأستاذ(ة) الفاضل(ة) <strong>{prof_name}</strong>،</p>
-<p>تحية طيبة وبعد،</p>
-<p>نُحيطكم علمًا بأنه تمّت برمجة مناقشة مذكرة الماستر رقم <strong>{_mid_tk1}</strong>، الموسومة بـ:</p>
-<div class="box"><strong>« {_title_tk1} »</strong></div>
-<p>من إعداد {_students_label}: <strong>{_students_names}</strong><br>
-وتحت إشراف الأستاذ(ة): <strong>{_sup_tk1}</strong></p>
-<p>وذلك يوم <strong>{_date_tk1}</strong> على الساعة <strong>{_slot_tk1}</strong> بقاعة <strong>{_room_tk1}</strong>،
-بصفتكم <span class="role">{role_ar}</span></p>
-{f'<p style="margin-top:14px;">{_link_btn}</p>' if _link_btn else ""}
-<p style="margin-top:12px;">🌐 منصة المذكرات: <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a></p>
-<p style="margin-top:18px;color:#1a3a6b;">تقبلوا تحياتي،<br><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p>
-</div>
-<div class="ftr">كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</div>
-</div></body></html>"""
-
-                    def _build_student_email_tk1(student_name):
-                        return f"""<!DOCTYPE html><html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<style>body{{font-family:Arial,sans-serif;direction:rtl;background:#f0f4f8;padding:8px}}
-.wrap{{max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}}
-.hdr{{background:linear-gradient(135deg,#0F2942,#1a3a6b);padding:20px;text-align:center;color:#FFD700;font-size:1.1rem}}
-.bdy{{padding:22px 20px;font-size:0.93rem;color:#333;line-height:1.9}}
-.box{{background:#f8fafc;border-right:4px solid #10B981;padding:12px 16px;border-radius:8px;margin:14px 0}}
-.ftr{{background:#f4f6f9;padding:12px;text-align:center;font-size:0.78rem;color:#777;border-top:1px solid #e0e0e0}}
-</style></head><body>
-<div class="wrap">
-<div class="hdr">🎓 موعد مناقشة مذكرة الماستر</div>
-<div class="bdy">
-<p>الطالب(ة) العزيز(ة) <strong>{student_name}</strong>،</p>
-<p>تحية طيبة وبعد،</p>
-<p>يسعدنا إعلامكم بأنه تمّت برمجة مناقشة مذكرتكم الموسومة بـ:</p>
-<div class="box"><strong>« {_title_tk1} »</strong></div>
-<p>وذلك يوم <strong>{_date_tk1}</strong> على الساعة <strong>{_slot_tk1}</strong> بقاعة <strong>{_room_tk1}</strong><br>
-تحت إشراف الأستاذ(ة): <strong>{_sup_tk1}</strong></p>
-<p style="margin-top:12px;">🌐 منصة المذكرات: <a href="https://memoires2026.streamlit.app">memoires2026.streamlit.app</a></p>
-<p style="margin-top:18px;color:#1a3a6b;">تقبلوا تحياتي،<br><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p>
-</div>
-<div class="ftr">كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</div>
-</div></body></html>"""
-
-                    # قائمة المستلمين
-                    _recipients_tk1 = []
-                    for _p, _r in [(_sup_tk1,"مشرفًا"), (_pres_tk1,"رئيسًا للجنة"), (_ex1_tk1,"عضوًا ممتحنًا"), (_ex2_tk1,"عضوًا ممتحنًا")]:
-                        if _p and _p not in ["","nan"]:
-                            _em = _email_dict.get(_p,"")
-                            _recipients_tk1.append({"نوع":"أستاذ","اسم":_p,"صفة":_r,"بريد":_em})
-                    # طلبة
-                    _df_st_tk1 = load_students()
-                    _st_email_col = next((c for c in ["البريد المهني","الإيميل","البريد الإلكتروني","email"] if c in _df_st_tk1.columns), None)
-                    # البحث برقم التسجيل — عمود C في شيت الطلبة
-                    _reg1_tk1 = str(_row_tk1.get("رقم تسجيل الطالب 1","")).strip()
-                    _reg2_tk1 = str(_row_tk1.get("رقم تسجيل الطالب 2","")).strip()
-                    for _sn, _reg in [(_s1_tk1,_reg1_tk1), (_s2_tk1,_reg2_tk1)]:
-                        if not _sn or _sn in ["","nan"]: continue
-                        _st_email = ""
-                        if _st_email_col and _reg and _reg not in ["","nan"]:
-                            _st_row = _df_st_tk1[_df_st_tk1.iloc[:,2].astype(str).str.strip()==_reg.strip()]
-                            if not _st_row.empty:
-                                _st_email = str(_st_row.iloc[0].get(_st_email_col,"")).strip()
-                        _recipients_tk1.append({"نوع":"طالب","اسم":_sn,"صفة":"طالب","بريد":_st_email})
-
-                    st.markdown("**المستلمون:**")
-                    for _rec in _recipients_tk1:
-                        _icon = "👨‍🏫" if _rec["نوع"]=="أستاذ" else "🎓"
-                        _em_show = _rec["بريد"] if _rec["بريد"] else "⚠️ لا بريد"
-                        st.caption(f"{_icon} {_rec['اسم']} — {_rec['صفة']} — {_em_show}")
-
-                    if st.button("📧 إرسال التكليف للجميع", type="primary", use_container_width=True, key="send_tk1_all"):
-                        import smtplib
-                        from email.mime.multipart import MIMEMultipart
-                        from email.mime.text import MIMEText
-                        _sent_tk1=0; _fail_tk1=[]
-                        _prog_tk1=st.progress(0); _stat_tk1=st.empty()
-                        for _pi, _rec in enumerate(_recipients_tk1):
-                            if not _rec["بريد"]:
-                                _fail_tk1.append(f"{_rec['اسم']} (لا بريد)"); continue
-                            try:
-                                _html_tk1 = _build_email_tk1(_rec["اسم"],_rec["صفة"]) if _rec["نوع"]=="أستاذ" else _build_student_email_tk1(_rec["اسم"])
-                                _msg_tk1=MIMEMultipart("alternative")
-                                _msg_tk1["Subject"]=f"برمجة مناقشة مذكرة الماستر رقم {_mid_tk1}"
-                                _msg_tk1["From"]=EMAIL_SENDER; _msg_tk1["To"]=_rec["بريد"]
-                                _msg_tk1.attach(MIMEText(_html_tk1,"html","utf-8"))
-                                with smtplib.SMTP_SSL("smtp.gmail.com",465) as _srv_tk1:
-                                    _srv_tk1.login(EMAIL_SENDER,EMAIL_PASSWORD)
-                                    _srv_tk1.sendmail(EMAIL_SENDER,_rec["بريد"],_msg_tk1.as_string())
-                                _sent_tk1+=1
-                            except Exception as _etk1:
-                                _fail_tk1.append(f"{_rec['اسم']}: {_etk1}")
-                            _prog_tk1.progress(int((_pi+1)/len(_recipients_tk1)*100))
-                            _stat_tk1.text(f"جاري الإرسال... {_pi+1}/{len(_recipients_tk1)}")
-                        _prog_tk1.empty(); _stat_tk1.empty()
-                        if _sent_tk1>0: st.success(f"✅ تم إرسال {_sent_tk1} رسالة")
-                        if _fail_tk1: st.warning("⚠️ فشل: " + " | ".join(_fail_tk1[:5]))
-
-                st.markdown("---")
-                if st.button("📧 إرسال التكاليف", type="primary", use_container_width=True, key="send_takleef"):
-                    _sent = 0; _failed = []
-                    _progress = st.progress(0)
-                    _status = st.empty()
-
-                    for _pi, _prof_name in enumerate(_profs_to_send):
-                        _email_addr = _email_dict.get(_prof_name,"")
-                        if not _email_addr:
-                            _failed.append(f"{_prof_name} (لا بريد)")
-                            continue
-
-                        # بناء برنامج الأستاذ
-                        _prof_rows = []
-                        for _, _row in sched_tk.iterrows():
-                            _profs_r = [str(_row.get(c,"")).strip() for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"]]
-                            if _prof_name in _profs_r:
-                                _role = next((c for c in ["الأستاذ","الرئيس","المناقش1","المناقش2"] if str(_row.get(c,"")).strip()==_prof_name), "")
-                                _role_ar = {"الأستاذ":"مشرفاً","الرئيس":"رئيساً","المناقش1":"ممتحناً","المناقش2":"ممتحناً"}.get(_role,"عضواً")
-                                _prof_rows.append({
-                                    "رقم": str(_row.get("رقم المذكرة","")),
-                                    "عنوان": str(_row.get("عنوان المذكرة","")),
-                                    "يوم": str(_row.get(_col_w,"")),
-                                    "توقيت": str(_row.get(_col_x,"")),
-                                    "قاعة": str(_row.get(_col_y,"")),
-                                    "صفة": _role_ar,
-                                    "رابط": str(_row.get("رابط الملف","")).strip()
-                                })
-                        _prof_rows.sort(key=lambda r: (r["يوم"], r["توقيت"]))
-
-                        _html_body = (
-                            "<!DOCTYPE html>"
-                            "<html dir='rtl' lang='ar'><head><meta charset='UTF-8'>"
-                            "<meta name='viewport' content='width=device-width,initial-scale=1.0,maximum-scale=3.0'>"
-                            "<style>"
-                            "*{box-sizing:border-box;margin:0;padding:0}"
-                            "body{font-family:Arial,sans-serif;direction:rtl;background:#f0f4f8;padding:8px}"
-                            ".wrap{max-width:680px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1)}"
-                            ".hdr{background:linear-gradient(135deg,#0F2942,#1a3a6b);padding:20px;text-align:center}"
-                            ".hdr h1{color:#FFD700;font-size:1.1rem;margin-bottom:5px}"
-                            ".hdr p{color:#cdd8e8;font-size:.8rem;margin-top:3px}"
-                            ".bdy{padding:20px 18px}"
-                            ".greet{font-size:.95rem;color:#0F2942;font-weight:bold;margin-bottom:10px}"
-                            ".txt{font-size:.88rem;color:#333;line-height:1.8;margin-bottom:8px}"
-                            ".warn{background:#fff8e1;border-right:4px solid #f59e0b;padding:10px 12px;border-radius:6px;font-size:.83rem;color:#78350f;margin:14px 0}"
-                            ".plat{background:#e8f0fe;border-radius:8px;padding:10px 14px;margin-top:16px;text-align:center;font-size:.88rem}"
-                            ".plat a{color:#0F2942;font-weight:bold;text-decoration:none}"
-                            ".sig{margin-top:18px;font-size:.85rem;color:#1a3a6b;line-height:1.8}"
-                            ".ftr{background:#f4f6f9;padding:12px;text-align:center;font-size:.75rem;color:#888;border-top:1px solid #e0e0e0}"
-                            "table.dt{width:100%;border-collapse:collapse;margin-top:14px;font-size:.8rem}"
-                            "table.dt th{background:#0F2942;color:#FFD700;padding:9px 6px;text-align:center}"
-                            "table.dt td{border:1px solid #e0e0e0;padding:7px 6px;text-align:center;color:#333}"
-                            "table.dt tr:nth-child(even) td{background:#f9fafc}"
-                            "table.dt .ttl{text-align:center;min-width:140px;font-size:.75rem}"
-                            ".cards{display:none}"
-                            ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:12px;border-right:4px solid #0F2942}"
-                            ".card .cn{font-size:.72rem;color:#64748b;margin-bottom:5px}"
-                            ".card .ct{font-size:.88rem;font-weight:bold;color:#0F2942;margin-bottom:9px;line-height:1.5}"
-                            ".card .cr{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;color:#333}"
-                            ".card .cl{color:#64748b}"
-                            ".card .role{display:inline-block;background:#0F2942;color:#FFD700;padding:2px 9px;border-radius:10px;font-size:.72rem;margin-top:7px}"
-                            ".card .lnk{display:block;text-align:center;margin-top:10px;background:#1a3a6b;color:#FFD700;padding:7px;border-radius:7px;text-decoration:none;font-size:.83rem}"
-                            "@media(max-width:550px){table.dt{display:none}.cards{display:block;margin-top:14px}}"
-                            "</style></head><body>"
-                            "<div class='wrap'>"
-                            "<div class='hdr'><h1>&#128203; برنامج مناقشة مذكرات الماستر</h1>"
-                            "<p>الدورة العادية — السنة الجامعية 2025–2026</p>"
-                            "<p>كلية الحقوق والعلوم السياسية — جامعة محمد البشير الإبراهيمي، برج بوعريريج</p></div>"
-                            "<div class='bdy'>"
-                            f"<p class='greet'>الأستاذ(ة) الفاضل(ة): {_prof_name}</p>"
-                            "<p class='txt'>تحية طيبة وبعد،<br>مرفق لكم البرنامج الرسمي لمناقشة مذكرات الماستر، للدورة العادية للسنة الجامعية 2025–2026.</p>"
-                            "<p class='txt'>يمكنكم معاينة المذكرات وتحميلها مباشرةً من خلال الضغط على &#128065; المرفق بكل مذكرة.</p>"
-                            "<div class='warn'>&#9888;&#65039; نظرًا لدقة رزنامة نهاية السنة الجامعية، <strong>يُمنع تأجيل المناقشات أو تعديل توقيتها</strong>. في حال وجود أي ملاحظات، يُرجى التواصل مع مكتب فريق التكوين.</div>"
-                            "<table class='dt'><thead><tr><th>#</th><th>&#128065;</th><th>رقم</th><th>العنوان</th><th>التاريخ</th><th>التوقيت</th><th>القاعة</th><th>الصفة</th></tr></thead><tbody>"
-                            + "".join(
-                                f"<tr><td>{idx_r+1}</td>"
-                                f"<td>{'<a href="'+r["رابط"]+'" target="_blank">&#128065;</a>' if r['رابط'] and r['رابط'] not in ['','nan'] else '—'}</td>"
-                                f"<td>{r['رقم']}</td><td class='ttl'>{r['عنوان']}</td>"
-                                f"<td>{r['يوم']}</td><td>{r['توقيت']}</td><td>{r['قاعة']}</td><td>{r['صفة']}</td></tr>"
-                                for idx_r,r in enumerate(_prof_rows))
-                            + "</tbody></table>"
-                            + "<div class='cards'>"
-                            + "".join(
-                                f"<div class='card'><div class='cn'>مذكرة #{r['رقم']}</div>"
-                                f"<div class='ct'>{r['عنوان']}</div>"
-                                f"<div class='cr'><span class='cl'>&#128197;</span><span>{r['يوم']}</span></div>"
-                                f"<div class='cr'><span class='cl'>&#128336;</span><span>{r['توقيت']}</span></div>"
-                                f"<div class='cr'><span class='cl'>&#127963;&#65039;</span><span>{r['قاعة']}</span></div>"
-                                f"<span class='role'>{r['صفة']}</span>"
-                                + (f"<a class='lnk' href='{r['رابط']}' target='_blank'>&#128065; معاينة المذكرة</a>" if r['رابط'] and r['رابط'] not in ['','nan'] else "")
-                                + "</div>"
-                                for r in _prof_rows)
-                            + "</div>"
-                            "<div class='plat'>&#127760; <a href='https://memoires2026.streamlit.app'>memoires2026.streamlit.app</a></div>"
-                            "<div class='sig'><p>عيدكم مبارك، وكل عام وأنتم بخير. &#127769;</p>"
-                            "<p><strong>مسؤول الميدان — البروفيسور رفاف لخضر</strong></p></div>"
-                            "</div><div class='ftr'>هذا البريد أُرسل تلقائيًا من منصة إدارة مذكرات الماستر — جامعة برج بوعريريج 2025/2026</div>"
-                            "</div></body></html>"
-                        )
-
-                        # بناء HTML التكليف
-                        _rows_html = "".join(f"""
-                            <tr>
-                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["رقم"]}</td>
-                                <td style="border:1px solid #ddd;padding:8px">{r["عنوان"]}</td>
-                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["يوم"]}</td>
-                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["توقيت"]}</td>
-                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["قاعة"]}</td>
-                                <td style="border:1px solid #ddd;padding:8px;text-align:center">{r["صفة"]}</td>
-                            </tr>""" for r in _prof_rows)
-
-
-                        # إرسال مباشر بـ HTML التكليف
-                        try:
-                            import smtplib
-                            from email.mime.multipart import MIMEMultipart
-                            from email.mime.text import MIMEText
-                            from email.mime.base import MIMEBase
-                            from email import encoders as _enc
-                            _rows_em = df_p_tk[df_p_tk["الأستاذ"].astype(str).str.strip()==_prof_name.strip()]
-                            _email_to = get_email_smart(_rows_em.iloc[0]) if not _rows_em.empty else ""
-                            if not _email_to or "@" not in _email_to:
-                                _ok, _msg = False, "لا بريد"
-                            else:
-                                _msg_em = MIMEMultipart("mixed")
-                                _msg_em["Subject"] = "تكليف بمناقشة مذكرات الماستر — الدورة العادية الأولى 2025/2026"
-                                _msg_em["From"] = EMAIL_SENDER
-                                _msg_em["To"] = _email_to
-                                # HTML body
-                                _alt = MIMEMultipart("alternative")
-                                _alt.attach(MIMEText(_html_body, "html", "utf-8"))
-                                _msg_em.attach(_alt)
-                                # PDF attachment
-                                _fmt_val = st.session_state.get("_send_fmt_val","")
-                                if _fmt_val == "📄 PDF + HTML":
-                                    try:
-                                        from weasyprint import HTML as _WH
-                                        _pdf_bytes = _WH(string=_html_body).write_pdf()
-                                        _pdf_part = MIMEBase("application","pdf")
-                                        _pdf_part.set_payload(_pdf_bytes)
-                                        _enc.encode_base64(_pdf_part)
-                                        _pdf_name = f"تكليف_{_prof_name.replace(' ','_')}.pdf"
-                                        _pdf_part.add_header("Content-Disposition","attachment",filename=_pdf_name)
-                                        _msg_em.attach(_pdf_part)
-                                        _ok = True; _msg = "تم + PDF"
-                                    except Exception as _pdf_err:
-                                        _failed.append(f"PDF فشل: {_pdf_err}")
-                                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as _srv:
-                                    _srv.login(EMAIL_SENDER, EMAIL_PASSWORD)
-                                    _srv.sendmail(EMAIL_SENDER, _email_to, _msg_em.as_string())
-                                _ok, _msg = True, "تم"
-                        except Exception as _ex_em:
-                            _ok, _msg = False, str(_ex_em)
-                        if _ok: _sent += 1
-                        else: _failed.append(f"{_prof_name}: {_msg}")
-
-                        _progress.progress(int((_pi+1)/len(_profs_to_send)*100))
-                        _status.text(f"جاري الإرسال... {_pi+1}/{len(_profs_to_send)}")
-
-                    _progress.empty(); _status.empty()
-                    if _sent > 0: st.success(f"✅ تم إرسال {_sent} تكليف بنجاح")
-                    if _failed: st.warning("⚠️ فشل: " + " | ".join(_failed[:5]))
-
-
 
