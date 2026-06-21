@@ -4561,6 +4561,10 @@ elif st.session_state.user_type == "professor":
             st.markdown("<hr style='border:none;border-top:1px solid rgba(255,255,255,0.07);margin:20px 0;'>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align:center;margin-bottom:16px;'>📥 حالة إيداع المذكرة</h3>", unsafe_allow_html=True)
 
+            _ah_val_p = str(current_memo.get("مفقودة","")).strip() or str(current_memo.get("AH","")).strip()
+            is_extended = _ah_val_p == "2"
+            is_missing = _ah_val_p == "1"
+
             if not deposit_status or deposit_status in ["nan",""]:
                 st.markdown("""<div style="background:rgba(47,111,126,0.08);border:1px solid rgba(47,111,126,0.3);border-radius:14px;padding:22px;text-align:center;"><div style="font-size:2.3rem;">⏳</div><p style="color:#ffffff!important;font-size:0.95rem;margin:7px 0;">لم يودع الطالب المذكرة بعد.</p></div>""", unsafe_allow_html=True)
 
