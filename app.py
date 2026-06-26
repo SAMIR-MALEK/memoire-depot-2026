@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="منصة مذكرات الماستر", page_icon="📘", layout="wide")
 
-DEPOSIT_DEADLINE = datetime(2026, 6, 25, 23, 59)  # الدورة الاستدراكية
+DEPOSIT_DEADLINE = datetime(2026, 6, 26, 23, 59)  # الدورة الاستدراكية
 REGISTRATION_DEADLINE = datetime(2027, 1, 28, 23, 59)
 
 def get_days_remaining():
