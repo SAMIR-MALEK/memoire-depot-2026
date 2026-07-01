@@ -3862,6 +3862,17 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
 
     # ── جدول اللجنة ──
     def fill_cell(cell, text, size=14, bold=True):
+        # إزالة الخلفية الداكنة — جعل الخلفية بيضاء
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        shd = tcPr.find(_qn("w:shd"))
+        if shd is None:
+            shd = _Elem("w:shd")
+            tcPr.append(shd)
+        shd.set(_qn("w:val"), "clear")
+        shd.set(_qn("w:color"), "auto")
+        shd.set(_qn("w:fill"), "FFFFFF")
+        # إزالة النص القديم
         for p in cell.paragraphs:
             for r in p.runs: r.text = ""
         p = cell.paragraphs[0]
@@ -3873,6 +3884,11 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
         jc = _Elem("w:jc"); jc.set(_qn("w:val"), "center"); pPr.append(jc)
         run = p.add_run(text)
         rPr = run._r.get_or_add_rPr()
+        # جعل لون النص أسود
+        clr = _Elem("w:color"); clr.set(_qn("w:val"), "000000")
+        ex_c = rPr.find(_qn("w:color"))
+        if ex_c is not None: rPr.remove(ex_c)
+        rPr.append(clr)
         rF = _Elem("w:rFonts")
         for a in ["w:ascii","w:hAnsi","w:cs","w:eastAsia"]:
             rF.set(_qn(a), "Sakkal Majalla")
@@ -6836,3 +6852,4 @@ elif st.session_state.user_type == "admin":
         # TAB إرسال إيميلات اللجان
         # ================================================================
         # نضعها كقسم منفصل داخل تاب الجدولة
+
