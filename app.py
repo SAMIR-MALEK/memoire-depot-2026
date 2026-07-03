@@ -4191,12 +4191,51 @@ elif st.session_state.user_type == "student":
             # عمود نشر البرنامج — يتحكم في ظهور الموعد للطالب
             _pub_status = str(memo_info.get("نشر البرنامج","")).strip()
             _show_schedule = _pub_status.lower() in ["نعم","yes","1","true"]
-            # إذا تمت المناقشة لا نعرض بطاقة الموعد
             _hal_done = str(memo_info.get("الحالة","") if memo_info is not None else "").strip()
-            if _hal_done == "تمت المناقشة":
-                _show_schedule = False
+            _note_done = str(memo_info.get("ملاحظات","") if memo_info is not None else "").strip()
 
-            if _show_schedule and def_date_m and def_date_m not in ["","nan"]:
+            # ── الحالة 1: تمت المناقشة ──
+            if _hal_done == "تمت المناقشة":
+                _def_date_done = str(memo_info.get("تاريخ المناقشة","")).strip() if memo_info is not None else ""
+                _def_slot_done = str(memo_info.get("توقيت المناقشة","")).strip() if memo_info is not None else ""
+                _def_room_done = str(memo_info.get("القاعة","")).strip() if memo_info is not None else ""
+                _pres_done = str(memo_info.get("الرئيس","")).strip() if memo_info is not None else ""
+                _ex1_done  = str(memo_info.get("المناقش1","")).strip() if memo_info is not None else ""
+                _ex2_done  = str(memo_info.get("المناقش2","")).strip() if memo_info is not None else ""
+                # بطاقة تمت المناقشة + اللجنة
+                _jury_html = ""
+                if _pres_done and _pres_done not in ["","nan"]:
+                    _jury_html += f'<div style="display:inline-block;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:6px 14px;margin:4px;font-size:0.82rem;"><span style="color:#6EE7B7;">🏛️ رئيس:</span> <strong style="color:#E2E8F0;">{_pres_done}</strong></div>'
+                _jury_html += f'<div style="display:inline-block;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:6px 14px;margin:4px;font-size:0.82rem;"><span style="color:#A5B4FC;">👨‍🏫 مشرف:</span> <strong style="color:#E2E8F0;">{prof_name_m}</strong></div>'
+                if _ex1_done and _ex1_done not in ["","nan"]:
+                    _jury_html += f'<div style="display:inline-block;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:6px 14px;margin:4px;font-size:0.82rem;"><span style="color:#FCD34D;">🔍 مناقش:</span> <strong style="color:#E2E8F0;">{_ex1_done}</strong></div>'
+                if _ex2_done and _ex2_done not in ["","nan"]:
+                    _jury_html += f'<div style="display:inline-block;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:6px 14px;margin:4px;font-size:0.82rem;"><span style="color:#FCD34D;">🔍 مناقش:</span> <strong style="color:#E2E8F0;">{_ex2_done}</strong></div>'
+                st.markdown(f'''<div style="background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(16,185,129,0.03));border:2px solid rgba(16,185,129,0.4);border-radius:16px;padding:22px;margin-bottom:16px;">
+                    <div style="text-align:center;margin-bottom:16px;">
+                        <div style="font-size:2.2rem;">🎓</div>
+                        <h3 style="color:#10B981!important;margin:6px 0;">تمت مناقشة مذكرتك</h3>
+                        <p style="color:#E2E8F0!important;font-size:0.9rem;margin:4px 0;">
+                            بتاريخ <strong style="color:#FFD700;">{_def_date_done}</strong>
+                            الساعة <strong style="color:#FFD700;">{_def_slot_done}</strong>
+                            في <strong style="color:#FFD700;">{_def_room_done}</strong>
+                        </p>
+                    </div>
+                    <div style="text-align:center;margin-bottom:8px;color:#94A3B8;font-size:0.8rem;">⚖️ لجنة المناقشة</div>
+                    <div style="text-align:center;">{_jury_html}</div>
+                </div>''', unsafe_allow_html=True)
+
+            # ── الحالة 2: مؤجلة ──
+            elif _hal_done == "مؤجلة":
+                st.markdown(f'''<div style="background:linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.03));border:2px solid rgba(245,158,11,0.4);border-radius:16px;padding:22px;text-align:center;margin-bottom:16px;">
+                    <div style="font-size:2rem;">⏳</div>
+                    <h3 style="color:#F59E0B!important;margin:8px 0;">مناقشتك مؤجلة</h3>
+                    {f'<p style="color:#CBD5E1!important;font-size:0.88rem;margin-top:8px;">{_note_done}</p>' if _note_done and _note_done not in ["","nan"] else ""}
+                    <p style="color:#94A3B8!important;font-size:0.82rem;margin-top:8px;">سيتم إعلامك بالموعد الجديد قريباً.</p>
+                </div>''', unsafe_allow_html=True)
+
+            # ── الحالة موعد مناقشة مبرمج (لم تتم بعد) ──
+            elif _show_schedule and def_date_m and def_date_m not in ["","nan"]:
                 st.markdown(f'''<div style="background:linear-gradient(135deg,#0a1f12,#0f2d1a);
                     border:2px solid rgba(16,185,129,0.5);border-radius:16px;
                     padding:20px 24px;margin-bottom:18px;text-align:center;">
@@ -4301,21 +4340,21 @@ elif st.session_state.user_type == "student":
             if deposit_status in ["", "nan", "مرفوضة"] or not deposit_status:
                 deadline_passed = datetime.now() > DEPOSIT_DEADLINE
                 if deadline_passed and not is_extended:
-                    st.markdown("""
-                    <div style="background:linear-gradient(135deg,#1a0a0a,#2d0f0f);border:2px solid rgba(239,68,68,0.5);
-                                border-radius:18px;padding:28px 32px;margin-bottom:18px;text-align:center;">
-                        <div style="font-size:2.8rem;margin-bottom:12px;">🔒</div>
-                        <div style="font-size:1.2rem;font-weight:900;color:#EF4444;margin-bottom:8px;">
-                            انتهى أجل إيداع المذكرات
-                        </div>
-                        <div style="font-size:0.9rem;color:#E2E8F0;line-height:1.7;">
-                            انتهى الأجل الرسمي لإيداع المذكرات في
-                            <strong style="color:#FFD700;">23 ماي 2026 الساعة 23:59</strong>
-                            <br>لم يعد بإمكانك إيداع أي ملف عبر المنصة.
-                            <br><br>
-                            <span style="color:#F59E0B;">للاستفسار أو في حالة الضرورة القصوى، راجع الإدارة مباشرة.</span>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
+                    # الحالة 3: لم يودع والأجل انتهى
+                    if _hal_done not in ["تمت المناقشة","مؤجلة"]:
+                        st.markdown("""
+                        <div style="background:linear-gradient(135deg,#1a0a0a,#2d0f0f);border:2px solid rgba(239,68,68,0.5);
+                                    border-radius:18px;padding:28px 32px;margin-bottom:18px;text-align:center;">
+                            <div style="font-size:2.8rem;margin-bottom:12px;">🔒</div>
+                            <div style="font-size:1.2rem;font-weight:900;color:#EF4444;margin-bottom:8px;">
+                                لم تقم بإيداع مذكرتك
+                            </div>
+                            <div style="font-size:0.9rem;color:#E2E8F0;line-height:1.7;">
+                                انتهى الأجل الرسمي لإيداع المذكرات.<br>
+                                لم يعد بإمكانك إيداع أي ملف عبر المنصة.<br><br>
+                                <span style="color:#F59E0B;">للاستفسار، راجع الإدارة مباشرة.</span>
+                            </div>
+                        </div>""", unsafe_allow_html=True)
                 else:
                     days_left = get_days_remaining()
                     st.markdown(f"""<div class="deposit-hero"><span class="deposit-hero-icon">📤</span><div class="deposit-hero-title">يمكنك الآن إيداع مذكرتك النهائية</div><div class="deposit-hero-sub" style="color:#E2E8F0!important;">آخر أجل: <strong style="color:#FFD700;">23 ماي 2026</strong> — تبقى <strong style="color:{'#EF4444' if days_left<=7 else '#FFD700'};">{days_left} يوم</strong><br>ارفع نسخة PDF من مذكرتك. سيراجعها المشرف ويوافق أو يرسل ملاحظاته.</div></div>""", unsafe_allow_html=True)
@@ -4360,19 +4399,7 @@ elif st.session_state.user_type == "student":
                         st.markdown("""<div class="notif-card notif-card-approved"><div class="notif-icon">🟢</div><div><div class="notif-title notif-title-approved">مذكرتك معتمدة — قابلة للمناقشة ✓</div><div class="notif-desc">وافق المشرف على مذكرتك رسمياً. ستتلقى إشعاراً من الإدارة بموعد المناقشة قريباً.</div></div></div>""", unsafe_allow_html=True)
                         if deposit_link and deposit_link not in ["","nan"]: st.markdown(f"📎 [عرض الملف المودع]({deposit_link})")
 
-            _hal_check2 = str(memo_info.get("الحالة","") if memo_info is not None else "").strip()
-            if _hal_check2 == "تمت المناقشة":
-                # تمت المناقشة — أظهر بطاقة إعلامية فقط
-                _def_date_done = str(memo_info.get("تاريخ المناقشة","")).strip() if memo_info is not None else ""
-                _def_slot_done = str(memo_info.get("توقيت المناقشة","")).strip() if memo_info is not None else ""
-                _def_room_done = str(memo_info.get("القاعة","")).strip() if memo_info is not None else ""
-                st.markdown(f'''<div style="background:linear-gradient(135deg,rgba(16,185,129,0.12),rgba(16,185,129,0.04));border:2px solid rgba(16,185,129,0.4);border-radius:16px;padding:22px;text-align:center;margin-bottom:16px;">
-                    <div style="font-size:2.5rem;">🎓</div>
-                    <h3 style="color:#10B981!important;margin:8px 0;">تمت مناقشة مذكرتك</h3>
-                    <p style="color:#E2E8F0!important;font-size:0.9rem;margin:4px 0;">بتاريخ <strong style="color:#FFD700;">{_def_date_done}</strong> الساعة <strong style="color:#FFD700;">{_def_slot_done}</strong> في <strong style="color:#FFD700;">{_def_room_done}</strong></p>
-                    <p style="color:#94A3B8!important;font-size:0.85rem;margin-top:10px;">يجب عليك القيام بالإيداع النهائي للحصول على تبرئة المكتبة الضرورية للحصول على الشهادة.</p>
-                </div>''', unsafe_allow_html=True)
-            elif is_published and def_date_m and def_date_m not in ["","nan"]:
+            if not _hal_done and is_published and def_date_m and def_date_m not in ["","nan"]:
                 st.markdown(f"""<div class="defense-schedule-card"><h4 style="color:#818CF8!important;margin:0 0 6px;">📅 موعد مناقشتك</h4><div class="defense-info-grid"><div class="defense-info-item"><div class="defense-info-label">📆 التاريخ</div><div class="defense-info-value">{def_date_m}</div></div><div class="defense-info-item"><div class="defense-info-label">🕐 التوقيت</div><div class="defense-info-value">{def_time_m if def_time_m and def_time_m!='nan' else '—'}</div></div><div class="defense-info-item"><div class="defense-info-label">🏛️ القاعة</div><div class="defense-info-value">{def_room_m if def_room_m and def_room_m!='nan' else '—'}</div></div></div></div>""", unsafe_allow_html=True)
                 president_s = str(memo_info.get("AE","")).strip() if "AE" in memo_info.index else ""
                 exam1_s     = str(memo_info.get("AD","")).strip() if "AD" in memo_info.index else ""
