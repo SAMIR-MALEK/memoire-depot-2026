@@ -4195,7 +4195,17 @@ elif st.session_state.user_type == "student":
             # عمود نشر البرنامج — يتحكم في ظهور الموعد للطالب
             _pub_status = str(memo_info.get("نشر البرنامج","")).strip()
             _show_schedule = _pub_status.lower() in ["نعم","yes","1","true"]
-            _hal_done = str(memo_info.get("الحالة","") if memo_info is not None else "").strip()
+            st.caption(f"DEBUG: أعمدة memo_info={list(memo_info.keys())[35:42] if memo_info is not None else []}")
+            # عمود AN = الحالة — يقرأ بالاسم أو بالموضع (index 39)
+            _hal_done = ""
+            if memo_info is not None:
+                _hal_done = str(memo_info.get("الحالة","")).strip()
+                if not _hal_done:
+                    # fallback: قراءة بالموضع (AN = العمود 40، index 39)
+                    try:
+                        _hal_done = str(list(memo_info.values())[39]).strip() if len(memo_info) > 39 else ""
+                        if _hal_done in ["nan","None"]: _hal_done = ""
+                    except: _hal_done = ""
             _note_done = str(memo_info.get("ملاحظات","") if memo_info is not None else "").strip()
 
             # ── الحالة 1: تمت المناقشة ──
