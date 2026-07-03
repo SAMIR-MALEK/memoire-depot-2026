@@ -4195,7 +4195,7 @@ elif st.session_state.user_type == "student":
             # عمود نشر البرنامج — يتحكم في ظهور الموعد للطالب
             _pub_status = str(memo_info.get("نشر البرنامج","")).strip()
             _show_schedule = _pub_status.lower() in ["نعم","yes","1","true"]
-            st.caption(f"DEBUG: أعمدة memo_info={list(memo_info.keys())[35:42] if memo_info is not None else []}")
+            st.caption(f"DEBUG: الحالة={repr(memo_info.get('الحالة','MISSING')) if memo_info is not None else 'None'}")
             # عمود AN = الحالة — يقرأ بالاسم أو بالموضع (index 39)
             _hal_done = ""
             if memo_info is not None:
