@@ -3920,9 +3920,13 @@ def generate_mahdar(memo_data, seq_num, template_bytes):
 
 
 def lookup_student(username):
-    if df_students.empty: return None
-    s = df_students[df_students["اسم المستخدم"].astype(str).apply(normalize_text)==normalize_text(username)]
-    return s.iloc[0].to_dict() if not s.empty else None
+    try:
+        _df = load_students()
+        if _df.empty: return None
+        s = _df[_df["اسم المستخدم"].astype(str).apply(normalize_text)==normalize_text(username)]
+        return s.iloc[0].to_dict() if not s.empty else None
+    except Exception:
+        return None
 
 def restore_session_from_url():
     if st.session_state.get('logged_in', False): return
